@@ -1,7 +1,7 @@
 
 class Config {
   static const String apiKey =
-      'AIzaSyABgFdzTsRt3v8N-65hQBTBgI6tuJ78Peg'; // Replace with your actual API key
+      ''; // Replace with your actual API key
 
   static const String apiEndpoint =
       'https://generativelanguage.googleapis.com/v1beta/models';
