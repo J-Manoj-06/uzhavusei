@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'main.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -93,21 +92,21 @@ class _SplashScreenState extends State<SplashScreen>
                   ),
                 ),
                 const SizedBox(height: 20),
-                Text(
+                const Text(
                   'UzhavuSei',
-                  style: GoogleFonts.montserrat(
+                  style: TextStyle(
                     fontSize: 36,
                     fontWeight: FontWeight.w700,
-                    color: const Color(0xFF333333),
+                    color: Color(0xFF333333),
                   ),
                 ),
                 const SizedBox(height: 8),
-                Text(
+                const Text(
                   'Connecting Farmers, Sharing Resources',
-                  style: GoogleFonts.roboto(
+                  style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w300,
-                    color: const Color(0xFF555555),
+                    color: Color(0xFF555555),
                   ),
                 ),
                 const SizedBox(height: 32),

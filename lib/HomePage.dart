@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'services/api_client.dart';
 import 'widgets/image_loader.dart';
@@ -369,9 +368,9 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Featured Equipment',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
@@ -427,9 +426,9 @@ class _HomePageState extends State<HomePage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      const Text(
                         'Near You',
-                        style: GoogleFonts.roboto(
+                        style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.bold,
                         ),
