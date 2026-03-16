@@ -47,8 +47,10 @@ dependencies:
   geolocator: ^10.1.0
   http: ^1.2.0
   firebase_core: ^3.15.2
+  firebase_auth: ^5.6.2
   cloud_firestore: ^5.6.11
   razorpay_flutter: ^1.4.0
+  google_maps_flutter: ^2.9.0
 
 
   # The following adds the Cupertino Icons font to your application.

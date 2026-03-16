@@ -8,6 +8,10 @@ class Config {
   // Gemini configuration
   static String get apiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
   static String get razorpayKey => dotenv.env['RAZORPAY_KEY_ID'] ?? '';
+    static String get cloudinaryCloudName =>
+      dotenv.env['CLOUDINARY_CLOUD_NAME'] ?? '';
+    static String get cloudinaryUploadPreset =>
+      dotenv.env['CLOUDINARY_UPLOAD_PRESET'] ?? '';
   static const String apiEndpoint =
       'https://generativelanguage.googleapis.com/v1beta/models';
   static const String modelName = 'gemini-2.0-flash';

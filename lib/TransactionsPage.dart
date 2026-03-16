@@ -1,6 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'services/api_client.dart';
+import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
+
+import 'providers/user_profile_provider.dart';
+import 'widgets/image_loader.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
@@ -10,369 +15,523 @@ class TransactionsPage extends StatefulWidget {
 }
 
 class _TransactionsPageState extends State<TransactionsPage> {
-  final List<Transaction> _allTransactions = [
-    Transaction(
-      machineName: 'John Deere Tractor',
-      imageUrl:
-          'https://public.readdy.ai/ai/img_res/130ab5f09d630aac1fe8c1917779fdae.jpg',
-      rentalDuration: '2 days',
-      price: 4500.00,
-      status: TransactionStatus.completed,
-      location: 'Chennai, Tamil Nadu',
-      owner: 'Rajesh Kumar',
-      paymentMethod: 'UPI',
-      date: DateTime.now().subtract(const Duration(days: 2)),
-    ),
-    Transaction(
-      machineName: 'Mahindra Harvester',
-      imageUrl:
-          'https://public.readdy.ai/ai/img_res/53c883660f2d8a56ab4a4d66e9f84643.jpg',
-      rentalDuration: '1 day',
-      price: 3500.00,
-      status: TransactionStatus.pending,
-      location: 'Coimbatore, Tamil Nadu',
-      owner: 'Suresh Patel',
-      paymentMethod: 'Bank Transfer',
-      date: DateTime.now().subtract(const Duration(days: 1)),
-    ),
-    Transaction(
-      machineName: 'Kubota Tiller',
-      imageUrl: 'assets/kubota.jpg',
-      rentalDuration: '3 days',
-      price: 2800.00,
-      status: TransactionStatus.cancelled,
-      location: 'Madurai, Tamil Nadu',
-      owner: 'Mohan Singh',
-      paymentMethod: 'Cash',
-      date: DateTime.now().subtract(const Duration(days: 3)),
-    ),
-    Transaction(
-      machineName: 'Swaraj 744 FE Tractor',
-      imageUrl: 'assets/Swaraj.jpeg',
-      rentalDuration: '5 days',
-      price: 6500.00,
-      status: TransactionStatus.completed,
-      location: 'Punjab, India',
-      owner: 'Gurpreet Singh',
-      paymentMethod: 'UPI',
-      date: DateTime.now().subtract(const Duration(days: 5)),
-    ),
-    Transaction(
-      machineName: 'Mahindra JIVO 365 DI',
-      imageUrl: 'assets/mahindra.jpg',
-      rentalDuration: '2 days',
-      price: 3200.00,
-      status: TransactionStatus.pending,
-      location: 'Haryana, India',
-      owner: 'Vikram Singh',
-      paymentMethod: 'Bank Transfer',
-      date: DateTime.now().subtract(const Duration(days: 4)),
-    ),
-    Transaction(
-      machineName: 'Sonalika DI 35 RX',
-      imageUrl: 'assets/sona.jpg',
-      rentalDuration: '3 days',
-      price: 4200.00,
-      status: TransactionStatus.completed,
-      location: 'Uttar Pradesh, India',
-      owner: 'Amit Kumar',
-      paymentMethod: 'UPI',
-      date: DateTime.now().subtract(const Duration(days: 6)),
-    ),
-    Transaction(
-      machineName: 'Eicher 380 Super',
-      imageUrl: 'assets/eicher.png',
-      rentalDuration: '4 days',
-      price: 5800.00,
-      status: TransactionStatus.pending,
-      location: 'Rajasthan, India',
-      owner: 'Rajendra Singh',
-      paymentMethod: 'Cash',
-      date: DateTime.now().subtract(const Duration(days: 7)),
-    ),
-    Transaction(
-      machineName: 'Force Orchard Tractor',
-      imageUrl: 'assets/Swaraj.jpeg',
-      rentalDuration: '2 days',
-      price: 3800.00,
-      status: TransactionStatus.completed,
-      location: 'Maharashtra, India',
-      owner: 'Sanjay Patil',
-      paymentMethod: 'UPI',
-      date: DateTime.now().subtract(const Duration(days: 8)),
-    ),
-  ];
+  static const int _pageSize = 50;
+  static const Color _brandGreen = Color(0xFF4CAF50);
 
-  List<Transaction> _filteredTransactions = [];
   String _searchQuery = '';
-  String _selectedFilter = 'all';
+  TransactionFilter _activeFilter = TransactionFilter.all;
 
-  @override
-  void initState() {
-    super.initState();
-    _filteredTransactions = _allTransactions;
-    _loadFromBackend();
-  }
-
-  Future<void> _loadFromBackend() async {
-    try {
-      final list = await ApiClient.instance.fetchTransactions();
-      final mapped = list
-          .map((m) => Transaction(
-                machineName: m['machineName'] ?? m['title'] ?? 'Unknown',
-                imageUrl: m['imageUrl'] ?? '',
-                rentalDuration: m['rentalDuration'] ?? '1 day',
-                price:
-                    (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
-                status: _mapStatus(m['status']),
-                location: m['location'] ?? '-',
-                owner: m['owner'] ?? '-',
-                paymentMethod: m['paymentMethod'] ?? '-',
-                date: DateTime.tryParse(m['date'] ?? '') ?? DateTime.now(),
-              ))
-          .toList();
-      if (!mounted) return;
-      setState(() {
-        _allTransactions
-          ..clear()
-          ..addAll(mapped);
-        _filteredTransactions = _allTransactions;
-      });
-    } catch (_) {
-      // keep local sample data
-    }
-  }
-
-  TransactionStatus _mapStatus(dynamic value) {
-    final v = (value ?? '').toString().toLowerCase();
-    if (v.contains('complete')) return TransactionStatus.completed;
-    if (v.contains('cancel')) return TransactionStatus.cancelled;
-    return TransactionStatus.pending;
-  }
-
-  void _filterTransactions() {
-    setState(() {
-      _filteredTransactions = _allTransactions.where((transaction) {
-        final matchesSearch = transaction.machineName
-                .toLowerCase()
-                .contains(_searchQuery.toLowerCase()) ||
-            transaction.owner
-                .toLowerCase()
-                .contains(_searchQuery.toLowerCase()) ||
-            transaction.location
-                .toLowerCase()
-                .contains(_searchQuery.toLowerCase());
-
-        final matchesFilter = _selectedFilter == 'all' ||
-            (_selectedFilter == 'completed' &&
-                transaction.status == TransactionStatus.completed) ||
-            (_selectedFilter == 'pending' &&
-                transaction.status == TransactionStatus.pending) ||
-            (_selectedFilter == 'cancelled' &&
-                transaction.status == TransactionStatus.cancelled);
-
-        return matchesSearch && matchesFilter;
-      }).toList();
-    });
-  }
+  final List<BookingTransaction> _olderTransactions = [];
+  DocumentSnapshot<Map<String, dynamic>>? _olderCursor;
+  bool _hasMoreOlder = true;
+  bool _loadingOlder = false;
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = _resolveCurrentUserId(context);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transactions'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: _brandGreen,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () => _showFilterDialog(),
+            icon: const Icon(Icons.filter_list_rounded),
+            onPressed: _openFilterSheet,
+            tooltip: 'Filter',
           ),
         ],
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search transactions...',
-                prefixIcon: const Icon(Icons.search),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                filled: true,
-                fillColor: Colors.grey[100],
-              ),
-              onChanged: (value) {
-                setState(() {
-                  _searchQuery = value;
-                  _filterTransactions();
-                });
+          _buildSearchBar(),
+          Expanded(
+            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+              stream: _bookingsQuery(currentUserId, _pageSize).snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return _buildLoadingState();
+                }
+
+                if (snapshot.hasError) {
+                  return _buildErrorState();
+                }
+
+                final docs = snapshot.data?.docs ?? const [];
+                final liveTransactions = docs
+                    .map(BookingTransaction.fromDoc)
+                    .toList(growable: false);
+
+                final latestCursor = docs.isNotEmpty ? docs.last : null;
+                final canLoadMoreFromLivePage = docs.length == _pageSize;
+
+                if (!canLoadMoreFromLivePage && _olderTransactions.isEmpty) {
+                  _hasMoreOlder = false;
+                }
+
+                final merged = _mergeTransactions(
+                  live: liveTransactions,
+                  older: _olderTransactions,
+                );
+                final filtered = _applyClientFilters(merged);
+
+                if (filtered.isEmpty) {
+                  if (merged.isEmpty) {
+                    return _buildEmptyState();
+                  }
+                  return _buildNoSearchResultState();
+                }
+
+                return RefreshIndicator(
+                  onRefresh: _onRefresh,
+                  child: ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+                    itemCount: filtered.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == filtered.length) {
+                        final canLoadMore = _hasMoreOlder || canLoadMoreFromLivePage;
+                        if (!canLoadMore) {
+                          return const SizedBox(height: 12);
+                        }
+
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Center(
+                            child: OutlinedButton.icon(
+                              onPressed: _loadingOlder
+                                  ? null
+                                  : () => _loadOlderTransactions(
+                                        userId: currentUserId,
+                                        fallbackCursor: latestCursor,
+                                      ),
+                              icon: _loadingOlder
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                    )
+                                  : const Icon(Icons.expand_more_rounded),
+                              label: Text(_loadingOlder ? 'Loading...' : 'Load older'),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final transaction = filtered[index];
+                      return _TransactionCard(
+                        transaction: transaction,
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => TransactionDetailsPage(
+                                transaction: transaction,
+                              ),
+                            ),
+                          );
+                        },
+                      );
+                    },
+                  ),
+                );
               },
             ),
           ),
-          if (_filteredTransactions.isEmpty)
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.search_off,
-                      size: 64,
-                      color: Colors.grey[400],
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'No transactions found',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(8),
-                itemCount: _filteredTransactions.length,
-                itemBuilder: (context, index) {
-                  return TransactionCard(
-                      transaction: _filteredTransactions[index]);
-                },
-              ),
-            ),
         ],
       ),
     );
   }
 
-  void _showFilterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: const Text('Filter Transactions'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                title: const Text('All'),
-                leading: Radio(
-                  value: 'all',
-                  groupValue: _selectedFilter,
-                  onChanged: (value) {
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+      child: TextField(
+        decoration: InputDecoration(
+          hintText: 'Search transactions...',
+          prefixIcon: const Icon(Icons.search),
+          suffixIcon: _searchQuery.isEmpty
+              ? null
+              : IconButton(
+                  onPressed: () {
                     setState(() {
-                      _selectedFilter = value.toString();
+                      _searchQuery = '';
                     });
                   },
+                  icon: const Icon(Icons.close),
                 ),
-              ),
-              ListTile(
-                title: const Text('Completed'),
-                leading: Radio(
-                  value: 'completed',
-                  groupValue: _selectedFilter,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedFilter = value.toString();
-                    });
-                  },
-                ),
-              ),
-              ListTile(
-                title: const Text('Pending'),
-                leading: Radio(
-                  value: 'pending',
-                  groupValue: _selectedFilter,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedFilter = value.toString();
-                    });
-                  },
-                ),
-              ),
-              ListTile(
-                title: const Text('Cancelled'),
-                leading: Radio(
-                  value: 'cancelled',
-                  groupValue: _selectedFilter,
-                  onChanged: (value) {
-                    setState(() {
-                      _selectedFilter = value.toString();
-                    });
-                  },
-                ),
-              ),
-            ],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                _filterTransactions();
-                Navigator.pop(context);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green,
+          filled: true,
+          fillColor: Colors.grey.shade100,
+        ),
+        onChanged: (value) {
+          setState(() {
+            _searchQuery = value.trim();
+          });
+        },
+      ),
+    );
+  }
+
+  Widget _buildLoadingState() {
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
+      itemCount: 6,
+      itemBuilder: (context, index) {
+        return Card(
+          margin: const EdgeInsets.symmetric(vertical: 6),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Shimmer.fromColors(
+              baseColor: Colors.grey.shade300,
+              highlightColor: Colors.grey.shade100,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 84,
+                    height: 84,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(height: 16, width: 160, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Container(height: 12, width: 110, color: Colors.white),
+                        const SizedBox(height: 8),
+                        Container(height: 12, width: 140, color: Colors.white),
+                        const SizedBox(height: 12),
+                        Container(height: 12, width: 190, color: Colors.white),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              child: const Text('Apply'),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildErrorState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded, color: Colors.red, size: 44),
+            const SizedBox(height: 10),
+            const Text(
+              'Unable to load transactions.',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'Please check your connection and try again.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 14),
+            ElevatedButton.icon(
+              onPressed: () => setState(() {}),
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _brandGreen,
+                foregroundColor: Colors.white,
+              ),
             ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.receipt_long_rounded, size: 72, color: Colors.grey.shade400),
+            const SizedBox(height: 10),
+            const Text(
+              'No transactions yet',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Your machinery bookings will appear here once created.',
+              style: TextStyle(color: Colors.grey.shade700),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoSearchResultState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade400),
+            const SizedBox(height: 10),
+            const Text(
+              'No matching transactions',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Try another search text or filter option.',
+              style: TextStyle(color: Colors.grey.shade700),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onRefresh() async {
+    setState(() {
+      _olderTransactions.clear();
+      _olderCursor = null;
+      _hasMoreOlder = true;
+    });
+  }
+
+  Query<Map<String, dynamic>> _bookingsQuery(String userId, int limit) {
+    return FirebaseFirestore.instance
+        .collection('bookings')
+        .where('userId', isEqualTo: userId)
+        .orderBy('createdAt', descending: true)
+        .limit(limit);
+  }
+
+  List<BookingTransaction> _mergeTransactions({
+    required List<BookingTransaction> live,
+    required List<BookingTransaction> older,
+  }) {
+    final map = <String, BookingTransaction>{};
+    for (final item in [...live, ...older]) {
+      map[item.bookingId] = item;
+    }
+    final list = map.values.toList();
+    list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return list;
+  }
+
+  List<BookingTransaction> _applyClientFilters(List<BookingTransaction> source) {
+    final query = _searchQuery.toLowerCase();
+    return source.where((transaction) {
+      final matchesText = query.isEmpty ||
+          transaction.machineryName.toLowerCase().contains(query) ||
+          transaction.ownerName.toLowerCase().contains(query) ||
+          transaction.location.toLowerCase().contains(query);
+
+      final matchesStatus = _activeFilter == TransactionFilter.all ||
+          _activeFilter.matches(transaction.paymentStatus);
+
+      return matchesText && matchesStatus;
+    }).toList(growable: false);
+  }
+
+  Future<void> _loadOlderTransactions({
+    required String userId,
+    required DocumentSnapshot<Map<String, dynamic>>? fallbackCursor,
+  }) async {
+    if (_loadingOlder) return;
+
+    final cursor = _olderCursor ?? fallbackCursor;
+    if (cursor == null) {
+      setState(() {
+        _hasMoreOlder = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _loadingOlder = true;
+    });
+
+    try {
+      final query = FirebaseFirestore.instance
+          .collection('bookings')
+          .where('userId', isEqualTo: userId)
+          .orderBy('createdAt', descending: true)
+          .startAfterDocument(cursor)
+          .limit(_pageSize);
+
+      final snapshot = await query.get();
+      final docs = snapshot.docs;
+
+      if (!mounted) return;
+
+      setState(() {
+        _olderTransactions.addAll(docs.map(BookingTransaction.fromDoc));
+        _olderCursor = docs.isNotEmpty ? docs.last : _olderCursor;
+        _hasMoreOlder = docs.length == _pageSize;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to load older transactions.'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _loadingOlder = false;
+        });
+      }
+    }
+  }
+
+  void _openFilterSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (context) {
+        var selected = _activeFilter;
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Filter by Status',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 10),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: TransactionFilter.values
+                          .map(
+                            (filter) => ChoiceChip(
+                              label: Text(filter.label),
+                              selected: selected == filter,
+                              selectedColor: _brandGreen.withValues(alpha: 0.18),
+                              onSelected: (_) {
+                                setModalState(() {
+                                  selected = filter;
+                                });
+                              },
+                              labelStyle: TextStyle(
+                                color: selected == filter
+                                    ? _brandGreen
+                                    : Colors.grey.shade800,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              side: BorderSide(color: Colors.grey.shade300),
+                            ),
+                          )
+                          .toList(growable: false),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          setState(() {
+                            _activeFilter = selected;
+                          });
+                          Navigator.pop(context);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _brandGreen,
+                          foregroundColor: Colors.white,
+                        ),
+                        child: const Text('Apply Filter'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  String _resolveCurrentUserId(BuildContext context) {
+    final profileData = context.read<UserProfileProvider>().userData;
+    final rawUserId = profileData['userId']?.toString();
+    if (rawUserId != null && rawUserId.trim().isNotEmpty) {
+      return rawUserId;
+    }
+
+    final email = (profileData['email'] ?? '').toString().trim().toLowerCase();
+    if (email.isNotEmpty) {
+      return email.replaceAll('@', '_').replaceAll('.', '_');
+    }
+
+    return 'guest';
+  }
 }
 
-class TransactionCard extends StatelessWidget {
-  final Transaction transaction;
-
-  const TransactionCard({
-    super.key,
+class _TransactionCard extends StatelessWidget {
+  const _TransactionCard({
     required this.transaction,
+    required this.onTap,
   });
+
+  final BookingTransaction transaction;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
+    final statusStyle = _statusStyle(transaction.paymentStatus);
+
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      margin: const EdgeInsets.symmetric(vertical: 6),
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       child: InkWell(
-        onTap: () => _showTransactionDetails(context),
-        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: Image.network(
-                      transaction.imageUrl,
-                      width: 80,
-                      height: 80,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          width: 80,
-                          height: 80,
-                          color: Colors.grey[200],
-                          child: const Icon(Icons.image_not_supported),
-                        );
-                      },
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 84,
+                      height: 84,
+                      child: buildSmartImage(
+                        transaction.machineryImageUrl,
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -381,70 +540,77 @@ class TransactionCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          transaction.machineName,
+                          transaction.machineryName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Duration: ${transaction.rentalDuration}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
-                          ),
+                          '${transaction.durationDays} day(s) • ${transaction.location}',
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
                         ),
-                        Text(
-                          'Location: ${transaction.location}',
-                          style: TextStyle(
-                            color: Colors.grey[600],
+                        const SizedBox(height: 8),
+                        Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: statusStyle.bg,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(statusStyle.icon, size: 14, color: statusStyle.fg),
+                              const SizedBox(width: 4),
+                              Text(
+                                statusStyle.label,
+                                style: TextStyle(
+                                  color: statusStyle.fg,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  _buildStatusBadge(),
+                  const SizedBox(width: 8),
                   Text(
-                    '₹${transaction.price.toStringAsFixed(2)}',
+                    NumberFormat.currency(
+                      locale: 'en_IN',
+                      symbol: '₹',
+                      decimalDigits: 2,
+                    ).format(transaction.totalPrice),
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF2E7D32),
                     ),
                   ),
                 ],
               ),
-              const Divider(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Owner: ${transaction.owner}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                  Text(
-                    'Payment via ${transaction.paymentMethod}',
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
+              const Divider(height: 18),
               Text(
-                DateFormat('dd MMM yyyy').format(transaction.date),
-                style: TextStyle(
-                  color: Colors.grey[600],
-                  fontSize: 12,
-                ),
+                'Owner: ${transaction.ownerName}',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Payment via: ${transaction.paymentMethod}',
+                style: TextStyle(color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                DateFormat('dd MMM yyyy').format(transaction.startDate),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
             ],
           ),
@@ -452,131 +618,105 @@ class TransactionCard extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildStatusBadge() {
-    Color statusColor;
-    IconData statusIcon;
-    String statusText;
+class TransactionDetailsPage extends StatelessWidget {
+  const TransactionDetailsPage({super.key, required this.transaction});
 
-    switch (transaction.status) {
-      case TransactionStatus.completed:
-        statusColor = Colors.green;
-        statusIcon = Icons.check_circle;
-        statusText = 'Completed';
-        break;
-      case TransactionStatus.pending:
-        statusColor = Colors.orange;
-        statusIcon = Icons.access_time;
-        statusText = 'Pending';
-        break;
-      case TransactionStatus.cancelled:
-        statusColor = Colors.red;
-        statusIcon = Icons.cancel;
-        statusText = 'Cancelled';
-        break;
-    }
+  final BookingTransaction transaction;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: statusColor.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
+  @override
+  Widget build(BuildContext context) {
+    final statusStyle = _statusStyle(transaction.paymentStatus);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Transaction Details'),
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            statusIcon,
-            size: 16,
-            color: statusColor,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            statusText,
-            style: TextStyle(
-              color: statusColor,
-              fontWeight: FontWeight.bold,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: SizedBox(
+                width: double.infinity,
+                height: 210,
+                child: buildSmartImage(
+                  transaction.machineryImageUrl,
+                  fit: BoxFit.cover,
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showTransactionDetails(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20),
-        ),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.7,
-        maxChildSize: 0.9,
-        minChildSize: 0.5,
-        expand: false,
-        builder: (context, scrollController) => SingleChildScrollView(
-          controller: scrollController,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 16),
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+            const SizedBox(height: 14),
+            Text(
+              transaction.machineryName,
+              style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: statusStyle.bg,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(statusStyle.icon, size: 16, color: statusStyle.fg),
+                  const SizedBox(width: 5),
+                  Text(
+                    statusStyle.label,
+                    style: TextStyle(color: statusStyle.fg, fontWeight: FontWeight.w700),
                   ),
-                ),
-                Text(
-                  'Transaction Details',
-                  style: Theme.of(context).textTheme.titleLarge,
-                ),
-                const SizedBox(height: 16),
-                _buildDetailRow('Machine', transaction.machineName),
-                _buildDetailRow('Duration', transaction.rentalDuration),
-                _buildDetailRow(
-                    'Price', '₹${transaction.price.toStringAsFixed(2)}'),
-                _buildDetailRow('Location', transaction.location),
-                _buildDetailRow('Owner', transaction.owner),
-                _buildDetailRow('Payment Method', transaction.paymentMethod),
-                _buildDetailRow(
-                  'Date',
-                  DateFormat('dd MMM yyyy').format(transaction.date),
-                ),
-                const SizedBox(height: 16),
-                _buildStatusBadge(),
-              ],
+                ],
+              ),
             ),
-          ),
+            const SizedBox(height: 16),
+            _detail('Owner Name', transaction.ownerName),
+            _detail('Location', transaction.location),
+            _detail('Booking Type', transaction.bookingType),
+            _detail('Duration', '${transaction.durationDays} day(s)'),
+            _detail('Start Date', DateFormat('dd MMM yyyy').format(transaction.startDate)),
+            _detail('End Date', DateFormat('dd MMM yyyy').format(transaction.endDate)),
+            _detail('Payment Method', transaction.paymentMethod),
+            _detail('Payment ID', transaction.paymentId),
+            _detail(
+              'Amount Paid',
+              NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2)
+                  .format(transaction.totalPrice),
+              isStrong: true,
+            ),
+            const SizedBox(height: 8),
+          ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(String label, String value) {
+  Widget _detail(String label, String value, {bool isStrong = false}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: 7),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: Colors.grey[600],
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(color: Colors.grey.shade700),
             ),
           ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+          const Text(': '),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                fontWeight: isStrong ? FontWeight.w700 : FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -585,28 +725,162 @@ class TransactionCard extends StatelessWidget {
   }
 }
 
-class Transaction {
-  final String machineName;
-  final String imageUrl;
-  final String rentalDuration;
-  final double price;
-  final TransactionStatus status;
-  final String location;
-  final String owner;
-  final String paymentMethod;
-  final DateTime date;
-
-  Transaction({
-    required this.machineName,
-    required this.imageUrl,
-    required this.rentalDuration,
-    required this.price,
-    required this.status,
+class BookingTransaction {
+  const BookingTransaction({
+    required this.bookingId,
+    required this.machineryId,
+    required this.machineryName,
+    required this.machineryImageUrl,
+    required this.ownerName,
     required this.location,
-    required this.owner,
+    required this.userId,
+    required this.durationDays,
+    required this.bookingType,
+    required this.startDate,
+    required this.endDate,
+    required this.totalPrice,
     required this.paymentMethod,
-    required this.date,
+    required this.paymentStatus,
+    required this.paymentId,
+    required this.createdAt,
   });
+
+  final String bookingId;
+  final String machineryId;
+  final String machineryName;
+  final String machineryImageUrl;
+  final String ownerName;
+  final String location;
+  final String userId;
+  final int durationDays;
+  final String bookingType;
+  final DateTime startDate;
+  final DateTime endDate;
+  final double totalPrice;
+  final String paymentMethod;
+  final String paymentStatus;
+  final String paymentId;
+  final DateTime createdAt;
+
+  factory BookingTransaction.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? <String, dynamic>{};
+    final start = _toDate(data['startDate']);
+    final end = _toDate(data['endDate']);
+
+    final days = _toInt(data['durationDays']) ??
+        _toInt(data['days']) ??
+        (end.difference(start).inDays + 1);
+
+    return BookingTransaction(
+      bookingId: (data['bookingId'] ?? doc.id).toString(),
+      machineryId: (data['machineryId'] ?? '').toString(),
+      machineryName: (data['machineryName'] ?? data['machineName'] ?? 'Machinery')
+          .toString(),
+      machineryImageUrl: (data['machineryImageUrl'] ?? data['imageUrl'] ?? '').toString(),
+      ownerName: (data['ownerName'] ?? 'Unknown Owner').toString(),
+      location: (data['location'] ?? 'Unknown').toString(),
+      userId: (data['userId'] ?? '').toString(),
+      durationDays: days <= 0 ? 1 : days,
+      bookingType: (data['bookingType'] ?? 'daily').toString(),
+      startDate: start,
+      endDate: end,
+      totalPrice: _toDouble(data['totalPrice']),
+      paymentMethod: (data['paymentMethod'] ?? 'Unknown').toString(),
+      paymentStatus: (data['paymentStatus'] ?? data['status'] ?? 'pending').toString(),
+      paymentId: (data['paymentId'] ?? '-').toString(),
+      createdAt: _toDate(data['createdAt']),
+    );
+  }
 }
 
-enum TransactionStatus { completed, pending, cancelled }
+enum TransactionFilter { all, completed, pending, cancelled }
+
+extension TransactionFilterX on TransactionFilter {
+  String get label {
+    switch (this) {
+      case TransactionFilter.all:
+        return 'All';
+      case TransactionFilter.completed:
+        return 'Completed';
+      case TransactionFilter.pending:
+        return 'Pending';
+      case TransactionFilter.cancelled:
+        return 'Cancelled';
+    }
+  }
+
+  bool matches(String statusRaw) {
+    final normalized = statusRaw.trim().toLowerCase();
+    switch (this) {
+      case TransactionFilter.all:
+        return true;
+      case TransactionFilter.completed:
+        return normalized == 'completed';
+      case TransactionFilter.pending:
+        return normalized == 'pending';
+      case TransactionFilter.cancelled:
+        return normalized == 'cancelled';
+    }
+  }
+}
+
+_StatusStyle _statusStyle(String statusRaw) {
+  final status = statusRaw.trim().toLowerCase();
+  if (status == 'completed') {
+    return const _StatusStyle(
+      label: 'Completed',
+      fg: Color(0xFF2E7D32),
+      bg: Color(0xFFE8F5E9),
+      icon: Icons.check_circle_rounded,
+    );
+  }
+  if (status == 'cancelled') {
+    return const _StatusStyle(
+      label: 'Cancelled',
+      fg: Color(0xFFC62828),
+      bg: Color(0xFFFFEBEE),
+      icon: Icons.cancel_rounded,
+    );
+  }
+  return const _StatusStyle(
+    label: 'Pending',
+    fg: Color(0xFFEF6C00),
+    bg: Color(0xFFFFF3E0),
+    icon: Icons.schedule_rounded,
+  );
+}
+
+class _StatusStyle {
+  const _StatusStyle({
+    required this.label,
+    required this.fg,
+    required this.bg,
+    required this.icon,
+  });
+
+  final String label;
+  final Color fg;
+  final Color bg;
+  final IconData icon;
+}
+
+DateTime _toDate(dynamic value) {
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+  if (value is String) return DateTime.tryParse(value) ?? DateTime.now();
+  return DateTime.now();
+}
+
+double _toDouble(dynamic value) {
+  if (value is num) return value.toDouble();
+  if (value is String) return double.tryParse(value) ?? 0;
+  return 0;
+}
+
+int? _toInt(dynamic value) {
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
+}

@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
-import 'HomePage.dart';
-import 'ProfilePage.dart';
-import 'TransactionsPage.dart';
-import 'Calender.dart';
-import 'Maintenance.dart';
-import 'splash_screen.dart';
+import 'features/auth/presentation/auth_gate.dart';
 import 'providers/user_profile_provider.dart';
+import 'services/auth_service.dart';
 import 'services/firebase_bootstrap.dart';
 
 Future<void> main() async {
@@ -22,6 +18,8 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authService = AuthService();
+
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProfileProvider()),
@@ -33,65 +31,50 @@ class MyApp extends StatelessWidget {
           primaryColor: const Color(0xFF4CAF50),
           fontFamily: 'Roboto',
         ),
-        home: const SplashScreen(),
+        home: FirebaseBootstrap.initialized
+            ? AuthGate(authService: authService)
+            : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
       ),
     );
   }
 }
 
-class UzhavuSei extends StatefulWidget {
-  const UzhavuSei({super.key});
+class _FirebaseSetupScreen extends StatelessWidget {
+  const _FirebaseSetupScreen({required this.error});
 
-  @override
-  _FarmConnectAppState createState() => _FarmConnectAppState();
-}
-
-class _FarmConnectAppState extends State<UzhavuSei> {
-  int _selectedIndex = 0;
-  final List<Widget> _pages = [
-    const HomePage(),
-    const Calendar(),
-    const TransactionsPage(),
-    const MaintenancePage(),
-    const ProfilePage(),
-  ];
-
-  void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
-  }
+  final String? error;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: _onItemTapped,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.calendar_today),
-            label: 'Calendar',
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.settings_suggest_rounded, size: 64, color: Colors.orange),
+              const SizedBox(height: 12),
+              const Text(
+                'Firebase setup is required',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Add Firebase platform configuration files and restart the app to use marketplace features.',
+                textAlign: TextAlign.center,
+              ),
+              if (error != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  error!,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.red.shade700, fontSize: 12),
+                ),
+              ],
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.currency_rupee),
-            label: 'Transactions',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.app_settings_alt_rounded),
-            label: 'Maintenance',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.account_circle),
-            label: 'Profile',
-          ),
-        ],
-        selectedItemColor: const Color(0xFF4CAF50),
-        unselectedItemColor: Colors.grey,
-        selectedLabelStyle: const TextStyle(color: Color(0xFF4CAF50)),
-        unselectedLabelStyle: const TextStyle(color: Colors.grey),
+        ),
       ),
     );
   }
