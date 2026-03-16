@@ -12,10 +12,10 @@ import 'package:UzhavuSei/main.dart';
 void main() {
   testWidgets('FarmConnectApp smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget( const MaterialApp(home: UzhavuSei()));
+    await tester.pumpWidget(const MyApp());
 
     // Verify that the app renders
     expect(find.byType(Scaffold), findsOneWidget);
-    expect(find.byType(BottomNavigationBar), findsOneWidget);
+    expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

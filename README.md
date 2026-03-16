@@ -1,16 +1,48 @@
-# solvathon
+# UzhavuSei
 
-A new Flutter project.
+Production-oriented Flutter marketplace app for farm equipment rental.
 
-## Getting Started
+## Prerequisites
 
-This project is a starting point for a Flutter application.
+- Flutter SDK (stable)
+- Firebase project configured for Android package `com.uzhavusei`
+- Cloudinary account with an **unsigned upload preset**
+- Razorpay key ID (optional for payment flow)
 
-A few resources to get you started if this is your first Flutter project:
+## Environment Setup
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+Copy `.env.example` to `.env` and fill values:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```env
+GEMINI_API_KEY=
+RAZORPAY_KEY_ID=
+CLOUDINARY_CLOUD_NAME=
+CLOUDINARY_UPLOAD_PRESET=
+CLOUDINARY_API_SECRET=
+```
+
+Important:
+- The Flutter app uses `CLOUDINARY_CLOUD_NAME` + `CLOUDINARY_UPLOAD_PRESET` for client uploads.
+- `CLOUDINARY_API_SECRET` is backend-only and should never be used directly from Flutter API calls.
+
+## Firebase Setup
+
+1. Place Android config at `android/app/google-services.json`.
+2. Ensure `android/app/build.gradle.kts` uses:
+	- `applicationId = "com.uzhavusei"`
+	- `namespace = "com.uzhavusei"`
+3. Publish Firestore rules from `firestore.rules` in Firebase Console.
+
+## Run
+
+```bash
+flutter clean
+flutter pub get
+flutter run
+```
+
+## Production Notes
+
+- Keep `.env` private (already gitignored).
+- Use Firebase Auth + Firestore rules before opening public access.
+- For strict production security, move Cloudinary signed upload generation to backend.

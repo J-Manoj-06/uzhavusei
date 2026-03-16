@@ -18,8 +18,6 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProfileProvider()),
@@ -32,7 +30,7 @@ class MyApp extends StatelessWidget {
           fontFamily: 'Roboto',
         ),
         home: FirebaseBootstrap.initialized
-            ? AuthGate(authService: authService)
+            ? AuthGate(authService: AuthService())
             : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
       ),
     );
@@ -53,7 +51,8 @@ class _FirebaseSetupScreen extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.settings_suggest_rounded, size: 64, color: Colors.orange),
+              const Icon(Icons.settings_suggest_rounded,
+                  size: 64, color: Colors.orange),
               const SizedBox(height: 12),
               const Text(
                 'Firebase setup is required',

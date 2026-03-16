@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "792343486148",
+    "project_id": "uzhavusei-a8be3",
+    "storage_bucket": "uzhavusei-a8be3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:792343486148:android:ff3d75a6f11651b5a67391",
+        "android_client_info": {
+          "package_name": "com.uzhavusei"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAx9ghDPXJrEPk1-4cai9LA9RQTSWNbLWg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

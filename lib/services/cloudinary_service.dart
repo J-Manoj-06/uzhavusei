@@ -11,8 +11,10 @@ class CloudinaryService {
     final cloudName = Config.cloudinaryCloudName;
     final preset = Config.cloudinaryUploadPreset;
 
-    if (cloudName.isEmpty || preset.isEmpty) {
-      throw Exception('Cloudinary config missing in .env');
+    if (!Config.isCloudinaryClientUploadConfigured) {
+      throw Exception(
+        'Cloudinary config missing. Set CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET in .env',
+      );
     }
 
     final uri = Uri.parse(
