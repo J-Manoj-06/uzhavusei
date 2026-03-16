@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
 import 'HomePage.dart';
 import 'ProfilePage.dart';
@@ -9,11 +8,12 @@ import 'Calender.dart';
 import 'Maintenance.dart';
 import 'splash_screen.dart';
 import 'providers/user_profile_provider.dart';
+import 'services/firebase_bootstrap.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await dotenv.load(fileName: ".env");
-  await Firebase.initializeApp();
+  await FirebaseBootstrap.initialize();
   runApp(const MyApp());
 }
 

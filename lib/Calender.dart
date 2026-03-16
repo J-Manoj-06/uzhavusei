@@ -1,59 +1,79 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 
+import 'config.dart';
+import 'models/booking_draft.dart';
+import 'models/booking_model.dart';
+import 'models/machinery_model.dart';
+import 'providers/user_profile_provider.dart';
+import 'services/firebase_bootstrap.dart';
+import 'services/firestore_booking_repository.dart';
+import 'services/razorpay_checkout_service.dart';
 import 'widgets/image_loader.dart';
 
 class Calendar extends StatefulWidget {
   const Calendar({super.key});
 
   @override
-  State<Calendar> createState() => _CalendarPageState();
+  State<Calendar> createState() => _CalendarState();
 }
 
-class _CalendarPageState extends State<Calendar> {
+class _CalendarState extends State<Calendar> {
+  static const Color _primaryGreen = Color(0xFF4CAF50);
+
   final DateTime _today = DateTime.now();
+  FirestoreBookingRepository? _bookingRepository;
+  late final RazorpayCheckoutService _paymentService;
+
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
   String? _selectedMachineryId;
+  bool _isSubmitting = false;
 
-  static const Color _primaryGreen = Color(0xFF4CAF50);
-
-  Stream<List<Machinery>> _machineriesStream() {
-    return FirebaseFirestore.instance
-        .collection('machineries')
-        .where('isActive', isEqualTo: true)
-        .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map(Machinery.fromDoc)
-              .where((m) => m.name.trim().isNotEmpty)
-              .toList(),
-        );
+  @override
+  void initState() {
+    super.initState();
+    if (FirebaseBootstrap.initialized) {
+      _bookingRepository = FirestoreBookingRepository();
+    }
+    _paymentService = RazorpayCheckoutService();
   }
 
-  Stream<List<BookingEntry>> _bookingsStream(String machineryId) {
-    return FirebaseFirestore.instance
-        .collection('bookings')
-        .where('machineryId', isEqualTo: machineryId)
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map(BookingEntry.fromDoc).toList());
+  @override
+  void dispose() {
+    _paymentService.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!FirebaseBootstrap.initialized) {
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('Machinery Booking'),
+          backgroundColor: _primaryGreen,
+          foregroundColor: Colors.white,
+        ),
+        body: _buildFirebaseSetupState(),
+      );
+    }
+
+    final bookingRepository =
+        _bookingRepository ??= FirestoreBookingRepository();
+
     final firstDay = DateTime(_today.year, _today.month, _today.day);
     final lastDay = DateTime(_today.year + 2, 12, 31);
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Booking Calendar'),
+        title: const Text('Machinery Booking'),
         backgroundColor: _primaryGreen,
         foregroundColor: Colors.white,
       ),
-      body: StreamBuilder<List<Machinery>>(
-        stream: _machineriesStream(),
+      body: StreamBuilder<List<MachineryModel>>(
+        stream: bookingRepository.watchActiveMachineries(),
         builder: (context, machinerySnapshot) {
           if (machinerySnapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -61,17 +81,17 @@ class _CalendarPageState extends State<Calendar> {
 
           if (machinerySnapshot.hasError) {
             return _buildErrorState(
-              'Unable to load machinery list. Please try again.',
+              'Unable to load machinery list. Check network or Firestore rules.',
             );
           }
 
-          final machineries = machinerySnapshot.data ?? const <Machinery>[];
-
+          final machineries =
+              machinerySnapshot.data ?? const <MachineryModel>[];
           if (machineries.isEmpty) {
-            return _buildEmptyState('No active machineries found.');
+            return _buildEmptyState('No active machinery available right now.');
           }
 
-          if (!_hasMachinery(machineries, _selectedMachineryId)) {
+          if (!_containsMachinery(machineries, _selectedMachineryId)) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (!mounted) return;
               setState(() {
@@ -82,22 +102,21 @@ class _CalendarPageState extends State<Calendar> {
           }
 
           final selectedMachinery =
-              _findMachineryById(machineries, _selectedMachineryId) ??
-                  machineries.first;
+              _findById(machineries, _selectedMachineryId) ?? machineries.first;
 
-          return StreamBuilder<List<BookingEntry>>(
-            stream: _bookingsStream(selectedMachinery.id),
+          return StreamBuilder<List<BookingModel>>(
+            stream: bookingRepository
+                .watchBookingsForMachinery(selectedMachinery.id),
             builder: (context, bookingSnapshot) {
-              final isLoadingBookings =
+              final loadingBookings =
                   bookingSnapshot.connectionState == ConnectionState.waiting;
+              final bookings = bookingSnapshot.data ?? const <BookingModel>[];
 
               if (bookingSnapshot.hasError) {
                 return _buildErrorState(
-                  'Unable to load bookings for ${selectedMachinery.name}.',
+                  'Could not load bookings for ${selectedMachinery.name}.',
                 );
               }
-
-              final bookings = bookingSnapshot.data ?? const <BookingEntry>[];
 
               return SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
@@ -110,12 +129,12 @@ class _CalendarPageState extends State<Calendar> {
                     ),
                     const SizedBox(height: 12),
                     _buildSelectedMachineryCard(selectedMachinery),
-                    const SizedBox(height: 16),
-                    if (isLoadingBookings)
+                    if (loadingBookings)
                       const Padding(
-                        padding: EdgeInsets.only(bottom: 12),
+                        padding: EdgeInsets.only(top: 12),
                         child: LinearProgressIndicator(minHeight: 3),
                       ),
+                    const SizedBox(height: 14),
                     Container(
                       decoration: BoxDecoration(
                         color: Colors.white,
@@ -123,62 +142,55 @@ class _CalendarPageState extends State<Calendar> {
                         border: Border.all(color: Colors.green.shade100),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.04),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 16,
                             offset: const Offset(0, 8),
                           ),
                         ],
                       ),
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.all(10),
                       child: TableCalendar<dynamic>(
                         firstDay: firstDay,
                         lastDay: lastDay,
                         focusedDay: _focusedDay,
                         selectedDayPredicate: (day) =>
-                            _isSameDate(_selectedDay, day),
+                            _sameDate(_selectedDay, day),
                         calendarFormat: CalendarFormat.month,
                         headerStyle: const HeaderStyle(
                           titleCentered: true,
                           formatButtonVisible: false,
                           titleTextStyle: TextStyle(
-                            fontSize: 18,
                             fontWeight: FontWeight.w700,
+                            fontSize: 18,
                           ),
                           leftChevronIcon:
                               Icon(Icons.chevron_left, color: _primaryGreen),
-                          rightChevronIcon: Icon(
-                            Icons.chevron_right,
-                            color: _primaryGreen,
-                          ),
-                        ),
-                        daysOfWeekStyle: DaysOfWeekStyle(
-                          weekdayStyle: TextStyle(color: Colors.grey.shade700),
-                          weekendStyle: TextStyle(color: Colors.grey.shade700),
+                          rightChevronIcon:
+                              Icon(Icons.chevron_right, color: _primaryGreen),
                         ),
                         enabledDayPredicate: (day) {
                           if (_isBeforeToday(day)) return false;
-                          return !_isDateBooked(day, bookings);
+                          return !_isDayBlocked(day, bookings);
                         },
                         onDaySelected: (selectedDay, focusedDay) {
-                          if (_isBeforeToday(selectedDay)) {
-                            _showMessage(
-                                'Past dates are unavailable for booking.');
+                          final normalized = _dateOnly(selectedDay);
+                          if (_isBeforeToday(normalized)) {
+                            _showMessage('Past dates cannot be booked.');
                             return;
                           }
-                          if (_isDateBooked(selectedDay, bookings)) {
-                            _showMessage(
-                                'This date is already booked. Choose another date.');
+                          if (_isDayBlocked(normalized, bookings)) {
+                            _showMessage('This date is already booked.');
                             return;
                           }
 
                           setState(() {
-                            _selectedDay = _dateOnly(selectedDay);
+                            _selectedDay = normalized;
                             _focusedDay = focusedDay;
                           });
 
                           _openBookingBottomSheet(
                             machinery: selectedMachinery,
-                            selectedDate: _dateOnly(selectedDay),
+                            selectedDate: normalized,
                             bookings: bookings,
                           );
                         },
@@ -188,50 +200,46 @@ class _CalendarPageState extends State<Calendar> {
                           });
                         },
                         calendarBuilders: CalendarBuilders(
-                          defaultBuilder: (context, day, focusedDay) {
-                            return _buildDayCell(
-                              day: day,
-                              isToday: _isSameDate(day, _today),
-                              isSelected: _isSameDate(day, _selectedDay),
-                              isBooked: _isDateBooked(day, bookings),
-                              isPast: _isBeforeToday(day),
-                            );
-                          },
-                          todayBuilder: (context, day, focusedDay) {
-                            return _buildDayCell(
-                              day: day,
-                              isToday: true,
-                              isSelected: _isSameDate(day, _selectedDay),
-                              isBooked: _isDateBooked(day, bookings),
-                              isPast: _isBeforeToday(day),
-                            );
-                          },
-                          selectedBuilder: (context, day, focusedDay) {
-                            return _buildDayCell(
-                              day: day,
-                              isToday: _isSameDate(day, _today),
-                              isSelected: true,
-                              isBooked: _isDateBooked(day, bookings),
-                              isPast: _isBeforeToday(day),
-                            );
-                          },
-                          disabledBuilder: (context, day, focusedDay) {
-                            return _buildDayCell(
-                              day: day,
-                              isToday: _isSameDate(day, _today),
-                              isSelected: _isSameDate(day, _selectedDay),
-                              isBooked: _isDateBooked(day, bookings),
-                              isPast: _isBeforeToday(day),
-                            );
-                          },
+                          defaultBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(
+                            day: day,
+                            isToday: _sameDate(day, _today),
+                            isSelected: _sameDate(day, _selectedDay),
+                            isBlocked: _isDayBlocked(day, bookings),
+                            isPast: _isBeforeToday(day),
+                          ),
+                          todayBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(
+                            day: day,
+                            isToday: true,
+                            isSelected: _sameDate(day, _selectedDay),
+                            isBlocked: _isDayBlocked(day, bookings),
+                            isPast: _isBeforeToday(day),
+                          ),
+                          selectedBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(
+                            day: day,
+                            isToday: _sameDate(day, _today),
+                            isSelected: true,
+                            isBlocked: _isDayBlocked(day, bookings),
+                            isPast: _isBeforeToday(day),
+                          ),
+                          disabledBuilder: (context, day, focusedDay) =>
+                              _buildDayCell(
+                            day: day,
+                            isToday: _sameDate(day, _today),
+                            isSelected: _sameDate(day, _selectedDay),
+                            isBlocked: _isDayBlocked(day, bookings),
+                            isPast: _isBeforeToday(day),
+                          ),
                         ),
                       ),
                     ),
                     const SizedBox(height: 14),
                     _buildLegend(),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 10),
                     Text(
-                      'Tap an available date to configure booking details.',
+                      'Select an available date to continue with booking.',
                       style: TextStyle(color: Colors.grey.shade700),
                     ),
                   ],
@@ -245,60 +253,59 @@ class _CalendarPageState extends State<Calendar> {
   }
 
   Widget _buildMachineryDropdown({
-    required List<Machinery> machineries,
+    required List<MachineryModel> machineries,
     required String selectedId,
   }) {
     return DropdownButtonFormField<String>(
       initialValue: selectedId,
-      icon: const Icon(Icons.keyboard_arrow_down_rounded),
       decoration: InputDecoration(
         labelText: 'Select Machinery',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.green.shade200),
-        ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: _primaryGreen, width: 1.5),
         ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.green.shade200),
+        ),
         filled: true,
         fillColor: Colors.green.shade50.withValues(alpha: 0.35),
       ),
-      items: machineries.map((machinery) {
-        return DropdownMenuItem<String>(
-          value: machinery.id,
-          child: Row(
-            children: [
-              _buildMachineThumb(machinery.imageUrl, 34),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      machinery.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w600),
+      items: machineries
+          .map(
+            (machine) => DropdownMenuItem<String>(
+              value: machine.id,
+              child: Row(
+                children: [
+                  _buildMachineThumb(machine.imageUrl, 34),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          machine.name,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        Text(
+                          machine.category,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade700,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ),
-                    Text(
-                      machinery.category,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade700,
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        );
-      }).toList(),
+            ),
+          )
+          .toList(),
       onChanged: (value) {
         if (value == null) return;
         setState(() {
@@ -309,11 +316,10 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
-  Widget _buildSelectedMachineryCard(Machinery machinery) {
-    final perHour = _currency(machinery.pricePerHour);
-    final perDay = _currency(machinery.pricePerDay);
-
-    return Container(
+  Widget _buildSelectedMachineryCard(MachineryModel machine) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -322,14 +328,14 @@ class _CalendarPageState extends State<Calendar> {
       ),
       child: Row(
         children: [
-          _buildMachineThumb(machinery.imageUrl, 54),
+          _buildMachineThumb(machine.imageUrl, 54),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  machinery.name,
+                  machine.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
                     fontSize: 16,
@@ -337,7 +343,7 @@ class _CalendarPageState extends State<Calendar> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  machinery.category,
+                  machine.category,
                   style: TextStyle(color: Colors.grey.shade700),
                 ),
                 const SizedBox(height: 6),
@@ -345,8 +351,8 @@ class _CalendarPageState extends State<Calendar> {
                   spacing: 8,
                   runSpacing: 6,
                   children: [
-                    _buildPriceChip('Hourly: $perHour'),
-                    _buildPriceChip('Daily: $perDay'),
+                    _pill('Hourly: ${_currency(machine.pricePerHour)}'),
+                    _pill('Daily: ${_currency(machine.pricePerDay)}'),
                   ],
                 ),
               ],
@@ -357,7 +363,7 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
-  Widget _buildPriceChip(String text) {
+  Widget _pill(String text) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -375,99 +381,87 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
-  Widget _buildLegend() {
-    return const Wrap(
-      spacing: 12,
-      runSpacing: 8,
-      children: [
-        _LegendDot(
-            color: Color(0xFFFFFFFF),
-            borderColor: Color(0xFFBDBDBD),
-            text: 'Available'),
-        _LegendDot(
-            color: Color(0xFFFFEBEE),
-            borderColor: Color(0xFFE57373),
-            text: 'Booked'),
-        _LegendDot(
-            color: Color(0xFFE8F5E9),
-            borderColor: Color(0xFF4CAF50),
-            text: 'Selected'),
-        _LegendDot(
-            color: Color(0xFFE3F2FD),
-            borderColor: Color(0xFF42A5F5),
-            text: 'Today'),
-      ],
-    );
-  }
-
   Widget _buildDayCell({
     required DateTime day,
     required bool isToday,
     required bool isSelected,
-    required bool isBooked,
+    required bool isBlocked,
     required bool isPast,
   }) {
-    Color fillColor = Colors.white;
-    Color borderColor = Colors.grey.shade300;
+    Color fill = Colors.white;
+    Color border = Colors.grey.shade300;
     Color textColor = Colors.black87;
-    FontWeight fontWeight = FontWeight.w500;
-    Widget? marker;
+    FontWeight weight = FontWeight.w600;
+    Widget marker = const SizedBox(height: 10);
 
     if (isPast) {
-      fillColor = Colors.grey.shade100;
+      fill = Colors.grey.shade100;
       textColor = Colors.grey.shade400;
     }
 
-    if (isBooked) {
-      fillColor = const Color(0xFFFFEBEE);
-      borderColor = const Color(0xFFE57373);
+    if (isBlocked) {
+      fill = const Color(0xFFFFEBEE);
+      border = const Color(0xFFE57373);
       textColor = const Color(0xFFC62828);
       marker = const Icon(Icons.block, size: 12, color: Color(0xFFC62828));
     }
 
     if (isToday) {
-      borderColor = const Color(0xFF42A5F5);
-      if (!isBooked && !isPast) {
-        fillColor = const Color(0xFFE3F2FD);
+      border = const Color(0xFF42A5F5);
+      if (!isBlocked && !isPast) {
+        fill = const Color(0xFFE3F2FD);
       }
-      fontWeight = FontWeight.w700;
+      weight = FontWeight.w700;
     }
 
     if (isSelected) {
-      fillColor = const Color(0xFFE8F5E9);
-      borderColor = _primaryGreen;
+      fill = const Color(0xFFE8F5E9);
+      border = _primaryGreen;
       textColor = _primaryGreen;
-      fontWeight = FontWeight.w800;
+      weight = FontWeight.w800;
     }
 
     return Container(
       margin: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: fillColor,
+        color: fill,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor),
+        border: Border.all(color: border),
       ),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(
-            day.day.toString(),
+            '${day.day}',
             style: TextStyle(
               color: textColor,
-              fontWeight: fontWeight,
+              fontWeight: weight,
             ),
           ),
-          const SizedBox(height: 2),
-          marker ?? const SizedBox(height: 12),
+          const SizedBox(height: 1),
+          marker,
         ],
       ),
     );
   }
 
+  Widget _buildLegend() {
+    return const Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      children: [
+        _LegendDot('Available', Color(0xFFFFFFFF), Color(0xFFBDBDBD)),
+        _LegendDot('Booked', Color(0xFFFFEBEE), Color(0xFFE57373)),
+        _LegendDot('Selected', Color(0xFFE8F5E9), Color(0xFF4CAF50)),
+        _LegendDot('Today', Color(0xFFE3F2FD), Color(0xFF42A5F5)),
+      ],
+    );
+  }
+
   Future<void> _openBookingBottomSheet({
-    required Machinery machinery,
+    required MachineryModel machinery,
     required DateTime selectedDate,
-    required List<BookingEntry> bookings,
+    required List<BookingModel> bookings,
   }) async {
     BookingMode mode = BookingMode.daily;
     int days = 1;
@@ -478,23 +472,29 @@ class _CalendarPageState extends State<Calendar> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) {
         return StatefulBuilder(
-          builder: (context, setBottomState) {
-            final estimate = mode == BookingMode.daily
-                ? machinery.pricePerDay * days
-                : machinery.pricePerHour * hours;
+          builder: (context, setBottomSheetState) {
+            final total = mode == BookingMode.daily
+                ? days * machinery.pricePerDay
+                : hours * machinery.pricePerHour;
 
-            final validationMessage = _validateBookingInput(
-              mode: mode,
+            final draft = _buildDraft(
+              machineryId: machinery.id,
               selectedDate: selectedDate,
+              mode: mode,
               days: days,
               hours: hours,
               startHour: startHour,
+              total: total,
+            );
+
+            final validationError = _validateDraft(
+              draft: draft,
+              selectedDate: selectedDate,
               bookings: bookings,
             );
 
@@ -509,14 +509,14 @@ class _CalendarPageState extends State<Calendar> {
                 ),
                 child: SingleChildScrollView(
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
                           const Expanded(
                             child: Text(
-                              'Booking Details',
+                              'Confirm Booking',
                               style: TextStyle(
                                 fontSize: 20,
                                 fontWeight: FontWeight.w700,
@@ -525,17 +525,12 @@ class _CalendarPageState extends State<Calendar> {
                           ),
                           IconButton(
                             onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close_rounded),
+                            icon: const Icon(Icons.close),
                           ),
                         ],
                       ),
                       const SizedBox(height: 8),
-                      _infoRow('Machine', machinery.name),
-                      _infoRow('Category', machinery.category),
-                      _infoRow(
-                        'Selected Date',
-                        DateFormat('EEE, d MMM yyyy').format(selectedDate),
-                      ),
+                      _machineSummaryInSheet(machinery, selectedDate),
                       const SizedBox(height: 14),
                       Text(
                         'Booking Type',
@@ -546,6 +541,7 @@ class _CalendarPageState extends State<Calendar> {
                       ),
                       const SizedBox(height: 8),
                       SegmentedButton<BookingMode>(
+                        selected: {mode},
                         style: ButtonStyle(
                           backgroundColor: WidgetStateProperty.resolveWith(
                             (states) => states.contains(WidgetState.selected)
@@ -556,23 +552,22 @@ class _CalendarPageState extends State<Calendar> {
                         segments: const [
                           ButtonSegment<BookingMode>(
                             value: BookingMode.hourly,
-                            label: Text('Hourly'),
                             icon: Icon(Icons.schedule),
+                            label: Text('Hourly'),
                           ),
                           ButtonSegment<BookingMode>(
                             value: BookingMode.daily,
-                            label: Text('Daily'),
                             icon: Icon(Icons.event),
+                            label: Text('Daily'),
                           ),
                         ],
-                        selected: {mode},
-                        onSelectionChanged: (selection) {
-                          setBottomState(() {
-                            mode = selection.first;
+                        onSelectionChanged: (set) {
+                          setBottomSheetState(() {
+                            mode = set.first;
                           });
                         },
                       ),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 14),
                       if (mode == BookingMode.daily) ...[
                         _stepperField(
                           label: 'Number of Days',
@@ -580,15 +575,14 @@ class _CalendarPageState extends State<Calendar> {
                           min: 1,
                           max: 30,
                           onChanged: (value) {
-                            setBottomState(() {
+                            setBottomSheetState(() {
                               days = value;
                             });
                           },
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          'Booking range: ${DateFormat('d MMM').format(selectedDate)} - '
-                          '${DateFormat('d MMM').format(selectedDate.add(Duration(days: days - 1)))}',
+                          'End Date: ${DateFormat('EEE, d MMM yyyy').format(draft.endDate)}',
                           style: TextStyle(color: Colors.grey.shade700),
                         ),
                       ] else ...[
@@ -598,7 +592,7 @@ class _CalendarPageState extends State<Calendar> {
                           min: 1,
                           max: 12,
                           onChanged: (value) {
-                            setBottomState(() {
+                            setBottomSheetState(() {
                               hours = value;
                             });
                           },
@@ -622,7 +616,7 @@ class _CalendarPageState extends State<Calendar> {
                               .toList(),
                           onChanged: (value) {
                             if (value == null) return;
-                            setBottomState(() {
+                            setBottomSheetState(() {
                               startHour = value;
                             });
                           },
@@ -634,86 +628,42 @@ class _CalendarPageState extends State<Calendar> {
                         ),
                       ],
                       const SizedBox(height: 14),
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                          color: Colors.green.shade50,
-                          border: Border.all(color: Colors.green.shade200),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Estimated Cost',
-                              style: TextStyle(fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              _currency(estimate),
-                              style: const TextStyle(
-                                color: _primaryGreen,
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              mode == BookingMode.daily
-                                  ? '${_currency(machinery.pricePerDay)} x $days day(s)'
-                                  : '${_currency(machinery.pricePerHour)} x $hours hour(s)',
-                              style: TextStyle(color: Colors.grey.shade700),
-                            ),
-                          ],
-                        ),
+                      _pricePreview(
+                        machinery: machinery,
+                        mode: mode,
+                        hours: hours,
+                        days: days,
+                        total: total,
                       ),
                       const SizedBox(height: 10),
-                      if (validationMessage != null)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.red.shade50,
-                            border: Border.all(color: Colors.red.shade200),
-                          ),
-                          child: Text(
-                            validationMessage,
-                            style: TextStyle(color: Colors.red.shade800),
-                          ),
-                        )
-                      else
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(10),
-                            color: Colors.blue.shade50,
-                            border: Border.all(color: Colors.blue.shade200),
-                          ),
-                          child: const Text(
-                            'Selected slot is available. You can continue to the next step.',
-                          ),
-                        ),
-                      const SizedBox(height: 14),
+                      AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 200),
+                        child: validationError != null
+                            ? _validationCard(validationError)
+                            : _availabilityCard(),
+                      ),
+                      const SizedBox(height: 12),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: validationMessage == null
-                              ? () {
+                          onPressed: (_isSubmitting || validationError != null)
+                              ? null
+                              : () async {
                                   Navigator.of(context).pop();
-                                  _showMessage(
-                                    'Selection saved. Next step: payment integration.',
+                                  await _confirmAndPay(
+                                    machinery: machinery,
+                                    draft: draft,
+                                    bookings: bookings,
                                   );
-                                }
-                              : null,
+                                },
                           style: ElevatedButton.styleFrom(
                             backgroundColor: _primaryGreen,
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
-                          child: const Text('Continue'),
+                          child: Text(
+                            _isSubmitting ? 'Processing...' : 'Continue to Pay',
+                          ),
                         ),
                       ),
                     ],
@@ -727,6 +677,47 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
+  Widget _machineSummaryInSheet(
+      MachineryModel machinery, DateTime selectedDate) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.green.shade50,
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          _buildMachineThumb(machinery.imageUrl, 54),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  machinery.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 15,
+                  ),
+                ),
+                Text(
+                  machinery.category,
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  DateFormat('EEE, d MMM yyyy').format(selectedDate),
+                  style: const TextStyle(color: _primaryGreen),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _stepperField({
     required String label,
     required int value,
@@ -737,8 +728,8 @@ class _CalendarPageState extends State<Calendar> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
         borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
       ),
       child: Row(
         children: [
@@ -756,8 +747,8 @@ class _CalendarPageState extends State<Calendar> {
             icon: const Icon(Icons.remove_circle_outline),
           ),
           Text(
-            value.toString(),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            '$value',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
           ),
           IconButton(
             onPressed: value < max ? () => onChanged(value + 1) : null,
@@ -768,27 +759,246 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
-  Widget _infoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
+  Widget _pricePreview({
+    required MachineryModel machinery,
+    required BookingMode mode,
+    required int hours,
+    required int days,
+    required double total,
+  }) {
+    final details = mode == BookingMode.daily
+        ? '${_currency(machinery.pricePerDay)} x $days day(s)'
+        : '${_currency(machinery.pricePerHour)} x $hours hour(s)';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 105,
-            child: Text(
-              '$label:',
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
+          const Text(
+            'Price Preview',
+            style: TextStyle(fontWeight: FontWeight.w700),
           ),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+          const SizedBox(height: 4),
+          Text(details, style: TextStyle(color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          Text(
+            'Total: ${_currency(total)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: _primaryGreen,
+              fontSize: 18,
             ),
           ),
         ],
       ),
     );
+  }
+
+  Widget _validationCard(String message) {
+    return Container(
+      key: const ValueKey<String>('validation-error'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Text(message, style: TextStyle(color: Colors.red.shade800)),
+    );
+  }
+
+  Widget _availabilityCard() {
+    return Container(
+      key: const ValueKey<String>('validation-ok'),
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.blue.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.blue.shade200),
+      ),
+      child: const Text('Selected slot is available.'),
+    );
+  }
+
+  Future<void> _confirmAndPay({
+    required MachineryModel machinery,
+    required BookingDraft draft,
+    required List<BookingModel> bookings,
+  }) async {
+    if (_isSubmitting) return;
+
+    final validationError = _validateDraft(
+      draft: draft,
+      selectedDate: draft.startDate,
+      bookings: bookings,
+    );
+
+    if (validationError != null) {
+      _showMessage(validationError);
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final profile = context.read<UserProfileProvider>().userData;
+      final name = (profile['name'] ?? 'UzhavuSei User').toString();
+      final email = (profile['email'] ?? 'user@example.com').toString();
+      final phone = (profile['phone'] ?? '').toString().replaceAll(' ', '');
+      final userId = _resolveUserId(profile, email);
+
+      final paymentResult = await _paymentService.startPayment(
+        PaymentRequest(
+          key: Config.razorpayKey,
+          amountInPaise: (draft.totalPrice * 100).round(),
+          machineName: machinery.name,
+          bookingDate: DateFormat('d MMM yyyy').format(draft.startDate),
+          userName: name,
+          userEmail: email,
+          userPhone: phone,
+        ),
+      );
+
+      if (!mounted) return;
+
+      if (paymentResult.status != PaymentStatus.success ||
+          paymentResult.paymentId == null) {
+        _showPaymentFailedDialog(
+          paymentResult.status == PaymentStatus.cancelled
+              ? 'Payment was cancelled by user.'
+              : (paymentResult.errorMessage ?? 'Payment failed. Try again.'),
+        );
+        return;
+      }
+
+      final bookingRepository =
+          _bookingRepository ??= FirestoreBookingRepository();
+
+      await bookingRepository.createBooking(
+        draft: draft,
+        userId: userId,
+        paymentId: paymentResult.paymentId!,
+      );
+
+      if (!mounted) return;
+
+      _showMessage('Booking confirmed and saved successfully.');
+    } catch (error) {
+      if (!mounted) return;
+      _showPaymentFailedDialog('Unable to complete booking: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
+    }
+  }
+
+  String _resolveUserId(Map<String, dynamic> profile, String email) {
+    final profileUserId = profile['userId']?.toString();
+    if (profileUserId != null && profileUserId.trim().isNotEmpty) {
+      return profileUserId;
+    }
+
+    if (email.trim().isNotEmpty) {
+      return email.toLowerCase().replaceAll('@', '_').replaceAll('.', '_');
+    }
+
+    return 'guest_${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  BookingDraft _buildDraft({
+    required String machineryId,
+    required DateTime selectedDate,
+    required BookingMode mode,
+    required int days,
+    required int hours,
+    required int startHour,
+    required double total,
+  }) {
+    if (mode == BookingMode.daily) {
+      return BookingDraft(
+        machineryId: machineryId,
+        startDate: _dateOnly(selectedDate),
+        endDate: _dateOnly(selectedDate).add(Duration(days: days - 1)),
+        bookingType: 'daily',
+        days: days,
+        totalPrice: total,
+      );
+    }
+
+    return BookingDraft(
+      machineryId: machineryId,
+      startDate: _dateOnly(selectedDate),
+      endDate: _dateOnly(selectedDate),
+      bookingType: 'hourly',
+      hours: hours,
+      startHour: startHour,
+      totalPrice: total,
+    );
+  }
+
+  String? _validateDraft({
+    required BookingDraft draft,
+    required DateTime selectedDate,
+    required List<BookingModel> bookings,
+  }) {
+    if (_selectedMachineryId == null || _selectedMachineryId!.trim().isEmpty) {
+      return 'Please select machinery first.';
+    }
+
+    if (_isDayBlocked(selectedDate, bookings)) {
+      return 'Selected date is unavailable.';
+    }
+
+    if (draft.bookingType == 'daily') {
+      if ((draft.days ?? 0) <= 0) {
+        return 'Enter a valid number of days.';
+      }
+      if (draft.overlapsAny(bookings)) {
+        return 'Selected days overlap an existing booking.';
+      }
+      return null;
+    }
+
+    if ((draft.hours ?? 0) <= 0) {
+      return 'Enter valid hourly duration.';
+    }
+
+    final startHour = draft.startHour ?? -1;
+    final hours = draft.hours ?? 0;
+    final endHourExclusive = startHour + hours;
+    if (startHour < 0 || startHour > 23) {
+      return 'Choose a valid start time.';
+    }
+    if (endHourExclusive > 24) {
+      return 'Hourly slot cannot cross midnight.';
+    }
+    if (draft.overlapsAny(bookings)) {
+      return 'Selected hourly slot overlaps an existing booking.';
+    }
+    return null;
+  }
+
+  bool _isDayBlocked(DateTime day, List<BookingModel> bookings) {
+    final normalized = _dateOnly(day);
+    for (final booking in bookings) {
+      if (!booking.blocksAvailability) continue;
+      if (booking.overlapsDate(normalized)) return true;
+    }
+    return false;
   }
 
   Widget _buildMachineThumb(String imageUrl, double size) {
@@ -829,8 +1039,8 @@ class _CalendarPageState extends State<Calendar> {
         padding: const EdgeInsets.all(24),
         child: Text(
           message,
-          textAlign: TextAlign.center,
           style: const TextStyle(fontSize: 16),
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -844,12 +1054,12 @@ class _CalendarPageState extends State<Calendar> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.error_outline_rounded,
-                color: Colors.red, size: 42),
+                color: Colors.red, size: 44),
             const SizedBox(height: 12),
             Text(
               message,
-              textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16),
+              textAlign: TextAlign.center,
             ),
           ],
         ),
@@ -857,91 +1067,76 @@ class _CalendarPageState extends State<Calendar> {
     );
   }
 
-  bool _isDateBooked(DateTime day, List<BookingEntry> bookings) {
-    final normalizedDay = _dateOnly(day);
-    for (final booking in bookings) {
-      if (!booking.blocksCalendar) continue;
-      if (booking.overlapsDate(normalizedDay)) {
-        return true;
-      }
-    }
-    return false;
+  Widget _buildFirebaseSetupState() {
+    final rawReason = FirebaseBootstrap.initError ??
+        'Firebase is not configured for this build variant.';
+    final reason = _friendlyFirebaseError(rawReason);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_rounded, size: 48, color: Colors.orange),
+            const SizedBox(height: 12),
+            const Text(
+              'Firebase Setup Needed',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              reason,
+              style: const TextStyle(fontSize: 14),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Add a valid google-services.json for Android and rebuild the app. '
+              'After setup, this calendar page will automatically use Firestore data.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  String? _validateBookingInput({
-    required BookingMode mode,
-    required DateTime selectedDate,
-    required int days,
-    required int hours,
-    required int startHour,
-    required List<BookingEntry> bookings,
-  }) {
-    if (_selectedMachineryId == null || _selectedMachineryId!.trim().isEmpty) {
-      return 'Please select a machinery first.';
+  String _friendlyFirebaseError(String message) {
+    final lower = message.toLowerCase();
+    if (lower.contains('failed to load firebaseoptions')) {
+      return 'Android Firebase configuration is missing or invalid for this app.';
     }
-
-    if (_isDateBooked(selectedDate, bookings)) {
-      return 'Selected date is already booked.';
+    if (lower.contains('no firebase app')) {
+      return 'Firebase app is not initialized for this build.';
     }
-
-    if (mode == BookingMode.daily) {
-      if (days <= 0) {
-        return 'Enter a valid number of days.';
-      }
-      final end = selectedDate.add(Duration(days: days - 1));
-      for (final booking in bookings) {
-        if (!booking.blocksCalendar) continue;
-        if (booking.overlapsRange(selectedDate, end)) {
-          return 'One or more selected days overlap an existing booking.';
-        }
-      }
-      return null;
-    }
-
-    if (hours <= 0) {
-      return 'Enter a valid number of hours.';
-    }
-
-    if (startHour < 0 || startHour > 23) {
-      return 'Choose a valid start time.';
-    }
-
-    final endHourExclusive = startHour + hours;
-    if (endHourExclusive > 24) {
-      return 'Hourly booking cannot cross midnight. Reduce hours or start earlier.';
-    }
-
-    for (final booking in bookings) {
-      if (!booking.blocksCalendar) continue;
-      if (booking.overlapsHourly(
-        day: selectedDate,
-        startHour: startHour,
-        durationHours: hours,
-      )) {
-        return 'The selected hourly slot overlaps an existing booking.';
-      }
-    }
-
-    return null;
+    final condensed = message.split('\n').first.trim();
+    return condensed.isEmpty
+        ? 'Firebase setup is incomplete for this build.'
+        : condensed;
   }
 
-  Machinery? _findMachineryById(List<Machinery> machineries, String? id) {
-    if (id == null) return null;
-    for (final machinery in machineries) {
-      if (machinery.id == id) return machinery;
-    }
-    return null;
-  }
-
-  bool _hasMachinery(List<Machinery> machineries, String? id) {
-    return _findMachineryById(machineries, id) != null;
+  void _showPaymentFailedDialog(String message) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Payment Failed'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _currency(double value) {
@@ -953,158 +1148,41 @@ class _CalendarPageState extends State<Calendar> {
   }
 
   String _hourLabel(int hour) {
-    final wrappedHour = hour % 24;
-    final date = DateTime(2000, 1, 1, wrappedHour);
+    final date = DateTime(2000, 1, 1, hour % 24);
     return DateFormat('h a').format(date);
   }
+
+  bool _sameDate(DateTime? a, DateTime? b) {
+    if (a == null || b == null) return false;
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  DateTime _dateOnly(DateTime day) => DateTime(day.year, day.month, day.day);
 
   bool _isBeforeToday(DateTime day) =>
       _dateOnly(day).isBefore(_dateOnly(_today));
 
-  DateTime _dateOnly(DateTime dateTime) {
-    return DateTime(dateTime.year, dateTime.month, dateTime.day);
+  bool _containsMachinery(List<MachineryModel> list, String? id) {
+    return _findById(list, id) != null;
   }
 
-  bool _isSameDate(DateTime? a, DateTime? b) {
-    if (a == null || b == null) return false;
-    return a.year == b.year && a.month == b.month && a.day == b.day;
+  MachineryModel? _findById(List<MachineryModel> list, String? id) {
+    if (id == null) return null;
+    for (final machine in list) {
+      if (machine.id == id) return machine;
+    }
+    return null;
   }
 }
 
 enum BookingMode { hourly, daily }
 
-class Machinery {
-  const Machinery({
-    required this.id,
-    required this.name,
-    required this.category,
-    required this.imageUrl,
-    required this.pricePerHour,
-    required this.pricePerDay,
-    required this.isActive,
-  });
-
-  final String id;
-  final String name;
-  final String category;
-  final String imageUrl;
-  final double pricePerHour;
-  final double pricePerDay;
-  final bool isActive;
-
-  factory Machinery.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? <String, dynamic>{};
-    return Machinery(
-      id: data['id']?.toString() ?? doc.id,
-      name: data['name']?.toString() ?? 'Unnamed Machinery',
-      category: data['category']?.toString() ?? 'General',
-      imageUrl: data['imageUrl']?.toString() ?? '',
-      pricePerHour: _parseToDouble(data['pricePerHour']),
-      pricePerDay: _parseToDouble(data['pricePerDay']),
-      isActive: (data['isActive'] as bool?) ?? true,
-    );
-  }
-}
-
-class BookingEntry {
-  const BookingEntry({
-    required this.bookingId,
-    required this.machineryId,
-    required this.startDate,
-    required this.endDate,
-    required this.bookingType,
-    required this.status,
-    this.startHour,
-    this.durationHours,
-  });
-
-  final String bookingId;
-  final String machineryId;
-  final DateTime startDate;
-  final DateTime endDate;
-  final String bookingType;
-  final String status;
-  final int? startHour;
-  final int? durationHours;
-
-  bool get blocksCalendar {
-    const nonBlocking = {'cancelled', 'rejected', 'expired'};
-    return !nonBlocking.contains(status.toLowerCase());
-  }
-
-  factory BookingEntry.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data() ?? <String, dynamic>{};
-    final parsedStart = _parseDate(data['startDate']);
-    final parsedEnd = _parseDate(data['endDate']);
-    return BookingEntry(
-      bookingId: data['bookingId']?.toString() ?? doc.id,
-      machineryId: data['machineryId']?.toString() ?? '',
-      startDate: parsedStart,
-      endDate: parsedEnd,
-      bookingType: data['bookingType']?.toString() ?? 'daily',
-      status: data['status']?.toString() ?? 'pending',
-      startHour: _parseNullableInt(data['startHour'] ?? data['slotStartHour']),
-      durationHours: _parseNullableInt(
-        data['durationHours'] ?? data['hours'] ?? data['slotDurationHours'],
-      ),
-    );
-  }
-
-  bool overlapsDate(DateTime day) {
-    final d = DateTime(day.year, day.month, day.day);
-    final start = DateTime(startDate.year, startDate.month, startDate.day);
-    final end = DateTime(endDate.year, endDate.month, endDate.day);
-    return !d.isBefore(start) && !d.isAfter(end);
-  }
-
-  bool overlapsRange(DateTime start, DateTime end) {
-    final aStart = DateTime(start.year, start.month, start.day);
-    final aEnd = DateTime(end.year, end.month, end.day);
-    final bStart = DateTime(startDate.year, startDate.month, startDate.day);
-    final bEnd = DateTime(endDate.year, endDate.month, endDate.day);
-    return !aEnd.isBefore(bStart) && !aStart.isAfter(bEnd);
-  }
-
-  bool overlapsHourly({
-    required DateTime day,
-    required int startHour,
-    required int durationHours,
-  }) {
-    final normalizedDay = DateTime(day.year, day.month, day.day);
-
-    if (!overlapsDate(normalizedDay)) {
-      return false;
-    }
-
-    if (bookingType.toLowerCase() != 'hourly') {
-      return true;
-    }
-
-    final existingStart = this.startHour;
-    final existingDuration = this.durationHours;
-
-    if (existingStart == null || existingDuration == null) {
-      return true;
-    }
-
-    final existingEndExclusive = existingStart + existingDuration;
-    final selectedEndExclusive = startHour + durationHours;
-
-    return startHour < existingEndExclusive &&
-        selectedEndExclusive > existingStart;
-  }
-}
-
 class _LegendDot extends StatelessWidget {
-  const _LegendDot({
-    required this.color,
-    required this.borderColor,
-    required this.text,
-  });
+  const _LegendDot(this.label, this.color, this.borderColor);
 
+  final String label;
   final Color color;
   final Color borderColor;
-  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -1121,38 +1199,8 @@ class _LegendDot extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 6),
-        Text(text),
+        Text(label),
       ],
     );
   }
-}
-
-DateTime _parseDate(dynamic value) {
-  if (value is Timestamp) {
-    return value.toDate();
-  }
-  if (value is DateTime) {
-    return value;
-  }
-  if (value is int) {
-    return DateTime.fromMillisecondsSinceEpoch(value);
-  }
-  if (value is String) {
-    return DateTime.tryParse(value) ?? DateTime.now();
-  }
-  return DateTime.now();
-}
-
-double _parseToDouble(dynamic value) {
-  if (value is num) return value.toDouble();
-  if (value is String) return double.tryParse(value) ?? 0;
-  return 0;
-}
-
-int? _parseNullableInt(dynamic value) {
-  if (value == null) return null;
-  if (value is int) return value;
-  if (value is num) return value.toInt();
-  if (value is String) return int.tryParse(value);
-  return null;
 }

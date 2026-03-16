@@ -48,6 +48,7 @@ dependencies:
   http: ^1.2.0
   firebase_core: ^3.15.2
   cloud_firestore: ^5.6.11
+  razorpay_flutter: ^1.4.0
 
 
   # The following adds the Cupertino Icons font to your application.
