@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'services/api_client.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
@@ -110,6 +111,43 @@ class _TransactionsPageState extends State<TransactionsPage> {
   void initState() {
     super.initState();
     _filteredTransactions = _allTransactions;
+    _loadFromBackend();
+  }
+
+  Future<void> _loadFromBackend() async {
+    try {
+      final list = await ApiClient.instance.fetchTransactions();
+      final mapped = list
+          .map((m) => Transaction(
+                machineName: m['machineName'] ?? m['title'] ?? 'Unknown',
+                imageUrl: m['imageUrl'] ?? '',
+                rentalDuration: m['rentalDuration'] ?? '1 day',
+                price:
+                    (m['price'] is num) ? (m['price'] as num).toDouble() : 0.0,
+                status: _mapStatus(m['status']),
+                location: m['location'] ?? '-',
+                owner: m['owner'] ?? '-',
+                paymentMethod: m['paymentMethod'] ?? '-',
+                date: DateTime.tryParse(m['date'] ?? '') ?? DateTime.now(),
+              ))
+          .toList();
+      if (!mounted) return;
+      setState(() {
+        _allTransactions
+          ..clear()
+          ..addAll(mapped);
+        _filteredTransactions = _allTransactions;
+      });
+    } catch (_) {
+      // keep local sample data
+    }
+  }
+
+  TransactionStatus _mapStatus(dynamic value) {
+    final v = (value ?? '').toString().toLowerCase();
+    if (v.contains('complete')) return TransactionStatus.completed;
+    if (v.contains('cancel')) return TransactionStatus.cancelled;
+    return TransactionStatus.pending;
   }
 
   void _filterTransactions() {

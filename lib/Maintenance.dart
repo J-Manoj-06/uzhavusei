@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'config.dart';
+import 'services/api_client.dart';
 
 class ChatMessage {
   final String text;
@@ -116,12 +117,11 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
       lastDate: DateTime(2101),
     );
 
-    if (pickedDate != null) {
-      setState(() {
-        _selectedDate = pickedDate;
-        _dateController.text = "${pickedDate.toLocal()}".split(' ')[0];
-      });
-    }
+    setState(() {
+      _selectedDate = pickedDate;
+      _dateController.text =
+          pickedDate == null ? '' : "${pickedDate.toLocal()}".split(' ')[0];
+    });
   }
 
   @override
@@ -200,7 +200,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                 TextFormField(
+                TextFormField(
                   decoration: const InputDecoration(
                     labelText: 'Description',
                     hintText: 'Describe the issue...',
@@ -210,11 +210,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
-                    if (_selectedDate != null) {
-                      print('Selected Date: $_selectedDate');
-                    } else {
-                      print('No date selected');
-                    }
+                    // no-op
                   },
                   child: const Text(
                     'Submit Date',
@@ -223,7 +219,27 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
-                  onPressed: () {},
+                  onPressed: () async {
+                    try {
+                      await ApiClient.instance.createMaintenanceSchedule({
+                        'equipment': 'excavator',
+                        'preferredDate': _selectedDate?.toIso8601String(),
+                        'priority': 'MEDIUM',
+                      });
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Request submitted')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                              content: Text('Failed to submit request')),
+                        );
+                      }
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
                   ),

@@ -1161,7 +1161,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final provider = context.read<UserProfileProvider>();
       try {
         provider.userData['documents'].remove(document);
-        provider.notifyListeners();
+        provider.refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Document deleted successfully')),
@@ -1229,7 +1229,7 @@ class _ProfilePageState extends State<ProfilePage> {
             .indexWhere((e) => e['name'] == equipment['name']);
         if (index != -1) {
           provider.userData['farmDetails']['equipment'][index] = result;
-          provider.notifyListeners();
+          provider.refresh();
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Equipment updated successfully')),
@@ -1292,7 +1292,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (result != null) {
       try {
         provider.userData['farmDetails']['equipment'].add(result);
-        provider.notifyListeners();
+        provider.refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Equipment added successfully')),
@@ -1349,7 +1349,7 @@ class _ProfilePageState extends State<ProfilePage> {
             provider.userData['farmDetails']['irrigation'] = result;
             break;
         }
-        provider.notifyListeners();
+        provider.refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Farm detail updated successfully')),
@@ -1441,7 +1441,7 @@ class _ProfilePageState extends State<ProfilePage> {
       for (var pm in provider.userData['paymentMethods']) {
         pm['default'] = pm['type'] == method['type'];
       }
-      provider.notifyListeners();
+      provider.refresh();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Default payment method updated')),
@@ -1483,7 +1483,7 @@ class _ProfilePageState extends State<ProfilePage> {
       final provider = context.read<UserProfileProvider>();
       try {
         provider.userData['paymentMethods'].remove(method);
-        provider.notifyListeners();
+        provider.refresh();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'services/api_client.dart';
+import 'widgets/image_loader.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -28,6 +30,7 @@ class _HomePageState extends State<HomePage> {
     _getCurrentLocation();
     // Auto-scroll the page view
     _startAutoScroll();
+    _loadBackendData();
   }
 
   @override
@@ -90,6 +93,22 @@ class _HomePageState extends State<HomePage> {
       });
     } catch (e) {
       setState(() => _currentLocation = 'Error getting location');
+    }
+  }
+
+  Future<void> _loadBackendData() async {
+    try {
+      final equipment = await ApiClient.instance.fetchFeaturedEquipment();
+      final items = await ApiClient.instance.fetchNearbyItems();
+      if (!mounted) return;
+      setState(() {
+        _filteredEquipment = equipment;
+        _filteredItems
+          ..clear()
+          ..addAll(items);
+      });
+    } catch (e) {
+      // Keep sample data on failure
     }
   }
 
@@ -624,22 +643,11 @@ class _HomePageState extends State<HomePage> {
                 ClipRRect(
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: CachedNetworkImage(
-                    imageUrl: equipment['imageUrl'],
+                  child: buildSmartImage(
+                    equipment['imageUrl'],
                     height: 160,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.error),
                   ),
                 ),
                 Positioned(
@@ -747,22 +755,11 @@ class _HomePageState extends State<HomePage> {
                 ClipRRect(
                   borderRadius:
                       const BorderRadius.horizontal(left: Radius.circular(16)),
-                  child: CachedNetworkImage(
-                    imageUrl: item['imageUrl'],
+                  child: buildSmartImage(
+                    item['imageUrl'],
                     height: 120,
                     width: 120,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
-                        ),
-                      ),
-                    ),
-                    errorWidget: (context, url, error) =>
-                        const Icon(Icons.error),
                   ),
                 ),
                 Expanded(
@@ -997,8 +994,7 @@ final List<Map<String, dynamic>> featuredEquipment = [
     'price': '₹180/kg',
     'rating': 4.4,
     'category': 'Seeds',
-    'imageUrl':
-        'assets/paddy.jpg',
+    'imageUrl': 'assets/paddy.jpg',
   },
 ];
 
@@ -1026,8 +1022,7 @@ final List<Map<String, dynamic>> nearbyItems = [
     'seller': 'Agri Seeds Co.',
     'available': 'Limited Stock',
     'delivery': 'Free Delivery',
-    'imageUrl':
-        'assets/paddy.jpg',
+    'imageUrl': 'assets/paddy.jpg',
   },
   {
     'title': 'Tractor Spare Parts',
@@ -1039,8 +1034,7 @@ final List<Map<String, dynamic>> nearbyItems = [
     'seller': 'Farm Equipment Hub',
     'available': 'In Stock',
     'delivery': 'Same Day Delivery',
-    'imageUrl':
-        'assets/parts.jpg',
+    'imageUrl': 'assets/parts.jpg',
   },
   {
     'title': 'Drip Irrigation Kit',
@@ -1052,8 +1046,7 @@ final List<Map<String, dynamic>> nearbyItems = [
     'seller': 'Water Tech Solutions',
     'available': 'In Stock',
     'delivery': 'Free Installation',
-    'imageUrl':
-        'assets/drip.jpg',
+    'imageUrl': 'assets/drip.jpg',
   },
 ];
 

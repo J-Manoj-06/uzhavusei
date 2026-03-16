@@ -115,6 +115,10 @@ class UserProfileProvider extends ChangeNotifier {
   String get selectedLanguage => _selectedLanguage;
   bool get darkMode => _darkMode;
 
+  void refresh() {
+    notifyListeners();
+  }
+
   Future<void> updateProfile(Map<String, dynamic> newData) async {
     _isLoading = true;
     notifyListeners();
