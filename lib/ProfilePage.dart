@@ -3,6 +3,7 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'providers/user_profile_provider.dart';
+import 'services/auth_service.dart';
 
 void main() {
   runApp(const ProfileApp());
@@ -298,9 +299,15 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 const SizedBox(width: 16),
                 ElevatedButton(
-                  onPressed: () {
-                    // Navigate to login page
-                    Navigator.pushReplacementNamed(context, '/login');
+                  onPressed: () async {
+                    try {
+                      await AuthService().signOut();
+                    } catch (_) {
+                      if (!mounted) return;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Unable to log out.')),
+                      );
+                    }
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.red,

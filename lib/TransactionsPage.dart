@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -90,7 +91,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                     itemCount: filtered.length + 1,
                     itemBuilder: (context, index) {
                       if (index == filtered.length) {
-                        final canLoadMore = _hasMoreOlder || canLoadMoreFromLivePage;
+                        final canLoadMore =
+                            _hasMoreOlder || canLoadMoreFromLivePage;
                         if (!canLoadMore) {
                           return const SizedBox(height: 12);
                         }
@@ -109,10 +111,12 @@ class _TransactionsPageState extends State<TransactionsPage> {
                                   ? const SizedBox(
                                       width: 16,
                                       height: 16,
-                                      child: CircularProgressIndicator(strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2),
                                     )
                                   : const Icon(Icons.expand_more_rounded),
-                              label: Text(_loadingOlder ? 'Loading...' : 'Load older'),
+                              label: Text(
+                                  _loadingOlder ? 'Loading...' : 'Load older'),
                             ),
                           ),
                         );
@@ -182,7 +186,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
       itemBuilder: (context, index) {
         return Card(
           margin: const EdgeInsets.symmetric(vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Shimmer.fromColors(
@@ -230,7 +235,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.error_outline_rounded, color: Colors.red, size: 44),
+            const Icon(Icons.error_outline_rounded,
+                color: Colors.red, size: 44),
             const SizedBox(height: 10),
             const Text(
               'Unable to load transactions.',
@@ -264,7 +270,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.receipt_long_rounded, size: 72, color: Colors.grey.shade400),
+            Icon(Icons.receipt_long_rounded,
+                size: 72, color: Colors.grey.shade400),
             const SizedBox(height: 10),
             const Text(
               'No transactions yet',
@@ -289,7 +296,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off_rounded, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.search_off_rounded,
+                size: 64, color: Colors.grey.shade400),
             const SizedBox(height: 10),
             const Text(
               'No matching transactions',
@@ -335,7 +343,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
     return list;
   }
 
-  List<BookingTransaction> _applyClientFilters(List<BookingTransaction> source) {
+  List<BookingTransaction> _applyClientFilters(
+      List<BookingTransaction> source) {
     final query = _searchQuery.toLowerCase();
     return source.where((transaction) {
       final matchesText = query.isEmpty ||
@@ -422,7 +431,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                   children: [
                     const Text(
                       'Filter by Status',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 10),
                     Wrap(
@@ -433,7 +443,8 @@ class _TransactionsPageState extends State<TransactionsPage> {
                             (filter) => ChoiceChip(
                               label: Text(filter.label),
                               selected: selected == filter,
-                              selectedColor: _brandGreen.withValues(alpha: 0.18),
+                              selectedColor:
+                                  _brandGreen.withValues(alpha: 0.18),
                               onSelected: (_) {
                                 setModalState(() {
                                   selected = filter;
@@ -478,6 +489,11 @@ class _TransactionsPageState extends State<TransactionsPage> {
   }
 
   String _resolveCurrentUserId(BuildContext context) {
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid != null && authUid.trim().isNotEmpty) {
+      return authUid;
+    }
+
     final profileData = context.read<UserProfileProvider>().userData;
     final rawUserId = profileData['userId']?.toString();
     if (rawUserId != null && rawUserId.trim().isNotEmpty) {
@@ -553,12 +569,13 @@ class _TransactionCard extends StatelessWidget {
                           '${transaction.durationDays} day(s) • ${transaction.location}',
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 13),
                         ),
                         const SizedBox(height: 8),
                         Container(
-                          padding:
-                              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
                             color: statusStyle.bg,
                             borderRadius: BorderRadius.circular(999),
@@ -566,7 +583,8 @@ class _TransactionCard extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(statusStyle.icon, size: 14, color: statusStyle.fg),
+                              Icon(statusStyle.icon,
+                                  size: 14, color: statusStyle.fg),
                               const SizedBox(width: 4),
                               Text(
                                 statusStyle.label,
@@ -670,7 +688,8 @@ class TransactionDetailsPage extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     statusStyle.label,
-                    style: TextStyle(color: statusStyle.fg, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                        color: statusStyle.fg, fontWeight: FontWeight.w700),
                   ),
                 ],
               ),
@@ -680,13 +699,16 @@ class TransactionDetailsPage extends StatelessWidget {
             _detail('Location', transaction.location),
             _detail('Booking Type', transaction.bookingType),
             _detail('Duration', '${transaction.durationDays} day(s)'),
-            _detail('Start Date', DateFormat('dd MMM yyyy').format(transaction.startDate)),
-            _detail('End Date', DateFormat('dd MMM yyyy').format(transaction.endDate)),
+            _detail('Start Date',
+                DateFormat('dd MMM yyyy').format(transaction.startDate)),
+            _detail('End Date',
+                DateFormat('dd MMM yyyy').format(transaction.endDate)),
             _detail('Payment Method', transaction.paymentMethod),
             _detail('Payment ID', transaction.paymentId),
             _detail(
               'Amount Paid',
-              NumberFormat.currency(locale: 'en_IN', symbol: '₹', decimalDigits: 2)
+              NumberFormat.currency(
+                      locale: 'en_IN', symbol: '₹', decimalDigits: 2)
                   .format(transaction.totalPrice),
               isStrong: true,
             ),
@@ -762,7 +784,8 @@ class BookingTransaction {
   final String paymentId;
   final DateTime createdAt;
 
-  factory BookingTransaction.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+  factory BookingTransaction.fromDoc(
+      DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
     final start = _toDate(data['startDate']);
     final end = _toDate(data['endDate']);
@@ -774,9 +797,11 @@ class BookingTransaction {
     return BookingTransaction(
       bookingId: (data['bookingId'] ?? doc.id).toString(),
       machineryId: (data['machineryId'] ?? '').toString(),
-      machineryName: (data['machineryName'] ?? data['machineName'] ?? 'Machinery')
-          .toString(),
-      machineryImageUrl: (data['machineryImageUrl'] ?? data['imageUrl'] ?? '').toString(),
+      machineryName:
+          (data['machineryName'] ?? data['machineName'] ?? 'Machinery')
+              .toString(),
+      machineryImageUrl:
+          (data['machineryImageUrl'] ?? data['imageUrl'] ?? '').toString(),
       ownerName: (data['ownerName'] ?? 'Unknown Owner').toString(),
       location: (data['location'] ?? 'Unknown').toString(),
       userId: (data['userId'] ?? '').toString(),
@@ -786,7 +811,8 @@ class BookingTransaction {
       endDate: end,
       totalPrice: _toDouble(data['totalPrice']),
       paymentMethod: (data['paymentMethod'] ?? 'Unknown').toString(),
-      paymentStatus: (data['paymentStatus'] ?? data['status'] ?? 'pending').toString(),
+      paymentStatus:
+          (data['paymentStatus'] ?? data['status'] ?? 'pending').toString(),
       paymentId: (data['paymentId'] ?? '-').toString(),
       createdAt: _toDate(data['createdAt']),
     );

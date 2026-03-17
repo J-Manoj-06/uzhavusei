@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -12,6 +13,7 @@ import 'services/firebase_bootstrap.dart';
 import 'services/firestore_booking_repository.dart';
 import 'services/razorpay_checkout_service.dart';
 import 'widgets/image_loader.dart';
+import 'features/equipment/presentation/equipment_form_page.dart';
 
 class Calendar extends StatefulWidget {
   const Calendar({super.key});
@@ -88,7 +90,11 @@ class _CalendarState extends State<Calendar> {
           final machineries =
               machinerySnapshot.data ?? const <MachineryModel>[];
           if (machineries.isEmpty) {
-            return _buildEmptyState('No active machinery available right now.');
+            return _buildNoMachineryCalendarState(
+              firstDay: firstDay,
+              lastDay: lastDay,
+              message: 'No active machinery available right now.',
+            );
           }
 
           if (!_containsMachinery(machineries, _selectedMachineryId)) {
@@ -277,28 +283,17 @@ class _CalendarState extends State<Calendar> {
             (machine) => DropdownMenuItem<String>(
               value: machine.id,
               child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildMachineThumb(machine.imageUrl, 34),
                   const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          machine.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          machine.category,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 170),
+                    child: Text(
+                      '${machine.name} • ${machine.category}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                   ),
                 ],
@@ -855,7 +850,12 @@ class _CalendarState extends State<Calendar> {
       final profile = context.read<UserProfileProvider>().userData;
       final name = (profile['name'] ?? 'UzhavuSei User').toString();
       final email = (profile['email'] ?? 'user@example.com').toString();
-      final phone = (profile['phone'] ?? '').toString().replaceAll(' ', '');
+      final rawPhone = (profile['phone'] ??
+              profile['phoneNumber'] ??
+              FirebaseAuth.instance.currentUser?.phoneNumber ??
+              '')
+          .toString();
+      final phone = _formatPhoneNumber(rawPhone);
       final userId = _resolveUserId(profile, email);
 
       final paymentResult = await _paymentService.startPayment(
@@ -907,6 +907,11 @@ class _CalendarState extends State<Calendar> {
   }
 
   String _resolveUserId(Map<String, dynamic> profile, String email) {
+    final authUid = FirebaseAuth.instance.currentUser?.uid;
+    if (authUid != null && authUid.trim().isNotEmpty) {
+      return authUid;
+    }
+
     final profileUserId = profile['userId']?.toString();
     if (profileUserId != null && profileUserId.trim().isNotEmpty) {
       return profileUserId;
@@ -917,6 +922,17 @@ class _CalendarState extends State<Calendar> {
     }
 
     return 'guest_${DateTime.now().millisecondsSinceEpoch}';
+  }
+
+  String _formatPhoneNumber(String phone) {
+    String cleaned = phone.replaceAll(RegExp(r'\D'), '');
+    if (cleaned.isEmpty) return '9000000000';
+    if (cleaned.length < 10) {
+      cleaned = cleaned.padLeft(10, '0');
+    } else if (cleaned.length > 10) {
+      cleaned = cleaned.substring(cleaned.length - 10);
+    }
+    return cleaned;
   }
 
   BookingDraft _buildDraft({
@@ -1044,6 +1060,97 @@ class _CalendarState extends State<Calendar> {
         ),
       ),
     );
+  }
+
+  Widget _buildNoMachineryCalendarState({
+    required DateTime firstDay,
+    required DateTime lastDay,
+    required String message,
+  }) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildEmptyState(message),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _addSampleMachinery,
+              icon: const Icon(Icons.add_circle_outline),
+              label: const Text('Add Machinery'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryGreen,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.green.shade100),
+            ),
+            padding: const EdgeInsets.all(10),
+            child: TableCalendar<dynamic>(
+              firstDay: firstDay,
+              lastDay: lastDay,
+              focusedDay: _focusedDay,
+              selectedDayPredicate: (day) => _sameDate(_selectedDay, day),
+              calendarFormat: CalendarFormat.month,
+              headerStyle: const HeaderStyle(
+                titleCentered: true,
+                formatButtonVisible: false,
+                titleTextStyle: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 18,
+                ),
+              ),
+              enabledDayPredicate: (day) => !_isBeforeToday(day),
+              onDaySelected: (selectedDay, focusedDay) {
+                if (_isBeforeToday(selectedDay)) return;
+                setState(() {
+                  _selectedDay = _dateOnly(selectedDay);
+                  _focusedDay = focusedDay;
+                });
+                _showMessage('No machinery available for booking yet.');
+              },
+              onPageChanged: (focusedDay) {
+                setState(() {
+                  _focusedDay = focusedDay;
+                });
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addSampleMachinery() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      _showMessage('Please log in to add machinery.');
+      return;
+    }
+
+    final ownerName = (user.displayName ?? '').trim().isEmpty
+        ? 'Farmer'
+        : user.displayName!.trim();
+
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EquipmentFormPage(
+          ownerId: user.uid,
+          ownerName: ownerName,
+        ),
+      ),
+    );
+
+    if (!mounted || created != true) return;
+    _showMessage('Machinery listed successfully.');
   }
 
   Widget _buildErrorState(String message) {
