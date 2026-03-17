@@ -116,7 +116,8 @@ class RazorpayCheckoutService {
         );
       }
 
-      debugPrint('Starting Razorpay with: Phone=${request.userPhone}, Email=${request.userEmail}, Amount=${request.amountInPaise}');
+      debugPrint(
+          'Starting Razorpay with: Phone=${request.userPhone}, Email=${request.userEmail}, Amount=${request.amountInPaise}');
 
       final options = {
         'key': request.key,

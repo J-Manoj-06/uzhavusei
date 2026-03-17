@@ -16,25 +16,25 @@ class FirestoreBookingRepository {
         .where('isActive', isEqualTo: true)
         .snapshots()
         .asyncMap((snapshot) async {
-          final machineries = snapshot.docs
-              .map(MachineryModel.fromDoc)
-              .where((m) => m.name.trim().isNotEmpty)
-              .toList();
+      final machineries = snapshot.docs
+          .map(MachineryModel.fromDoc)
+          .where((m) => m.name.trim().isNotEmpty)
+          .toList();
 
-          if (machineries.isNotEmpty) {
-            return machineries;
-          }
+      if (machineries.isNotEmpty) {
+        return machineries;
+      }
 
-          final equipmentSnapshot = await _firestore
-              .collection('equipments')
-              .where('availability', isEqualTo: true)
-              .get();
+      final equipmentSnapshot = await _firestore
+          .collection('equipments')
+          .where('availability', isEqualTo: true)
+          .get();
 
-          return equipmentSnapshot.docs
-              .map(_machineryFromEquipmentDoc)
-              .where((m) => m.name.trim().isNotEmpty)
-              .toList();
-        });
+      return equipmentSnapshot.docs
+          .map(_machineryFromEquipmentDoc)
+          .where((m) => m.name.trim().isNotEmpty)
+          .toList();
+    });
   }
 
   MachineryModel _machineryFromEquipmentDoc(
