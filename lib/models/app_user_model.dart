@@ -19,7 +19,9 @@ class AppUserModel {
   final String profileImage;
   final DateTime createdAt;
 
-  bool get isRenter => role.toLowerCase() == 'renter';
+  bool get isRenter =>
+      role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
+  bool get isOwner => role.toLowerCase() == 'owner';
   bool get isFarmer => role.toLowerCase() == 'farmer';
 
   factory AppUserModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {

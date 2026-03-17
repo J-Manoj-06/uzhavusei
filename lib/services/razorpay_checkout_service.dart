@@ -96,6 +96,28 @@ class RazorpayCheckoutService {
     _completer = completer;
 
     try {
+      // Validate required fields
+      if (request.userPhone.isEmpty || request.userPhone.length != 10) {
+        return const PaymentResult(
+          status: PaymentStatus.failed,
+          errorMessage: 'Invalid phone number. Must be 10 digits.',
+        );
+      }
+      if (request.userEmail.isEmpty || !request.userEmail.contains('@')) {
+        return const PaymentResult(
+          status: PaymentStatus.failed,
+          errorMessage: 'Invalid email address.',
+        );
+      }
+      if (request.amountInPaise <= 0) {
+        return const PaymentResult(
+          status: PaymentStatus.failed,
+          errorMessage: 'Invalid amount. Must be greater than 0.',
+        );
+      }
+
+      debugPrint('Starting Razorpay with: Phone=${request.userPhone}, Email=${request.userEmail}, Amount=${request.amountInPaise}');
+
       final options = {
         'key': request.key,
         'amount': request.amountInPaise,

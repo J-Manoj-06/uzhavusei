@@ -17,7 +17,9 @@ class MarketplaceService {
         .collection('equipments')
         .orderBy('createdAt', descending: true);
 
-    if (category != null && category.isNotEmpty && category.toLowerCase() != 'all') {
+    if (category != null &&
+        category.isNotEmpty &&
+        category.toLowerCase() != 'all') {
       query = query.where('category', isEqualTo: category);
     }
 
@@ -32,7 +34,8 @@ class MarketplaceService {
         );
   }
 
-  Stream<List<MarketplaceEquipmentModel>> watchEquipmentsByOwner(String ownerId) {
+  Stream<List<MarketplaceEquipmentModel>> watchEquipmentsByOwner(
+      String ownerId) {
     return _firestore
         .collection('equipments')
         .where('ownerId', isEqualTo: ownerId)
@@ -97,28 +100,41 @@ class MarketplaceService {
     required String ownerId,
     required String userId,
     required String equipmentName,
+    required String imageUrl,
+    required String ownerName,
     required String location,
-    required DateTime startDate,
-    required DateTime endDate,
+    required DateTime startDateTime,
+    required DateTime endDateTime,
     required String bookingType,
+    required String duration,
     required double totalPrice,
     required String paymentId,
   }) async {
     final doc = _firestore.collection('bookings').doc();
     await doc.set({
       'bookingId': doc.id,
+      // Equipment identifiers — dual-written so both marketplace and
+      // TransactionsPage (which reads machineryId / machineryName) work.
       'equipmentId': equipmentId,
+      'machineryId': equipmentId,
       'ownerId': ownerId,
       'userId': userId,
       'equipmentName': equipmentName,
+      'machineryName': equipmentName,
+      'imageUrl': imageUrl,
+      'machineryImageUrl': imageUrl,
+      'ownerName': ownerName,
       'location': location,
-      'startDate': Timestamp.fromDate(startDate),
-      'endDate': Timestamp.fromDate(endDate),
+      'startDate': Timestamp.fromDate(startDateTime),
+      'endDate': Timestamp.fromDate(endDateTime),
       'bookingType': bookingType,
+      'duration': duration,
       'totalPrice': totalPrice,
       'paymentId': paymentId,
-      'status': 'confirmed',
+      'paymentMethod': 'Razorpay',
       'paymentStatus': 'completed',
+      'status': 'confirmed',
+      'bookingStatus': 'confirmed',
       'createdAt': FieldValue.serverTimestamp(),
     });
   }

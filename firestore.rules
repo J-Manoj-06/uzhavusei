@@ -16,6 +16,12 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // Calendar page source collection.
+    match /machineries/{machineryId} {
+      allow read: if true;
+      allow create, update, delete: if signedIn();
+    }
+
     match /equipments/{equipmentId} {
       allow read: if true;
       allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
@@ -24,11 +30,18 @@ service cloud.firestore {
 
     match /bookings/{bookingId} {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+
+      // Needed by calendar to load already-booked dates per machinery.
       allow read: if signedIn() && (
+        resource.data.userId == request.auth.uid ||
+        resource.data.ownerId == request.auth.uid ||
+        resource.data.machineryId is string
+      );
+
+      allow update: if signedIn() && (
         resource.data.userId == request.auth.uid ||
         resource.data.ownerId == request.auth.uid
       );
-      allow update: if signedIn() && resource.data.ownerId == request.auth.uid;
       allow delete: if false;
     }
   }

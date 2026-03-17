@@ -22,6 +22,10 @@ class AuthService {
     return _auth.signInWithEmailAndPassword(email: email, password: password);
   }
 
+  Future<void> sendPasswordResetEmail({required String email}) {
+    return _auth.sendPasswordResetEmail(email: email);
+  }
+
   Future<UserCredential> register({
     required String name,
     required String email,
@@ -55,8 +59,9 @@ class AuthService {
   Future<void> setRole(String role) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
+    final normalizedRole = role.trim().toLowerCase();
     await _firestore.collection('users').doc(uid).set({
-      'role': role,
+      'role': normalizedRole,
       'userId': uid,
       'email': _auth.currentUser?.email ?? '',
       'name': _auth.currentUser?.displayName ?? 'User',

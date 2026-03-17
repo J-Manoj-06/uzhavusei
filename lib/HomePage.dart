@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'models/marketplace_equipment_model.dart';
 import 'services/api_client.dart';
+import 'services/marketplace_service.dart';
 import 'widgets/image_loader.dart';
+import 'features/equipment/presentation/booking_payment_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -19,9 +23,12 @@ class _HomePageState extends State<HomePage> {
   int _currentPage = 0;
   String _selectedCategory = 'All';
   String _selectedSort = 'Popular';
+  List<Map<String, dynamic>> _allEquipment = [...featuredEquipment];
+  List<Map<String, dynamic>> _allNearbyItems = [...nearbyItems];
   List<Map<String, dynamic>> _filteredEquipment = [...featuredEquipment];
   final List<Map<String, dynamic>> _filteredItems = [...nearbyItems];
   final List<Map<String, dynamic>> _wishlist = [];
+  final MarketplaceService _marketplaceService = MarketplaceService();
 
   @override
   void initState() {
@@ -30,6 +37,7 @@ class _HomePageState extends State<HomePage> {
     // Auto-scroll the page view
     _startAutoScroll();
     _loadBackendData();
+    _loadMarketplaceData();
   }
 
   @override
@@ -66,6 +74,7 @@ class _HomePageState extends State<HomePage> {
 
       serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
+        if (!mounted) return;
         setState(() => _currentLocation = 'Location services disabled');
         return;
       }
@@ -74,23 +83,27 @@ class _HomePageState extends State<HomePage> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
+          if (!mounted) return;
           setState(() => _currentLocation = 'Location permissions denied');
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
+        if (!mounted) return;
         setState(
             () => _currentLocation = 'Location permissions permanently denied');
         return;
       }
 
       Position position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
       setState(() {
         _currentLocation = '${position.latitude}, ${position.longitude}';
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _currentLocation = 'Error getting location');
     }
   }
@@ -101,7 +114,9 @@ class _HomePageState extends State<HomePage> {
       final items = await ApiClient.instance.fetchNearbyItems();
       if (!mounted) return;
       setState(() {
+        _allEquipment = equipment;
         _filteredEquipment = equipment;
+        _allNearbyItems = items;
         _filteredItems
           ..clear()
           ..addAll(items);
@@ -111,15 +126,71 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  Future<void> _loadMarketplaceData() async {
+    try {
+      final equipments =
+          await _marketplaceService.watchEquipments(onlyAvailable: true).first;
+      if (equipments.isEmpty || !mounted) return;
+
+      final mapped =
+          equipments.map(_marketplaceEquipmentToCard).toList(growable: false);
+
+      setState(() {
+        _allEquipment = mapped;
+        _allNearbyItems = mapped;
+        _filteredEquipment = mapped;
+        _filteredItems
+          ..clear()
+          ..addAll(mapped);
+      });
+    } catch (_) {
+      // Keep existing local/backend data if Firestore is unavailable.
+    }
+  }
+
+  Map<String, dynamic> _marketplaceEquipmentToCard(
+    MarketplaceEquipmentModel equipment,
+  ) {
+    final imageUrl = equipment.imageUrls.isEmpty
+        ? 'assets/logo.jpg'
+        : equipment.imageUrls.first;
+
+    return {
+      'title': equipment.equipmentName,
+      'price': 'Rs.${equipment.pricePerHour.toStringAsFixed(0)}/hr',
+      'rating': equipment.rating > 0 ? equipment.rating : 4.5,
+      'distance': equipment.location,
+      'imageUrl': imageUrl,
+      'description': equipment.description.isEmpty
+          ? 'Well-maintained equipment available for rent.'
+          : equipment.description,
+      'seller': equipment.ownerName,
+      'delivery': 'Contact owner',
+      'available': equipment.availability ? 'In Stock' : 'Unavailable',
+      'category': equipment.category,
+    };
+  }
+
   void _filterEquipment(String category) {
     setState(() {
       _selectedCategory = category;
       if (category == 'All') {
-        _filteredEquipment = [...featuredEquipment];
+        _filteredEquipment = [..._allEquipment];
+        _filteredItems
+          ..clear()
+          ..addAll(_allNearbyItems);
       } else {
-        _filteredEquipment = featuredEquipment
-            .where((item) => item['category'] == category)
+        _filteredEquipment = _allEquipment
+            .where((item) =>
+                (item['category']?.toString().toLowerCase() ?? '') ==
+                category.toLowerCase())
             .toList();
+        _filteredItems
+          ..clear()
+          ..addAll(_allNearbyItems.where((item) {
+            return (item['category']?.toString().toLowerCase() ?? '') ==
+                category.toLowerCase();
+          }));
       }
     });
   }
@@ -142,16 +213,75 @@ class _HomePageState extends State<HomePage> {
               .sort((a, b) => a['distance'].compareTo(b['distance']));
           break;
         default:
-          _filteredEquipment = [...featuredEquipment];
+          _filteredEquipment = [..._allEquipment];
       }
     });
   }
 
-  void _navigateToPayment(Map<String, dynamic> item) {
+  String _formatPhoneNumber(String phone) {
+    // Remove all non-digit characters
+    String cleaned = phone.replaceAll(RegExp(r'\D'), '');
+    // Ensure it's 10 digits, pad with leading zeros if needed
+    if (cleaned.isEmpty) return '9000000000';
+    if (cleaned.length < 10) {
+      cleaned = cleaned.padLeft(10, '0');
+    } else if (cleaned.length > 10) {
+      cleaned = cleaned.substring(cleaned.length - 10); // Take last 10 digits
+    }
+    return cleaned;
+  }
+
+  void _navigateToPayment(Map<String, dynamic> item) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to book equipment.'),
+          backgroundColor: Color(0xFFC62828),
+        ),
+      );
+      return;
+    }
+
+    // Parse price from string (e.g., "₹1500/day" or "₹800/day")
+    final priceStr = item['price'].toString().replaceAll('₹', '').split('/')[0];
+    final pricePerDay = double.tryParse(priceStr) ?? 0;
+    final pricePerHour = pricePerDay / 24; // Approximate hourly rate
+
+    // Create MarketplaceEquipmentModel from map
+    final equipment = MarketplaceEquipmentModel(
+      equipmentId: item['title'] ?? 'equipment-${DateTime.now().millisecond}',
+      ownerId: 'local-owner',
+      equipmentName: item['title'] ?? 'Equipment',
+      category: item['category'] ?? 'General',
+      description: item['description'] ?? 'No description available',
+      pricePerHour: pricePerHour,
+      pricePerDay: pricePerDay,
+      location: item['distance'] ?? 'Unknown location',
+      latitude: 0.0,
+      longitude: 0.0,
+      imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
+      availability: item['available'] != 'Unavailable',
+      rating: item['rating'] ?? 4.5,
+      createdAt: DateTime.now(),
+      ownerName: item['seller'] ?? 'Local Seller',
+      machineSpecs: '',
+    );
+
+    if (!mounted) return;
+
+    // Navigate to BookingPaymentPage with real Firebase user data
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => PaymentPage(item: item),
+        builder: (context) => BookingPaymentPage(
+          equipment: equipment,
+          userId: user.uid,
+          userName: user.displayName ?? 'User',
+          userEmail: user.email ?? '',
+          userPhone: _formatPhoneNumber(user.phoneNumber ?? '9000000000'),
+        ),
       ),
     );
   }
@@ -448,11 +578,11 @@ class _HomePageState extends State<HomePage> {
                   ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
-                    itemCount: nearbyItems.length,
+                    itemCount: _filteredItems.length,
                     itemBuilder: (context, index) {
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildNearbyItem(nearbyItems[index]),
+                        child: _buildNearbyItem(_filteredItems[index]),
                       );
                     },
                   ),
@@ -507,7 +637,7 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             Text(
               title,
               style: const TextStyle(
@@ -518,7 +648,7 @@ class _HomePageState extends State<HomePage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 4),
             const Text(
               'Get up to 30% off on selected items',
               style: TextStyle(
@@ -528,19 +658,21 @@ class _HomePageState extends State<HomePage> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 4),
             Row(
               children: [
                 ElevatedButton(
                   onPressed: () {
+                    if (_filteredEquipment.isEmpty) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (context) => EquipmentDetailsPage(
-                          item: featuredEquipment[_currentPage],
+                          item: _filteredEquipment[
+                              _currentPage % _filteredEquipment.length],
                           onAddToWishlist: _addToWishlist,
-                          isInWishlist:
-                              _isInWishlist(featuredEquipment[_currentPage]),
+                          isInWishlist: _isInWishlist(_filteredEquipment[
+                              _currentPage % _filteredEquipment.length]),
                         ),
                       ),
                     );
@@ -556,10 +688,16 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(width: 8),
                 IconButton(
                   onPressed: () {
-                    _toggleWishlist(featuredEquipment[_currentPage]);
+                    if (_filteredEquipment.isEmpty) return;
+                    _toggleWishlist(
+                      _filteredEquipment[
+                          _currentPage % _filteredEquipment.length],
+                    );
                   },
                   icon: Icon(
-                    _isInWishlist(featuredEquipment[_currentPage])
+                    _filteredEquipment.isNotEmpty &&
+                            _isInWishlist(_filteredEquipment[
+                                _currentPage % _filteredEquipment.length])
                         ? Icons.favorite
                         : Icons.favorite_border,
                     color: Colors.white,
@@ -1077,111 +1215,6 @@ final List<Map<String, dynamic>> nearbyItems = [
   },
 ];
 
-// New Payment Page
-class PaymentPage extends StatelessWidget {
-  final Map<String, dynamic> item;
-
-  const PaymentPage({super.key, required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Payment'),
-        backgroundColor: const Color(0xFF4CAF50),
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              item['title'],
-              style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Price: ${item['price']}',
-              style: const TextStyle(
-                fontSize: 20,
-                color: Color(0xFF4CAF50),
-              ),
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              'Payment Options',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            _buildPaymentOption('Credit Card', Icons.credit_card),
-            _buildPaymentOption('UPI', Icons.payment),
-            _buildPaymentOption('Net Banking', Icons.account_balance),
-            const Spacer(),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () {
-                  // TODO: Implement payment processing
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Payment successful!'),
-                      backgroundColor: Color(0xFF4CAF50),
-                    ),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                ),
-                child: const Text(
-                  'Proceed to Payment',
-                  style: TextStyle(fontSize: 18),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPaymentOption(String title, IconData icon) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey[300]!),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: const Color(0xFF4CAF50)),
-            const SizedBox(width: 16),
-            Text(
-              title,
-              style: const TextStyle(fontSize: 16),
-            ),
-            const Spacer(),
-            Radio(
-              value: title,
-              groupValue: title,
-              onChanged: (value) {},
-              activeColor: const Color(0xFF4CAF50),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // New Equipment List Page
 class EquipmentListPage extends StatelessWidget {
   final List<Map<String, dynamic>> equipment;
@@ -1424,10 +1457,66 @@ class EquipmentDetailsPage extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                       onPressed: () {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please log in to book equipment.'),
+                              backgroundColor: Color(0xFFC62828),
+                            ),
+                          );
+                          return;
+                        }
+
+                        final priceStr = item['price']
+                            .toString()
+                            .replaceAll(RegExp(r'[^\d.]'), '')
+                            .split('/')[0];
+                        final pricePerDay = double.tryParse(priceStr) ?? 0;
+                        final pricePerHour = pricePerDay / 24;
+
+                        final equipment = MarketplaceEquipmentModel(
+                          equipmentId: item['title'] ??
+                              'equipment-${DateTime.now().millisecondsSinceEpoch}',
+                          ownerId: 'local-owner',
+                          equipmentName: item['title'] ?? 'Equipment',
+                          category: item['category'] ?? 'General',
+                          description:
+                              item['description'] ?? 'No description available',
+                          pricePerHour: pricePerHour,
+                          pricePerDay: pricePerDay,
+                          location: item['distance'] ?? 'Unknown location',
+                          latitude: 0.0,
+                          longitude: 0.0,
+                          imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
+                          availability: item['available'] != 'Unavailable',
+                          rating: (item['rating'] ?? 4.5) is double
+                              ? item['rating']
+                              : (item['rating'] ?? 4.5).toDouble(),
+                          createdAt: DateTime.now(),
+                          ownerName: item['seller'] ?? 'Local Seller',
+                          machineSpecs: '',
+                        );
+
+                        String phone = (user.phoneNumber ?? '9000000000')
+                            .replaceAll(RegExp(r'\D'), '');
+                        if (phone.isEmpty) phone = '9000000000';
+                        if (phone.length < 10) {
+                          phone = phone.padLeft(10, '0');
+                        } else if (phone.length > 10) {
+                          phone = phone.substring(phone.length - 10);
+                        }
+
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => PaymentPage(item: item),
+                            builder: (context) => BookingPaymentPage(
+                              equipment: equipment,
+                              userId: user.uid,
+                              userName: user.displayName ?? 'User',
+                              userEmail: user.email ?? '',
+                              userPhone: phone,
+                            ),
                           ),
                         );
                       },
