@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/services.dart';
 
 import '../../../services/auth_service.dart';
 
@@ -172,7 +173,33 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                                 ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _submitting ? null : _continueWithGoogle,
+                          icon: const Icon(Icons.g_mobiledata, size: 28),
+                          label: const Text(
+                            'Continue with Google',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFF1F1F1F),
+                            side: BorderSide(color: Colors.grey.shade300),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 16),
+                      const _OrDivider(),
+                      const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -253,6 +280,27 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(_friendlyAuthError(error))),
       );
+    }
+  }
+
+  Future<void> _continueWithGoogle() async {
+    setState(() {
+      _submitting = true;
+    });
+
+    try {
+      await widget.authService.signInWithGoogle();
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyAuthError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
     }
   }
 }
@@ -452,7 +500,31 @@ class _RegisterPageState extends State<RegisterPage> {
                           ),
                   ),
                 ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: _submitting ? null : _continueWithGoogle,
+                    icon: const Icon(Icons.g_mobiledata, size: 28),
+                    label: const Text(
+                      'Continue with Google',
+                      style:
+                          TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: const Color(0xFF1F1F1F),
+                      side: BorderSide(color: Colors.grey.shade300),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 10),
+                const _OrDivider(),
+                const SizedBox(height: 2),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -499,6 +571,32 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Account created. Please select your role.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_friendlyAuthError(error))),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _continueWithGoogle() async {
+    setState(() {
+      _submitting = true;
+    });
+
+    try {
+      await widget.authService.signInWithGoogle();
+      if (!mounted) return;
+      Navigator.pop(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Google sign-in successful.')),
       );
     } catch (error) {
       if (!mounted) return;
@@ -613,6 +711,30 @@ class _StrengthBar extends StatelessWidget {
   }
 }
 
+class _OrDivider extends StatelessWidget {
+  const _OrDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: Colors.grey.shade300)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Text(
+            'OR',
+            style: TextStyle(
+              color: Colors.grey.shade700,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        Expanded(child: Divider(color: Colors.grey.shade300)),
+      ],
+    );
+  }
+}
+
 double _passwordStrength(String password) {
   if (password.isEmpty) return 0;
   var score = 0;
@@ -641,10 +763,41 @@ String _friendlyAuthError(Object error) {
         return 'Password is too weak.';
       case 'too-many-requests':
         return 'Too many attempts. Try again later.';
+      case 'aborted-by-user':
+        return 'Google sign-in was cancelled.';
+      case 'network-request-failed':
+        return 'Network error. Please check internet and try again.';
+      case 'google-sign-in-config-error':
+        return 'Google Sign-In config issue. Add SHA-1/SHA-256 in Firebase and use matching google-services.json.';
+      case 'google-sign-in-failed':
+        return error.message ?? 'Google sign-in failed. Please try again.';
+      case 'google-sign-in-plugin-unavailable':
+        return 'Google Sign-In plugin not initialized. Stop the app and start it again (hot restart is not enough).';
       default:
         return error.message ?? 'Authentication failed. Please try again.';
     }
   }
+
+  if (error is PlatformException) {
+    final details = '${error.code} ${error.message ?? ''}'.toLowerCase();
+    if (details.contains('apiexception: 10') ||
+        details.contains('developer_error')) {
+      return 'Google Sign-In config issue. Add SHA-1/SHA-256 in Firebase and use matching google-services.json.';
+    }
+    if (details.contains('canceled') || details.contains('cancelled')) {
+      return 'Google sign-in was cancelled.';
+    }
+    if (details.contains('network')) {
+      return 'Network error. Please check internet and try again.';
+    }
+    if (details.contains('unable to establish connection on channel') ||
+        details.contains('google_sign_in_android.googlesigninapi.init') ||
+        details.contains('channel-error')) {
+      return 'Google Sign-In plugin not initialized. Stop the app and start it again (hot restart is not enough).';
+    }
+    return error.message ?? 'Google sign-in failed. Please try again.';
+  }
+
   return 'Something went wrong. Please try again.';
 }
 

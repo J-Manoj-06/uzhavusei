@@ -6,6 +6,7 @@
         android:label="solvathon"
         android:name="${applicationName}"
         android:icon="@mipmap/logo"
+        android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
