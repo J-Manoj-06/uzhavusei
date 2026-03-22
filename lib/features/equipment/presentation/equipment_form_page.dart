@@ -55,6 +55,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   late final TextEditingController _price;
   late final TextEditingController _minDuration;
   late final TextEditingController _tagInput;
+  late final TextEditingController _videoUrl;
 
   String? _selectedCategory;
   String _selectedCondition = 'Good';
@@ -100,6 +101,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
           : '',
     );
     _tagInput = TextEditingController();
+    _videoUrl = TextEditingController(text: e?.videoUrl ?? '');
     _selectedCategory = _categories.contains(e?.category) ? e!.category : null;
     _selectedCondition =
         _conditions.contains(e?.condition) ? e!.condition : 'Good';
@@ -130,6 +132,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     _price.dispose();
     _minDuration.dispose();
     _tagInput.dispose();
+    _videoUrl.dispose();
     super.dispose();
   }
 
@@ -433,6 +436,15 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
                     style: TextStyle(color: Colors.grey.shade700),
                   ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sectionCard(
+              title: 'Tutorial Video (Optional)',
+              icon: Icons.ondemand_video_rounded,
+              child: TextFormField(
+                controller: _videoUrl,
+                decoration: _fieldDecoration('Paste Cloudinary video URL'),
               ),
             ),
             const SizedBox(height: 12),
@@ -781,6 +793,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
         'documents': const <String>[],
         'owner_user_id': authUid,
         'status': _status,
+        'videoUrl': _videoUrl.text.trim(),
         'tags': _tags,
         'created_at': Timestamp.fromDate(createdAtUtc),
         'updated_at': Timestamp.fromDate(nowUtc),

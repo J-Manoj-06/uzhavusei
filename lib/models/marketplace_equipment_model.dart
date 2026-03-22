@@ -18,6 +18,7 @@ class MarketplaceEquipmentModel {
     required this.createdAt,
     required this.ownerName,
     required this.machineSpecs,
+    this.videoUrl = '',
     this.updatedAt,
     this.availabilityFrom,
     this.availabilityTo,
@@ -47,6 +48,7 @@ class MarketplaceEquipmentModel {
   final DateTime createdAt;
   final String ownerName;
   final String machineSpecs;
+  final String videoUrl;
   final DateTime? updatedAt;
   final DateTime? availabilityFrom;
   final DateTime? availabilityTo;
@@ -121,6 +123,7 @@ class MarketplaceEquipmentModel {
       ownerName: (data['ownerName'] ?? 'Owner').toString(),
       machineSpecs:
           (data['machineSpecs'] ?? data['condition'] ?? '').toString(),
+      videoUrl: (data['videoUrl'] ?? data['video_url'] ?? '').toString(),
       updatedAt: _toDateOrNull(data['updated_at'] ?? data['updatedAt']),
       availabilityFrom: availabilityFrom,
       availabilityTo: availabilityTo,
@@ -181,6 +184,7 @@ class MarketplaceEquipmentModel {
       'updatedAt': Timestamp.fromDate(updatedAt ?? createdAt),
       'ownerName': ownerName,
       'machineSpecs': machineSpecs,
+      'videoUrl': videoUrl,
     };
   }
 }

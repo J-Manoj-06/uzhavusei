@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'features/auth/presentation/auth_gate.dart';
+import 'localization/app_localizations.dart';
+import 'providers/locale_provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_bootstrap.dart';
@@ -21,17 +24,28 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => UserProfileProvider()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
-      child: MaterialApp(
-        debugShowCheckedModeBanner: false,
-        title: 'FarmConnect',
-        theme: ThemeData(
-          primaryColor: const Color(0xFF4CAF50),
-          fontFamily: 'Roboto',
+      child: Consumer<LocaleProvider>(
+        builder: (context, localeProvider, _) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          title: 'FarmConnect',
+          theme: ThemeData(
+            primaryColor: const Color(0xFF4CAF50),
+            fontFamily: 'Roboto',
+          ),
+          locale: localeProvider.locale,
+          supportedLocales: AppLocalizations.supportedLocales,
+          localizationsDelegates: const [
+            AppLocalizations.delegate,
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          home: FirebaseBootstrap.initialized
+              ? AuthGate(authService: AuthService())
+              : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
         ),
-        home: FirebaseBootstrap.initialized
-            ? AuthGate(authService: AuthService())
-            : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
       ),
     );
   }

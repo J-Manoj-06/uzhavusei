@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../Calender.dart';
 import '../../HomePage.dart';
-import '../../Maintenance.dart';
 import '../../TransactionsPage.dart';
+import '../../localization/app_localizations.dart';
 import '../../models/app_user_model.dart';
+import '../../providers/locale_provider.dart';
 import '../../services/auth_service.dart';
+import '../explore/presentation/explore_page.dart';
 import '../profile/presentation/marketplace_profile_page.dart';
 
 class MarketplaceShell extends StatefulWidget {
@@ -29,7 +32,7 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
     const HomePage(),
     const Calendar(),
     const TransactionsPage(),
-    const MaintenancePage(),
+    const ExplorePage(),
     MarketplaceProfilePage(
       currentUser: widget.currentUser,
       authService: widget.authService,
@@ -37,7 +40,24 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
   ];
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    context.read<LocaleProvider>().setLanguageCode(widget.currentUser.language);
+  }
+
+  @override
+  void didUpdateWidget(covariant MarketplaceShell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.currentUser.language != widget.currentUser.language) {
+      context
+          .read<LocaleProvider>()
+          .setLanguageCode(widget.currentUser.language);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: _pages[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -49,16 +69,29 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
             _selectedIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+        items: [
           BottomNavigationBarItem(
-              icon: Icon(Icons.calendar_today), label: 'Calendar'),
+            icon: const Icon(Icons.home),
+            label: l10n.tr('home'),
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.currency_rupee), label: 'Transactions'),
+            icon: const Icon(Icons.calendar_today),
+            label: l10n.tr('calendar'),
+          ),
           BottomNavigationBarItem(
-              icon: Icon(Icons.app_settings_alt_rounded), label: 'Maintenance'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+            icon: const Icon(Icons.currency_rupee),
+            label: l10n.tr('transactions'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.explore_rounded),
+            label: l10n.tr('explore'),
+          ),
+          BottomNavigationBarItem(
+            icon: const Icon(Icons.person),
+            label: l10n.tr('profile'),
+          ),
         ],
+        selectedLabelStyle: const TextStyle(fontSize: 12),
       ),
     );
   }

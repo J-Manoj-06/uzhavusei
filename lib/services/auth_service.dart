@@ -11,8 +11,7 @@ class AuthService {
     FirebaseAuth? auth,
     FirebaseFirestore? firestore,
     GoogleSignIn? googleSignIn,
-  })
-      : _auth = auth ?? FirebaseAuth.instance,
+  })  : _auth = auth ?? FirebaseAuth.instance,
         _firestore = firestore ?? FirebaseFirestore.instance,
         _googleSignIn = googleSignIn;
 
@@ -59,6 +58,7 @@ class AuthService {
         role: '',
         phoneNumber: phoneNumber,
         profileImage: '',
+        language: 'en',
         createdAt: DateTime.now(),
       );
       await _firestore.collection('users').doc(uid).set(user.toMap());
@@ -164,7 +164,39 @@ class AuthService {
       'userId': uid,
       'email': _auth.currentUser?.email ?? '',
       'name': _auth.currentUser?.displayName ?? 'User',
+      'language': 'en',
       'createdAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateCurrentUserProfile({
+    required String name,
+    required String phoneNumber,
+    required String profileImage,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('User is not signed in');
+    }
+
+    await _auth.currentUser?.updateDisplayName(name);
+
+    await _firestore.collection('users').doc(uid).set({
+      'name': name,
+      'phoneNumber': phoneNumber,
+      'profileImage': profileImage,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  Future<void> updateLanguage(String languageCode) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('User is not signed in');
+    }
+    await _firestore.collection('users').doc(uid).set({
+      'language': languageCode,
+      'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
@@ -198,6 +230,7 @@ class AuthService {
       'phoneNumber': user?.phoneNumber ?? '',
       'createdAt': FieldValue.serverTimestamp(),
       'role': '',
+      'language': 'en',
     }, SetOptions(merge: true));
   }
 

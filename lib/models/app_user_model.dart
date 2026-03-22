@@ -8,6 +8,7 @@ class AppUserModel {
     required this.role,
     required this.phoneNumber,
     required this.profileImage,
+    required this.language,
     required this.createdAt,
   });
 
@@ -17,6 +18,7 @@ class AppUserModel {
   final String role;
   final String phoneNumber;
   final String profileImage;
+  final String language;
   final DateTime createdAt;
 
   bool get isRenter =>
@@ -33,6 +35,7 @@ class AppUserModel {
       role: (data['role'] ?? '').toString(),
       phoneNumber: (data['phoneNumber'] ?? '').toString(),
       profileImage: (data['profileImage'] ?? '').toString(),
+      language: (data['language'] ?? 'en').toString(),
       createdAt: _toDate(data['createdAt']),
     );
   }
@@ -45,6 +48,7 @@ class AppUserModel {
       'role': role,
       'phoneNumber': phoneNumber,
       'profileImage': profileImage,
+      'language': language,
       'createdAt': Timestamp.fromDate(createdAt),
     };
   }
