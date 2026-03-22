@@ -16,7 +16,8 @@ class MarketplaceDashboardPage extends StatefulWidget {
   final AppUserModel currentUser;
 
   @override
-  State<MarketplaceDashboardPage> createState() => _MarketplaceDashboardPageState();
+  State<MarketplaceDashboardPage> createState() =>
+      _MarketplaceDashboardPageState();
 }
 
 class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
@@ -55,7 +56,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Failed to load equipment: ${snapshot.error}'));
+            return Center(
+                child: Text('Failed to load equipment: ${snapshot.error}'));
           }
 
           final items = _applyFilter(snapshot.data ?? const []);
@@ -86,7 +88,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
                     ? _buildEmptyState()
                     : GridView.builder(
                         padding: const EdgeInsets.fromLTRB(12, 4, 12, 20),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
@@ -129,7 +132,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.agriculture_rounded, size: 72, color: Colors.grey.shade400),
+            Icon(Icons.agriculture_rounded,
+                size: 72, color: Colors.grey.shade400),
             const SizedBox(height: 10),
             const Text(
               'No equipment found',
@@ -146,7 +150,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     );
   }
 
-  List<MarketplaceEquipmentModel> _applyFilter(List<MarketplaceEquipmentModel> src) {
+  List<MarketplaceEquipmentModel> _applyFilter(
+      List<MarketplaceEquipmentModel> src) {
     final query = _search.toLowerCase();
     return src.where((item) {
       final matchSearch = query.isEmpty ||
@@ -223,9 +228,12 @@ class _EquipmentCard extends StatelessWidget {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(12)),
                 child: buildSmartImage(
-                  equipment.imageUrls.isEmpty ? 'assets/logo.jpg' : equipment.imageUrls.first,
+                  equipment.imageUrls.isEmpty
+                      ? 'assets/logo.jpg'
+                      : equipment.imageUrls.first,
                   fit: BoxFit.cover,
                   width: double.infinity,
                 ),
@@ -260,14 +268,16 @@ class _EquipmentCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 12, color: Colors.grey),
+                      const Icon(Icons.location_on,
+                          size: 12, color: Colors.grey),
                       const SizedBox(width: 2),
                       Expanded(
                         child: Text(
                           equipment.location,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 11),
                         ),
                       ),
                       const Icon(Icons.star, size: 12, color: Colors.amber),
@@ -364,7 +374,8 @@ class _FilterSheetState extends State<_FilterSheet> {
               },
             ),
             const SizedBox(height: 10),
-            Text('Price range: ₹${_price.start.toStringAsFixed(0)} - ₹${_price.end.toStringAsFixed(0)}'),
+            Text(
+                'Price range: ₹${_price.start.toStringAsFixed(0)} - ₹${_price.end.toStringAsFixed(0)}'),
             RangeSlider(
               values: _price,
               min: 0,
