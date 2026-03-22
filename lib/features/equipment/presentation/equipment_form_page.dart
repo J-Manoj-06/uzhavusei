@@ -6,9 +6,12 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../services/cloudinary_service.dart';
+import '../../../services/equipment_translation_service.dart';
 import '../../../services/marketplace_service.dart';
+import '../../../utils/localized_text.dart';
 import '../../location/presentation/location_picker_page.dart';
 
 class EquipmentFormPage extends StatefulWidget {
@@ -31,18 +34,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   final _formKey = GlobalKey<FormState>();
   final _service = MarketplaceService();
   final _cloudinary = CloudinaryService();
-
-  static const List<String> _categories = <String>[
-    'Seeder',
-    'Tractor',
-    'Harvester',
-    'Sprayer',
-    'Rotavator',
-    'Cultivator',
-    'Plough',
-    'Pump',
-    'Other',
-  ];
+  final _translationService = EquipmentTranslationService();
 
   static const List<String> _conditions = <String>[
     'New',
@@ -51,13 +43,23 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   ];
 
   late final TextEditingController _title;
+  late final TextEditingController _category;
   late final TextEditingController _description;
   late final TextEditingController _price;
   late final TextEditingController _minDuration;
   late final TextEditingController _tagInput;
   late final TextEditingController _videoUrl;
+  late final TextEditingController _titleEn;
+  late final TextEditingController _titleTa;
+  late final TextEditingController _titleHi;
+  late final TextEditingController _categoryEn;
+  late final TextEditingController _categoryTa;
+  late final TextEditingController _categoryHi;
+  late final TextEditingController _descriptionEn;
+  late final TextEditingController _descriptionTa;
+  late final TextEditingController _descriptionHi;
 
-  String? _selectedCategory;
+  String _inputLanguage = 'en';
   String _selectedCondition = 'Good';
   String _priceType = 'hour';
   String _minDurationType = 'hours';
@@ -72,6 +74,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
 
   final List<String> _tags = <String>[];
   bool _saving = false;
+  bool _translating = false;
 
   final List<File> _newImages = [];
   final List<String> _existingImages = [];
@@ -81,8 +84,22 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   void initState() {
     super.initState();
     final e = widget.existing;
-    _title = TextEditingController(text: e?.equipmentName ?? '');
-    _description = TextEditingController(text: e?.description ?? '');
+    final titleMap = normalizeLocalizedField(
+      e?.titleLocalized ?? e?.equipmentName,
+      fallback: e?.equipmentName ?? '',
+    );
+    final categoryMap = normalizeLocalizedField(
+      e?.categoryLocalized ?? e?.category,
+      fallback: e?.category ?? '',
+    );
+    final descriptionMap = normalizeLocalizedField(
+      e?.descriptionLocalized ?? e?.description,
+      fallback: e?.description ?? '',
+    );
+
+    _title = TextEditingController(text: titleMap['en'] ?? '');
+    _category = TextEditingController(text: categoryMap['en'] ?? '');
+    _description = TextEditingController(text: descriptionMap['en'] ?? '');
     final initialPriceType =
         (e?.priceType ?? 'hour').toLowerCase() == 'day' ? 'day' : 'hour';
     final initialPrice = initialPriceType == 'day'
@@ -102,7 +119,15 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     );
     _tagInput = TextEditingController();
     _videoUrl = TextEditingController(text: e?.videoUrl ?? '');
-    _selectedCategory = _categories.contains(e?.category) ? e!.category : null;
+    _titleEn = TextEditingController(text: titleMap['en'] ?? '');
+    _titleTa = TextEditingController(text: titleMap['ta'] ?? '');
+    _titleHi = TextEditingController(text: titleMap['hi'] ?? '');
+    _categoryEn = TextEditingController(text: categoryMap['en'] ?? '');
+    _categoryTa = TextEditingController(text: categoryMap['ta'] ?? '');
+    _categoryHi = TextEditingController(text: categoryMap['hi'] ?? '');
+    _descriptionEn = TextEditingController(text: descriptionMap['en'] ?? '');
+    _descriptionTa = TextEditingController(text: descriptionMap['ta'] ?? '');
+    _descriptionHi = TextEditingController(text: descriptionMap['hi'] ?? '');
     _selectedCondition =
         _conditions.contains(e?.condition) ? e!.condition : 'Good';
     _priceType = initialPriceType;
@@ -123,22 +148,36 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
       _existingImagePublicIds.addAll(e.imagePublicIds);
       _tags.addAll(e.tags);
     }
+
+    _inputLanguage =
+        _resolveInitialLanguage(titleMap, descriptionMap, categoryMap);
   }
 
   @override
   void dispose() {
     _title.dispose();
+    _category.dispose();
     _description.dispose();
     _price.dispose();
     _minDuration.dispose();
     _tagInput.dispose();
     _videoUrl.dispose();
+    _titleEn.dispose();
+    _titleTa.dispose();
+    _titleHi.dispose();
+    _categoryEn.dispose();
+    _categoryTa.dispose();
+    _categoryHi.dispose();
+    _descriptionEn.dispose();
+    _descriptionTa.dispose();
+    _descriptionHi.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         title: Text(isEdit ? 'Edit Equipment' : 'Add Equipment'),
@@ -151,37 +190,76 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
           padding: const EdgeInsets.all(16),
           children: [
             _sectionCard(
-              title: 'Equipment Title',
-              icon: Icons.title_rounded,
-              child: TextFormField(
-                controller: _title,
-                textInputAction: TextInputAction.next,
-                decoration: _fieldDecoration('Enter equipment title'),
-                validator: _required,
+              title: l10n.tr('input_language_title'),
+              icon: Icons.translate_rounded,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _inputLanguage,
+                    decoration:
+                        _fieldDecoration(l10n.tr('input_language_hint')),
+                    items: [
+                      DropdownMenuItem(
+                        value: 'en',
+                        child: Text(l10n.tr('english')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'ta',
+                        child: Text(l10n.tr('tamil')),
+                      ),
+                      DropdownMenuItem(
+                        value: 'hi',
+                        child: Text(l10n.tr('hindi')),
+                      ),
+                    ].toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _syncCurrentInputToLocalizedControllers();
+                        _inputLanguage = value;
+                        _syncLocalizedControllersToCurrentInput();
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _translating ? null : _generateTranslations,
+                      icon: _translating
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.auto_awesome_rounded),
+                      label: Text(l10n.tr('generate_other_languages')),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
             _sectionCard(
-              title: 'Equipment Details',
-              icon: Icons.category_rounded,
+              title: l10n.tr('equipment_input_section'),
+              icon: Icons.edit_note_rounded,
               child: Column(
                 children: [
-                  DropdownButtonFormField<String>(
-                    initialValue: _selectedCategory,
-                    decoration: _fieldDecoration('Select category'),
-                    items: _categories
-                        .map((item) => DropdownMenuItem<String>(
-                              value: item,
-                              child: Text(item),
-                            ))
-                        .toList(growable: false),
-                    validator: (value) =>
-                        value == null ? 'Category is required' : null,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedCategory = value;
-                      });
-                    },
+                  TextFormField(
+                    controller: _title,
+                    textInputAction: TextInputAction.next,
+                    decoration:
+                        _fieldDecoration(l10n.tr('equipment_title_hint')),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _category,
+                    textInputAction: TextInputAction.next,
+                    decoration:
+                        _fieldDecoration(l10n.tr('equipment_category_hint')),
+                    validator: _required,
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
@@ -206,8 +284,37 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
                     minLines: 3,
                     maxLines: 5,
                     decoration:
-                        _fieldDecoration('Describe condition and usage'),
+                        _fieldDecoration(l10n.tr('equipment_description_hint')),
                     validator: _required,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            _sectionCard(
+              title: l10n.tr('translations_edit_title'),
+              icon: Icons.language_rounded,
+              child: Column(
+                children: [
+                  _languageEditGroup(
+                    label: l10n.tr('english'),
+                    title: _titleEn,
+                    category: _categoryEn,
+                    description: _descriptionEn,
+                  ),
+                  const SizedBox(height: 12),
+                  _languageEditGroup(
+                    label: l10n.tr('tamil'),
+                    title: _titleTa,
+                    category: _categoryTa,
+                    description: _descriptionTa,
+                  ),
+                  const SizedBox(height: 12),
+                  _languageEditGroup(
+                    label: l10n.tr('hindi'),
+                    title: _titleHi,
+                    category: _categoryHi,
+                    description: _descriptionHi,
                   ),
                 ],
               ),
@@ -550,6 +657,175 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     );
   }
 
+  String _resolveInitialLanguage(
+    Map<String, String> title,
+    Map<String, String> description,
+    Map<String, String> category,
+  ) {
+    for (final code in const <String>['en', 'ta', 'hi']) {
+      if ((title[code] ?? '').trim().isNotEmpty ||
+          (description[code] ?? '').trim().isNotEmpty ||
+          (category[code] ?? '').trim().isNotEmpty) {
+        return code;
+      }
+    }
+    return 'en';
+  }
+
+  void _syncCurrentInputToLocalizedControllers() {
+    final currentTitle = _title.text.trim();
+    final currentDescription = _description.text.trim();
+    final currentCategory = _category.text.trim();
+    switch (_inputLanguage) {
+      case 'ta':
+        _titleTa.text = currentTitle;
+        _descriptionTa.text = currentDescription;
+        _categoryTa.text = currentCategory;
+        break;
+      case 'hi':
+        _titleHi.text = currentTitle;
+        _descriptionHi.text = currentDescription;
+        _categoryHi.text = currentCategory;
+        break;
+      default:
+        _titleEn.text = currentTitle;
+        _descriptionEn.text = currentDescription;
+        _categoryEn.text = currentCategory;
+        break;
+    }
+  }
+
+  void _syncLocalizedControllersToCurrentInput() {
+    switch (_inputLanguage) {
+      case 'ta':
+        _title.text = _titleTa.text;
+        _description.text = _descriptionTa.text;
+        _category.text = _categoryTa.text;
+        break;
+      case 'hi':
+        _title.text = _titleHi.text;
+        _description.text = _descriptionHi.text;
+        _category.text = _categoryHi.text;
+        break;
+      default:
+        _title.text = _titleEn.text;
+        _description.text = _descriptionEn.text;
+        _category.text = _categoryEn.text;
+        break;
+    }
+  }
+
+  Future<void> _generateTranslations() async {
+    final l10n = AppLocalizations.of(context);
+    if (_title.text.trim().isEmpty ||
+        _description.text.trim().isEmpty ||
+        _category.text.trim().isEmpty) {
+      _showSnack(l10n.tr('translation_input_required'));
+      return;
+    }
+
+    _syncCurrentInputToLocalizedControllers();
+
+    setState(() {
+      _translating = true;
+    });
+
+    try {
+      final translated = await _translationService.translateEquipmentFields(
+        baseLanguage: _inputLanguage,
+        title: _title.text.trim(),
+        description: _description.text.trim(),
+        category: _category.text.trim(),
+      );
+
+      _titleEn.text = translated['title']?['en'] ?? _titleEn.text;
+      _titleTa.text = translated['title']?['ta'] ?? _titleTa.text;
+      _titleHi.text = translated['title']?['hi'] ?? _titleHi.text;
+      _descriptionEn.text =
+          translated['description']?['en'] ?? _descriptionEn.text;
+      _descriptionTa.text =
+          translated['description']?['ta'] ?? _descriptionTa.text;
+      _descriptionHi.text =
+          translated['description']?['hi'] ?? _descriptionHi.text;
+      _categoryEn.text = translated['category']?['en'] ?? _categoryEn.text;
+      _categoryTa.text = translated['category']?['ta'] ?? _categoryTa.text;
+      _categoryHi.text = translated['category']?['hi'] ?? _categoryHi.text;
+      _syncLocalizedControllersToCurrentInput();
+      _showSnack(l10n.tr('translation_generated'));
+    } catch (error) {
+      _showSnack('${l10n.tr('translation_failed')}: $error');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _translating = false;
+        });
+      }
+    }
+  }
+
+  Map<String, String> _buildLocalizedMap(
+    TextEditingController en,
+    TextEditingController ta,
+    TextEditingController hi,
+    String fallbackValue,
+  ) {
+    final enText = en.text.trim();
+    final taText = ta.text.trim();
+    final hiText = hi.text.trim();
+    final fallback = enText.isNotEmpty ? enText : fallbackValue.trim();
+    return {
+      'en': enText.isNotEmpty ? enText : fallback,
+      'ta':
+          taText.isNotEmpty ? taText : (enText.isNotEmpty ? enText : fallback),
+      'hi':
+          hiText.isNotEmpty ? hiText : (enText.isNotEmpty ? enText : fallback),
+    };
+  }
+
+  Widget _languageEditGroup({
+    required String label,
+    required TextEditingController title,
+    required TextEditingController category,
+    required TextEditingController description,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: title,
+            decoration: _fieldDecoration('Title ($label)'),
+            validator: _required,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: category,
+            decoration: _fieldDecoration('Category ($label)'),
+            validator: _required,
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: description,
+            minLines: 2,
+            maxLines: 4,
+            decoration: _fieldDecoration('Description ($label)'),
+            validator: _required,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _sectionCard({
     required String title,
     required IconData icon,
@@ -744,6 +1020,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   }
 
   Future<void> _save() async {
+    _syncCurrentInputToLocalizedControllers();
     if (!_formKey.currentState!.validate()) return;
     if (!_validateExtraRules()) return;
 
@@ -773,11 +1050,26 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
       final createdAtUtc = (widget.existing?.createdAt ?? nowUtc).toUtc();
       final parsedPrice = double.parse(_price.text.trim());
       final parsedMinDuration = double.parse(_minDuration.text.trim());
+      final titleMap =
+          _buildLocalizedMap(_titleEn, _titleTa, _titleHi, _title.text);
+      final categoryMap = _buildLocalizedMap(
+        _categoryEn,
+        _categoryTa,
+        _categoryHi,
+        _category.text,
+      );
+      final descriptionMap = _buildLocalizedMap(
+        _descriptionEn,
+        _descriptionTa,
+        _descriptionHi,
+        _description.text,
+      );
 
       final payload = <String, dynamic>{
-        'title': _title.text.trim(),
-        'category': _selectedCategory!,
-        'description': _description.text.trim(),
+        'title': titleMap,
+        'equipmentName': titleMap['en'],
+        'category': categoryMap,
+        'description': descriptionMap,
         'condition': _selectedCondition,
         'price': parsedPrice,
         'price_type': _priceType,

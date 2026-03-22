@@ -14,18 +14,22 @@ class MarketplaceService {
     String? category,
     bool? onlyAvailable,
   }) {
-    Query<Map<String, dynamic>> query =
-        _firestore.collection(_equipmentCollection);
-
-    if (category != null &&
-        category.isNotEmpty &&
-        category.toLowerCase() != 'all') {
-      query = query.where('category', isEqualTo: category);
-    }
+    final query = _firestore.collection(_equipmentCollection);
+    final categoryQuery = category?.trim().toLowerCase() ?? '';
 
     return query.snapshots().map((snapshot) {
       final items = snapshot.docs
           .map(MarketplaceEquipmentModel.fromDoc)
+          .where((item) {
+            if (categoryQuery.isEmpty || categoryQuery == 'all') return true;
+            final values = <String>{
+              item.category.toLowerCase(),
+              item.categoryLocalized['en']?.toLowerCase() ?? '',
+              item.categoryLocalized['ta']?.toLowerCase() ?? '',
+              item.categoryLocalized['hi']?.toLowerCase() ?? '',
+            };
+            return values.contains(categoryQuery);
+          })
           .where((item) => item.status.toLowerCase() == 'published')
           .where((item) => onlyAvailable == true ? item.availability : true)
           .toList(growable: false)

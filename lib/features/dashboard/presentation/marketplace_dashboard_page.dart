@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../models/app_user_model.dart';
 import '../../../models/marketplace_equipment_model.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
@@ -27,6 +29,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    final languageCode = context.watch<LocaleProvider>().languageCode;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Marketplace'),
@@ -100,6 +103,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
                           final equipment = items[index];
                           return _EquipmentCard(
                             equipment: equipment,
+                            languageCode: languageCode,
                             onTap: () {
                               Navigator.push(
                                 context,
@@ -152,11 +156,12 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
 
   List<MarketplaceEquipmentModel> _applyFilter(
       List<MarketplaceEquipmentModel> src) {
+    final languageCode = context.read<LocaleProvider>().languageCode;
     final query = _search.toLowerCase();
     return src.where((item) {
       final matchSearch = query.isEmpty ||
-          item.equipmentName.toLowerCase().contains(query) ||
-          item.category.toLowerCase().contains(query) ||
+          item.titleForLanguage(languageCode).toLowerCase().contains(query) ||
+          item.categoryForLanguage(languageCode).toLowerCase().contains(query) ||
           item.location.toLowerCase().contains(query);
 
       final matchPrice = item.pricePerDay >= _filter.minPrice &&
@@ -201,9 +206,14 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
 }
 
 class _EquipmentCard extends StatelessWidget {
-  const _EquipmentCard({required this.equipment, required this.onTap});
+  const _EquipmentCard({
+    required this.equipment,
+    required this.languageCode,
+    required this.onTap,
+  });
 
   final MarketplaceEquipmentModel equipment;
+  final String languageCode;
   final VoidCallback onTap;
 
   @override
@@ -245,14 +255,14 @@ class _EquipmentCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    equipment.equipmentName,
+                    equipment.titleForLanguage(languageCode),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    equipment.category,
+                    equipment.categoryForLanguage(languageCode),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 12),

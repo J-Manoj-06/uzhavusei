@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../models/marketplace_equipment_model.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../widgets/image_loader.dart';
 import 'booking_payment_page.dart';
 
@@ -28,6 +30,10 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
   @override
   Widget build(BuildContext context) {
     final item = widget.equipment;
+    final languageCode = context.watch<LocaleProvider>().languageCode;
+    final title = item.titleForLanguage(languageCode);
+    final category = item.categoryForLanguage(languageCode);
+    final description = item.descriptionForLanguage(languageCode);
     return Scaffold(
       appBar: AppBar(
         title: const Text('Equipment Details'),
@@ -54,13 +60,13 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           ),
           const SizedBox(height: 12),
           Text(
-            item.equipmentName,
+            title,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          Text(item.category, style: TextStyle(color: Colors.grey.shade700)),
+          Text(category, style: TextStyle(color: Colors.grey.shade700)),
           const SizedBox(height: 8),
-          Text(item.description),
+          Text(description),
           const SizedBox(height: 12),
           _line('Owner', item.ownerName),
           _line('Location', item.location),

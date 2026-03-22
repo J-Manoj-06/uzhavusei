@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:provider/provider.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../../config.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../widgets/image_loader.dart';
 
 class ExploreDetailsPage extends StatefulWidget {
@@ -61,6 +63,10 @@ class _ExploreDetailsPageState extends State<ExploreDetailsPage> {
 
   Future<void> _generateGuide() async {
     final l10n = AppLocalizations.of(context);
+    final languageCode = context.read<LocaleProvider>().languageCode;
+    final title = widget.equipment.titleForLanguage(languageCode);
+    final category = widget.equipment.categoryForLanguage(languageCode);
+    final description = widget.equipment.descriptionForLanguage(languageCode);
     setState(() {
       _isGeneratingGuide = true;
       _guideError = null;
@@ -76,9 +82,9 @@ class _ExploreDetailsPageState extends State<ExploreDetailsPage> {
 You are an agricultural equipment trainer.
 Generate a practical equipment guide in bullet points for this machine.
 
-Equipment title: ${widget.equipment.equipmentName}
-Category: ${widget.equipment.category}
-Description: ${widget.equipment.description}
+Equipment title: $title
+Category: $category
+Description: $description
 
 Cover:
 1) How to use this equipment
@@ -121,7 +127,11 @@ Cover:
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final languageCode = context.watch<LocaleProvider>().languageCode;
     final item = widget.equipment;
+    final title = item.titleForLanguage(languageCode);
+    final category = item.categoryForLanguage(languageCode);
+    final description = item.descriptionForLanguage(languageCode);
     final image =
         item.imageUrls.isNotEmpty ? item.imageUrls.first : 'assets/logo.jpg';
 
@@ -143,13 +153,13 @@ Cover:
           ),
           const SizedBox(height: 12),
           Text(
-            item.equipmentName,
+            title,
             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          Text(item.category, style: TextStyle(color: Colors.grey.shade700)),
+          Text(category, style: TextStyle(color: Colors.grey.shade700)),
           const SizedBox(height: 8),
-          Text(item.description.isEmpty ? '-' : item.description),
+          Text(description.isEmpty ? '-' : description),
           const SizedBox(height: 12),
           _line(l10n.tr('price'),
               '₹${item.pricePerDay.toStringAsFixed(0)} / day'),

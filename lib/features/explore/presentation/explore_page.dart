@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import 'explore_details_page.dart';
@@ -27,6 +29,7 @@ class _ExplorePageState extends State<ExplorePage> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final languageCode = context.watch<LocaleProvider>().languageCode;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,8 +86,10 @@ class _ExplorePageState extends State<ExplorePage> {
                     snapshot.data ?? const <MarketplaceEquipmentModel>[];
                 final items = source.where((item) {
                   if (_query.isEmpty) return true;
-                  final title = item.equipmentName.toLowerCase();
-                  final category = item.category.toLowerCase();
+                  final title =
+                      item.titleForLanguage(languageCode).toLowerCase();
+                  final category =
+                      item.categoryForLanguage(languageCode).toLowerCase();
                   return title.contains(_query) || category.contains(_query);
                 }).toList(growable: false);
 
@@ -101,6 +106,8 @@ class _ExplorePageState extends State<ExplorePage> {
                     final image = item.imageUrls.isNotEmpty
                         ? item.imageUrls.first
                         : 'assets/logo.jpg';
+                    final title = item.titleForLanguage(languageCode);
+                    final category = item.categoryForLanguage(languageCode);
 
                     return InkWell(
                       borderRadius: BorderRadius.circular(12),
@@ -136,7 +143,7 @@ class _ExplorePageState extends State<ExplorePage> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      item.equipmentName,
+                                      title,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -146,7 +153,7 @@ class _ExplorePageState extends State<ExplorePage> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      item.category,
+                                      category,
                                       style: TextStyle(
                                         color: Colors.grey.shade700,
                                         fontWeight: FontWeight.w500,

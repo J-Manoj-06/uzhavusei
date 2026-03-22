@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../utils/localized_text.dart';
+
 class MarketplaceEquipmentModel {
   const MarketplaceEquipmentModel({
     required this.equipmentId,
@@ -7,6 +9,9 @@ class MarketplaceEquipmentModel {
     required this.equipmentName,
     required this.category,
     required this.description,
+    required this.titleLocalized,
+    required this.categoryLocalized,
+    required this.descriptionLocalized,
     required this.pricePerHour,
     required this.pricePerDay,
     required this.location,
@@ -37,6 +42,9 @@ class MarketplaceEquipmentModel {
   final String equipmentName;
   final String category;
   final String description;
+  final Map<String, String> titleLocalized;
+  final Map<String, String> categoryLocalized;
+  final Map<String, String> descriptionLocalized;
   final double pricePerHour;
   final double pricePerDay;
   final String location;
@@ -60,6 +68,15 @@ class MarketplaceEquipmentModel {
   final String priceType;
   final String status;
   final List<String> tags;
+
+  String titleForLanguage(String languageCode) =>
+      getLocalizedText(titleLocalized, languageCode);
+
+  String categoryForLanguage(String languageCode) =>
+      getLocalizedText(categoryLocalized, languageCode);
+
+  String descriptionForLanguage(String languageCode) =>
+      getLocalizedText(descriptionLocalized, languageCode);
 
   factory MarketplaceEquipmentModel.fromDoc(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -104,13 +121,28 @@ class MarketplaceEquipmentModel {
       resolvedDayPrice = resolvedHourPrice;
     }
 
+    final titleLocalized = normalizeLocalizedField(
+      data['title'],
+      fallback: (data['equipmentName'] ?? 'Equipment').toString(),
+    );
+    final categoryLocalized = normalizeLocalizedField(
+      data['category'],
+      fallback: 'General',
+    );
+    final descriptionLocalized = normalizeLocalizedField(
+      data['description'],
+      fallback: '',
+    );
+
     return MarketplaceEquipmentModel(
       equipmentId: (data['equipmentId'] ?? doc.id).toString(),
       ownerId: (data['owner_user_id'] ?? data['ownerId'] ?? '').toString(),
-      equipmentName:
-          (data['title'] ?? data['equipmentName'] ?? 'Equipment').toString(),
-      category: (data['category'] ?? 'General').toString(),
-      description: (data['description'] ?? '').toString(),
+      equipmentName: titleLocalized['en'] ?? 'Equipment',
+      category: categoryLocalized['en'] ?? 'General',
+      description: descriptionLocalized['en'] ?? '',
+      titleLocalized: titleLocalized,
+      categoryLocalized: categoryLocalized,
+      descriptionLocalized: descriptionLocalized,
       pricePerHour: resolvedHourPrice,
       pricePerDay: resolvedDayPrice,
       location: (data['location'] ?? 'Unknown').toString(),
@@ -152,10 +184,10 @@ class MarketplaceEquipmentModel {
       'equipmentId': equipmentId,
       'owner_user_id': ownerId,
       'ownerId': ownerId,
-      'title': equipmentName,
+      'title': titleLocalized,
       'equipmentName': equipmentName,
-      'category': category,
-      'description': description,
+      'category': categoryLocalized,
+      'description': descriptionLocalized,
       'condition': condition,
       'documents': documents,
       'image_public_ids': imagePublicIds,

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/booking_draft.dart';
 import '../models/booking_model.dart';
 import '../models/machinery_model.dart';
+import '../utils/localized_text.dart';
 
 class FirestoreBookingRepository {
   FirestoreBookingRepository({FirebaseFirestore? firestore})
@@ -56,6 +57,14 @@ class FirestoreBookingRepository {
     var resolvedDayPrice = priceType == 'day'
         ? (rawPrice > 0 ? rawPrice : legacyDayPrice)
         : legacyDayPrice;
+    final title = normalizeLocalizedField(
+      data['title'],
+      fallback: (data['equipmentName'] ?? data['name'] ?? '').toString(),
+    );
+    final category = normalizeLocalizedField(
+      data['category'],
+      fallback: 'General',
+    );
 
     if (resolvedHourPrice <= 0 && rawPrice > 0) {
       resolvedHourPrice = rawPrice;
@@ -72,9 +81,8 @@ class FirestoreBookingRepository {
 
     return MachineryModel(
       id: (data['equipmentId'] ?? doc.id).toString(),
-      name: (data['title'] ?? data['equipmentName'] ?? data['name'] ?? '')
-          .toString(),
-      category: (data['category'] ?? 'General').toString(),
+      name: getLocalizedText(title, 'en'),
+      category: getLocalizedText(category, 'en'),
       imageUrl: imageUrl,
       pricePerHour: resolvedHourPrice,
       pricePerDay: resolvedDayPrice,
