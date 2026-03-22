@@ -12,7 +12,12 @@
           "package_name": "com.uzhavusei"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "792343486148-7568i2pe75ukl959rm7vscq7f8rago4p.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAx9ghDPXJrEPk1-4cai9LA9RQTSWNbLWg"
@@ -20,7 +25,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "792343486148-7568i2pe75ukl959rm7vscq7f8rago4p.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
