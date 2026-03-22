@@ -25,13 +25,11 @@ class FirestoreBookingRepository {
         return machineries;
       }
 
-      final equipmentSnapshot = await _firestore
-          .collection('equipments')
-          .where('availability', isEqualTo: true)
-          .get();
+      final equipmentSnapshot = await _firestore.collection('equipment').get();
 
       return equipmentSnapshot.docs
           .map(_machineryFromEquipmentDoc)
+          .where((m) => m.isActive)
           .where((m) => m.name.trim().isNotEmpty)
           .toList();
     });
@@ -41,19 +39,46 @@ class FirestoreBookingRepository {
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {
     final data = doc.data() ?? const <String, dynamic>{};
-    final imageUrls = data['imageUrls'];
+    final imageUrls = data['images'] ?? data['imageUrls'];
     final imageUrl = imageUrls is List && imageUrls.isNotEmpty
         ? imageUrls.first.toString()
         : '';
+    final availability = data['availability'];
+    final isAvailable = _isAvailable(availability);
+    final priceType = (data['price_type'] ?? 'hour').toString().toLowerCase();
+    final rawPrice = _toDouble(data['price']);
+    final legacyHourPrice = _toDouble(data['pricePerHour']);
+    final legacyDayPrice = _toDouble(data['pricePerDay']);
+
+    var resolvedHourPrice = priceType == 'hour'
+        ? (rawPrice > 0 ? rawPrice : legacyHourPrice)
+        : legacyHourPrice;
+    var resolvedDayPrice = priceType == 'day'
+        ? (rawPrice > 0 ? rawPrice : legacyDayPrice)
+        : legacyDayPrice;
+
+    if (resolvedHourPrice <= 0 && rawPrice > 0) {
+      resolvedHourPrice = rawPrice;
+    }
+    if (resolvedDayPrice <= 0 && rawPrice > 0) {
+      resolvedDayPrice = rawPrice;
+    }
+    if (resolvedHourPrice <= 0 && resolvedDayPrice > 0) {
+      resolvedHourPrice = resolvedDayPrice;
+    }
+    if (resolvedDayPrice <= 0 && resolvedHourPrice > 0) {
+      resolvedDayPrice = resolvedHourPrice;
+    }
 
     return MachineryModel(
       id: (data['equipmentId'] ?? doc.id).toString(),
-      name: (data['equipmentName'] ?? data['name'] ?? '').toString(),
+      name: (data['title'] ?? data['equipmentName'] ?? data['name'] ?? '')
+          .toString(),
       category: (data['category'] ?? 'General').toString(),
       imageUrl: imageUrl,
-      pricePerHour: _toDouble(data['pricePerHour']),
-      pricePerDay: _toDouble(data['pricePerDay']),
-      isActive: (data['availability'] as bool?) ?? true,
+      pricePerHour: resolvedHourPrice,
+      pricePerDay: resolvedDayPrice,
+      isActive: isAvailable,
     );
   }
 
@@ -93,4 +118,26 @@ double _toDouble(dynamic value) {
   if (value is num) return value.toDouble();
   if (value is String) return double.tryParse(value) ?? 0;
   return 0;
+}
+
+bool _isAvailable(dynamic value) {
+  if (value is bool) return value;
+  if (value is Map<String, dynamic>) {
+    final from = _toDateOrNull(value['from']);
+    final to = _toDateOrNull(value['to']);
+    final now = DateTime.now();
+    if (from != null && now.isBefore(from)) return false;
+    if (to != null && now.isAfter(to)) return false;
+    return true;
+  }
+  return true;
+}
+
+DateTime? _toDateOrNull(dynamic value) {
+  if (value == null) return null;
+  if (value is Timestamp) return value.toDate();
+  if (value is DateTime) return value;
+  if (value is String) return DateTime.tryParse(value);
+  if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+  return null;
 }

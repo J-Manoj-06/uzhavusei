@@ -6,8 +6,18 @@ import 'package:http/http.dart' as http;
 
 import '../config.dart';
 
+class CloudinaryUploadResult {
+  const CloudinaryUploadResult({
+    required this.secureUrl,
+    required this.publicId,
+  });
+
+  final String secureUrl;
+  final String publicId;
+}
+
 class CloudinaryService {
-  Future<String> uploadImage(File file) async {
+  Future<CloudinaryUploadResult> uploadImageWithMetadata(File file) async {
     final cloudName = Config.cloudinaryCloudName;
     final preset = Config.cloudinaryUploadPreset;
 
@@ -34,24 +44,51 @@ class CloudinaryService {
 
     final body = jsonDecode(response.body) as Map<String, dynamic>;
     final secureUrl = body['secure_url']?.toString() ?? '';
+    final publicId = body['public_id']?.toString() ?? '';
     if (secureUrl.isEmpty) {
       throw Exception('Cloudinary response did not include secure_url');
     }
+    if (publicId.isEmpty) {
+      throw Exception('Cloudinary response did not include public_id');
+    }
 
-    return secureUrl;
+    return CloudinaryUploadResult(secureUrl: secureUrl, publicId: publicId);
+  }
+
+  Future<String> uploadImage(File file) async {
+    final result = await uploadImageWithMetadata(file);
+    return result.secureUrl;
   }
 
   Future<List<String>> uploadImages(List<File> files) async {
+    final results = await uploadImagesWithMetadata(files);
+    return results.map((e) => e.secureUrl).toList(growable: false);
+  }
+
+  Future<List<CloudinaryUploadResult>> uploadImagesWithMetadata(
+    List<File> files,
+  ) async {
     final urls = <String>[];
+    final publicIds = <String>[];
     for (final file in files) {
       try {
-        final url = await uploadImage(file);
-        urls.add(url);
+        final upload = await uploadImageWithMetadata(file);
+        urls.add(upload.secureUrl);
+        publicIds.add(upload.publicId);
       } catch (error, stackTrace) {
         debugPrint('Cloudinary upload error: $error\\n$stackTrace');
         rethrow;
       }
     }
-    return urls;
+    final result = <CloudinaryUploadResult>[];
+    for (var i = 0; i < urls.length; i++) {
+      result.add(
+        CloudinaryUploadResult(
+          secureUrl: urls[i],
+          publicId: publicIds[i],
+        ),
+      );
+    }
+    return result;
   }
 }

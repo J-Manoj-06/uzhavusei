@@ -273,30 +273,7 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
-    // Parse price from string (e.g., "₹1500/day" or "₹800/day")
-    final priceStr = item['price'].toString().replaceAll('₹', '').split('/')[0];
-    final pricePerDay = double.tryParse(priceStr) ?? 0;
-    final pricePerHour = pricePerDay / 24; // Approximate hourly rate
-
-    // Create MarketplaceEquipmentModel from map
-    final equipment = MarketplaceEquipmentModel(
-      equipmentId: item['title'] ?? 'equipment-${DateTime.now().millisecond}',
-      ownerId: 'local-owner',
-      equipmentName: item['title'] ?? 'Equipment',
-      category: item['category'] ?? 'General',
-      description: item['description'] ?? 'No description available',
-      pricePerHour: pricePerHour,
-      pricePerDay: pricePerDay,
-      location: item['distance'] ?? 'Unknown location',
-      latitude: 0.0,
-      longitude: 0.0,
-      imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
-      availability: item['available'] != 'Unavailable',
-      rating: item['rating'] ?? 4.5,
-      createdAt: DateTime.now(),
-      ownerName: item['seller'] ?? 'Local Seller',
-      machineSpecs: '',
-    );
+    final equipment = _mapCardItemToEquipment(item);
 
     if (!mounted) return;
 
@@ -313,6 +290,59 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  MarketplaceEquipmentModel _mapCardItemToEquipment(Map<String, dynamic> item) {
+    final priceText = (item['price'] ?? '').toString();
+    final priceAmount = _extractPriceAmount(priceText);
+    final priceType = _extractPriceType(priceText);
+
+    final double pricePerHour = priceType == 'hour'
+        ? priceAmount
+        : (priceAmount > 0 ? priceAmount / 24.0 : 0.0);
+    final double pricePerDay = priceType == 'day'
+        ? priceAmount
+        : (priceAmount > 0 ? priceAmount * 24.0 : 0.0);
+
+    final rawRating = item['rating'];
+    final rating = rawRating is num ? rawRating.toDouble() : 4.5;
+
+    return MarketplaceEquipmentModel(
+      equipmentId: item['title'] ?? 'equipment-${DateTime.now().millisecond}',
+      ownerId: 'local-owner',
+      equipmentName: item['title'] ?? 'Equipment',
+      category: item['category'] ?? 'General',
+      description: item['description'] ?? 'No description available',
+      pricePerHour: pricePerHour,
+      pricePerDay: pricePerDay,
+      location: item['distance'] ?? 'Unknown location',
+      latitude: 0.0,
+      longitude: 0.0,
+      imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
+      availability: item['available'] != 'Unavailable',
+      rating: rating,
+      createdAt: DateTime.now(),
+      ownerName: item['seller'] ?? 'Local Seller',
+      machineSpecs: '',
+    );
+  }
+
+  double _extractPriceAmount(String priceText) {
+    final normalized = priceText.replaceAll(',', '');
+    final match = RegExp(r'(\d+(?:\.\d+)?)').firstMatch(normalized);
+    if (match == null) return 0;
+    return double.tryParse(match.group(1) ?? '') ?? 0;
+  }
+
+  String _extractPriceType(String priceText) {
+    final normalized = priceText.toLowerCase();
+    if (normalized.contains('/hr') || normalized.contains('/hour')) {
+      return 'hour';
+    }
+    if (normalized.contains('/day')) {
+      return 'day';
+    }
+    return 'day';
   }
 
   @override
@@ -1545,12 +1575,22 @@ class EquipmentDetailsPage extends StatelessWidget {
                           return;
                         }
 
-                        final priceStr = item['price']
-                            .toString()
-                            .replaceAll(RegExp(r'[^\d.]'), '')
-                            .split('/')[0];
-                        final pricePerDay = double.tryParse(priceStr) ?? 0;
-                        final pricePerHour = pricePerDay / 24;
+                        final priceText = (item['price'] ?? '').toString();
+                        final normalizedPrice = priceText.replaceAll(',', '');
+                        final priceMatch = RegExp(r'(\d+(?:\.\d+)?)')
+                            .firstMatch(normalizedPrice);
+                        final priceAmount =
+                            double.tryParse(priceMatch?.group(1) ?? '') ?? 0.0;
+                        final normalizedLower = priceText.toLowerCase();
+                        final isHourly = normalizedLower.contains('/hr') ||
+                            normalizedLower.contains('/hour');
+
+                        final double pricePerHour =
+                            isHourly ? priceAmount : priceAmount / 24.0;
+                        final double pricePerDay =
+                            isHourly ? priceAmount * 24.0 : priceAmount;
+
+                        final rawRating = item['rating'];
 
                         final equipment = MarketplaceEquipmentModel(
                           equipmentId: item['title'] ??
@@ -1567,9 +1607,7 @@ class EquipmentDetailsPage extends StatelessWidget {
                           longitude: 0.0,
                           imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
                           availability: item['available'] != 'Unavailable',
-                          rating: (item['rating'] ?? 4.5) is double
-                              ? item['rating']
-                              : (item['rating'] ?? 4.5).toDouble(),
+                          rating: rawRating is num ? rawRating.toDouble() : 4.5,
                           createdAt: DateTime.now(),
                           ownerName: item['seller'] ?? 'Local Seller',
                           machineSpecs: '',

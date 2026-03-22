@@ -8,14 +8,14 @@ class MarketplaceService {
       : _firestore = firestore ?? FirebaseFirestore.instance;
 
   final FirebaseFirestore _firestore;
+  static const String _equipmentCollection = 'equipment';
 
   Stream<List<MarketplaceEquipmentModel>> watchEquipments({
     String? category,
     bool? onlyAvailable,
   }) {
-    Query<Map<String, dynamic>> query = _firestore
-        .collection('equipments')
-        .orderBy('createdAt', descending: true);
+    Query<Map<String, dynamic>> query =
+        _firestore.collection(_equipmentCollection);
 
     if (category != null &&
         category.isNotEmpty &&
@@ -23,29 +23,30 @@ class MarketplaceService {
       query = query.where('category', isEqualTo: category);
     }
 
-    if (onlyAvailable == true) {
-      query = query.where('availability', isEqualTo: true);
-    }
-
-    return query.snapshots().map(
-          (snapshot) => snapshot.docs
-              .map(MarketplaceEquipmentModel.fromDoc)
-              .toList(growable: false),
-        );
+    return query.snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map(MarketplaceEquipmentModel.fromDoc)
+          .where((item) => item.status.toLowerCase() == 'published')
+          .where((item) => onlyAvailable == true ? item.availability : true)
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
   }
 
   Stream<List<MarketplaceEquipmentModel>> watchEquipmentsByOwner(
       String ownerId) {
     return _firestore
-        .collection('equipments')
-        .where('ownerId', isEqualTo: ownerId)
-        .orderBy('createdAt', descending: true)
+        .collection(_equipmentCollection)
+        .where('owner_user_id', isEqualTo: ownerId)
         .snapshots()
-        .map(
-          (snapshot) => snapshot.docs
-              .map(MarketplaceEquipmentModel.fromDoc)
-              .toList(growable: false),
-        );
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map(MarketplaceEquipmentModel.fromDoc)
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
   }
 
   Stream<List<MarketplaceBookingModel>> watchUserBookings(String userId) {
@@ -75,11 +76,18 @@ class MarketplaceService {
   }
 
   Future<String> addEquipment(MarketplaceEquipmentModel equipment) async {
-    final doc = _firestore.collection('equipments').doc();
+    return addEquipmentRecord(equipment.toMap());
+  }
+
+  Future<String> addEquipmentRecord(Map<String, dynamic> equipmentData) async {
+    final doc = _firestore.collection(_equipmentCollection).doc();
     await doc.set(
-      equipment.toMap()
+      equipmentData
         ..['equipmentId'] = doc.id
-        ..['createdAt'] = FieldValue.serverTimestamp(),
+        ..['created_at'] =
+            (equipmentData['created_at'] ?? FieldValue.serverTimestamp())
+        ..['updated_at'] =
+            (equipmentData['updated_at'] ?? FieldValue.serverTimestamp()),
     );
     return doc.id;
   }
@@ -88,11 +96,18 @@ class MarketplaceService {
     required String equipmentId,
     required Map<String, dynamic> updates,
   }) {
-    return _firestore.collection('equipments').doc(equipmentId).update(updates);
+    return _firestore.collection(_equipmentCollection).doc(equipmentId).update(
+          updates
+            ..['updated_at'] = FieldValue.serverTimestamp()
+            ..['updatedAt'] = FieldValue.serverTimestamp(),
+        );
   }
 
   Future<void> deleteEquipment(String equipmentId) {
-    return _firestore.collection('equipments').doc(equipmentId).delete();
+    return _firestore
+        .collection(_equipmentCollection)
+        .doc(equipmentId)
+        .delete();
   }
 
   Future<void> createBooking({

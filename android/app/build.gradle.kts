@@ -1,4 +1,14 @@
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+import java.util.Properties
+
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.reader(Charsets.UTF_8).use { load(it) }
+    }
+}
+
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY", "")
 
 plugins {
     id("com.android.application")
@@ -26,6 +36,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
     buildTypes {
@@ -35,6 +46,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+}
+
+if (mapsApiKey.isBlank()) {
+    logger.warn("MAPS_API_KEY is not set in android/local.properties. Google Maps screens will crash at runtime.")
 }
 
 kotlin {
