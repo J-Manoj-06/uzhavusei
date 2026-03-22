@@ -5,6 +5,7 @@ import '../../../models/marketplace_equipment_model.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
+import '../../equipment/presentation/equipment_form_page.dart';
 
 class MarketplaceDashboardPage extends StatefulWidget {
   const MarketplaceDashboardPage({
@@ -36,6 +37,13 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
             onPressed: _openFilter,
           ),
         ],
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddEquipmentForm,
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_business_rounded),
+        label: const Text('Add Equipment'),
       ),
       body: StreamBuilder<List<MarketplaceEquipmentModel>>(
         stream: _service.watchEquipments(
@@ -169,6 +177,21 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     setState(() {
       _filter = result;
     });
+  }
+
+  Future<void> _openAddEquipmentForm() async {
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EquipmentFormPage(
+          ownerId: widget.currentUser.userId,
+          ownerName: widget.currentUser.name,
+        ),
+      ),
+    );
+
+    if (!mounted || created != true) return;
+    setState(() {});
   }
 }
 

@@ -7,6 +7,7 @@ import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
 import 'widgets/image_loader.dart';
 import 'features/equipment/presentation/booking_payment_page.dart';
+import 'features/equipment/presentation/equipment_form_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -231,6 +232,34 @@ class _HomePageState extends State<HomePage> {
     return cleaned;
   }
 
+  Future<void> _openAddEquipmentForm() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to add equipment.'),
+          backgroundColor: Color(0xFFC62828),
+        ),
+      );
+      return;
+    }
+
+    final created = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EquipmentFormPage(
+          ownerId: user.uid,
+          ownerName: (user.displayName ?? '').trim().isEmpty
+              ? 'Farmer'
+              : user.displayName!.trim(),
+        ),
+      ),
+    );
+
+    if (!mounted || created != true) return;
+    await _loadMarketplaceData();
+  }
+
   void _navigateToPayment(Map<String, dynamic> item) async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -362,6 +391,13 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _openAddEquipmentForm,
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add_business_rounded),
+        label: const Text('Add Equipment'),
+      ),
       body: SingleChildScrollView(
         child: Column(
           children: [
@@ -437,6 +473,46 @@ class _HomePageState extends State<HomePage> {
                     _filterEquipment('Organic');
                   }),
                 ],
+              ),
+            ),
+
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE8F5E9),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFC8E6C9)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.add_business_rounded,
+                        color: Color(0xFF2E7D32)),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'List your equipment for rent',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2E7D32),
+                        ),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: _openAddEquipmentForm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        minimumSize: Size.zero,
+                      ),
+                      child: const Text('Add Equipment'),
+                    ),
+                  ],
+                ),
               ),
             ),
 
