@@ -45,5 +45,16 @@
   "ai_guide": "AI வழிகாட்டி",
   "generate_equipment_guide": "உபகரண வழிகாட்டியை உருவாக்கு",
   "ai_generated_guide": "AI உருவாக்கிய வழிகாட்டி",
-  "unable_generate_guide": "இப்போது வழிகாட்டியை உருவாக்க முடியவில்லை"
+  "unable_generate_guide": "இப்போது வழிகாட்டியை உருவாக்க முடியவில்லை",
+  "input_language_title": "உள்ளீட்டு மொழியை தேர்வு செய்க",
+  "input_language_hint": "உள்ளீட்டு மொழி",
+  "generate_other_languages": "மற்ற மொழிகளை உருவாக்கு",
+  "equipment_input_section": "உபகரண உள்ளீடு",
+  "equipment_title_hint": "உபகரண தலைப்பை உள்ளிடவும்",
+  "equipment_category_hint": "வகையை உள்ளிடவும்",
+  "equipment_description_hint": "நிலை மற்றும் பயன்பாட்டை விளக்கவும்",
+  "translations_edit_title": "மொழிபெயர்ப்புகளை திருத்து",
+  "translation_input_required": "முதலில் தலைப்பு, விளக்கம் மற்றும் வகையை உள்ளிடவும்",
+  "translation_generated": "மொழிபெயர்ப்புகள் உருவாக்கப்பட்டன. சேமிக்கும் முன் திருத்தலாம்.",
+  "translation_failed": "மொழிபெயர்ப்பு உருவாக்க முடியவில்லை"
 }

@@ -1,13 +1,25 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:provider/provider.dart';
-import 'package:video_player/video_player.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../config.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../widgets/image_loader.dart';
+
+String generateYoutubeUrl(String category, String lang) {
+  final normalizedCategory = category.trim();
+  final normalizedLang = lang.trim().toLowerCase();
+  final languageName = switch (normalizedLang) {
+    'ta' => 'tamil',
+    'hi' => 'hindi',
+    _ => 'english',
+  };
+  final query = 'how to use $normalizedCategory $languageName';
+  return 'https://www.youtube.com/results?search_query=${Uri.encodeQueryComponent(query)}';
+}
 
 class ExploreDetailsPage extends StatefulWidget {
   const ExploreDetailsPage({
@@ -22,40 +34,49 @@ class ExploreDetailsPage extends StatefulWidget {
 }
 
 class _ExploreDetailsPageState extends State<ExploreDetailsPage> {
-  VideoPlayerController? _videoController;
-  bool _isInitializingVideo = false;
+  bool _isOpeningTutorial = false;
   bool _isGeneratingGuide = false;
   String? _guide;
   String? _guideError;
 
-  bool get _hasVideo => widget.equipment.videoUrl.trim().isNotEmpty;
+  Future<void> _openTutorialVideo() async {
+    final l10n = AppLocalizations.of(context);
+    final languageCode = context.read<LocaleProvider>().languageCode;
+    final category = widget.equipment.categoryForLanguage(languageCode);
+    final fallbackUrl = generateYoutubeUrl(category, languageCode);
+    final directVideo = widget.equipment.videoUrl.trim();
+    final targetUrl = directVideo.isNotEmpty ? directVideo : fallbackUrl;
+    final uri = Uri.tryParse(targetUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(l10n.tr('unable_open_video'))),
+      );
+      return;
+    }
 
-  Future<void> _openVideo() async {
-    if (!_hasVideo) return;
     setState(() {
-      _isInitializingVideo = true;
+      _isOpeningTutorial = true;
     });
 
     try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.equipment.videoUrl.trim()),
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
       );
-      await controller.initialize();
-      await controller.play();
-      setState(() {
-        _videoController?.dispose();
-        _videoController = controller;
-      });
+      if (!launched && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(l10n.tr('unable_open_video'))),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
-      final l10n = AppLocalizations.of(context);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(l10n.tr('unable_open_video'))),
       );
     } finally {
       if (mounted) {
         setState(() {
-          _isInitializingVideo = false;
+          _isOpeningTutorial = false;
         });
       }
     }
@@ -119,12 +140,6 @@ Cover:
   }
 
   @override
-  void dispose() {
-    _videoController?.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final languageCode = context.watch<LocaleProvider>().languageCode;
@@ -166,33 +181,31 @@ Cover:
           _line(l10n.tr('location'), item.location),
           _line(l10n.tr('status'), item.status),
           const SizedBox(height: 16),
-          if (_hasVideo) ...[
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: _isInitializingVideo ? null : _openVideo,
-                icon: const Icon(Icons.play_arrow_rounded),
-                label: Text(l10n.tr('watch_tutorial_video')),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isOpeningTutorial ? null : _openTutorialVideo,
+              icon: _isOpeningTutorial
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.play_arrow_rounded),
+              label: Text(l10n.tr('watch_tutorial_video')),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
               ),
             ),
-            const SizedBox(height: 10),
-          ],
-          if (_videoController != null && _videoController!.value.isInitialized)
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: AspectRatio(
-                aspectRatio: _videoController!.value.aspectRatio,
-                child: VideoPlayer(_videoController!),
-              ),
-            ),
+          ),
           const SizedBox(height: 16),
           Card(
             shape: RoundedRectangleBorder(

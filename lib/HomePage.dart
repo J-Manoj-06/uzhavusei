@@ -329,13 +329,28 @@ class _HomePageState extends State<HomePage> {
 
     final rawRating = item['rating'];
     final rating = rawRating is num ? rawRating.toDouble() : 4.5;
+    final title = (item['title'] ?? 'Equipment').toString();
+    final category = (item['category'] ?? 'General').toString();
+    final description =
+        (item['description'] ?? 'No description available').toString();
 
     return MarketplaceEquipmentModel(
       equipmentId: item['title'] ?? 'equipment-${DateTime.now().millisecond}',
       ownerId: 'local-owner',
-      equipmentName: item['title'] ?? 'Equipment',
-      category: item['category'] ?? 'General',
-      description: item['description'] ?? 'No description available',
+      equipmentName: title,
+      category: category,
+      description: description,
+      titleLocalized: {'en': title, 'ta': title, 'hi': title},
+      categoryLocalized: {
+        'en': category,
+        'ta': category,
+        'hi': category,
+      },
+      descriptionLocalized: {
+        'en': description,
+        'ta': description,
+        'hi': description,
+      },
       pricePerHour: pricePerHour,
       pricePerDay: pricePerDay,
       location: item['distance'] ?? 'Unknown location',
@@ -1521,15 +1536,35 @@ class EquipmentDetailsPage extends StatelessWidget {
                             isHourly ? priceAmount * 24.0 : priceAmount;
 
                         final rawRating = item['rating'];
+                        final title = (item['title'] ?? 'Equipment').toString();
+                        final category =
+                            (item['category'] ?? 'General').toString();
+                        final description =
+                            (item['description'] ?? 'No description available')
+                                .toString();
 
                         final equipment = MarketplaceEquipmentModel(
                           equipmentId: item['title'] ??
                               'equipment-${DateTime.now().millisecondsSinceEpoch}',
                           ownerId: 'local-owner',
-                          equipmentName: item['title'] ?? 'Equipment',
-                          category: item['category'] ?? 'General',
-                          description:
-                              item['description'] ?? 'No description available',
+                          equipmentName: title,
+                          category: category,
+                          description: description,
+                          titleLocalized: {
+                            'en': title,
+                            'ta': title,
+                            'hi': title
+                          },
+                          categoryLocalized: {
+                            'en': category,
+                            'ta': category,
+                            'hi': category,
+                          },
+                          descriptionLocalized: {
+                            'en': description,
+                            'ta': description,
+                            'hi': description,
+                          },
                           pricePerHour: pricePerHour,
                           pricePerDay: pricePerDay,
                           location: item['distance'] ?? 'Unknown location',

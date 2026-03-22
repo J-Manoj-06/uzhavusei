@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 
 import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
+import '../../../providers/locale_provider.dart';
 import '../../../services/cloudinary_service.dart';
 import '../../../services/equipment_translation_service.dart';
 import '../../../services/marketplace_service.dart';
@@ -75,6 +77,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   final List<String> _tags = <String>[];
   bool _saving = false;
   bool _translating = false;
+  bool _languageSyncedFromApp = false;
 
   final List<File> _newImages = [];
   final List<String> _existingImages = [];
@@ -172,6 +175,18 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     _descriptionTa.dispose();
     _descriptionHi.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_languageSyncedFromApp || widget.existing != null) return;
+    final appLanguage = context.read<LocaleProvider>().languageCode;
+    if (appLanguage == 'ta' || appLanguage == 'hi' || appLanguage == 'en') {
+      _inputLanguage = appLanguage;
+      _syncLocalizedControllersToCurrentInput();
+    }
+    _languageSyncedFromApp = true;
   }
 
   @override
@@ -805,13 +820,11 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
           TextFormField(
             controller: title,
             decoration: _fieldDecoration('Title ($label)'),
-            validator: _required,
           ),
           const SizedBox(height: 8),
           TextFormField(
             controller: category,
             decoration: _fieldDecoration('Category ($label)'),
-            validator: _required,
           ),
           const SizedBox(height: 8),
           TextFormField(
@@ -819,7 +832,6 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
             minLines: 2,
             maxLines: 4,
             decoration: _fieldDecoration('Description ($label)'),
-            validator: _required,
           ),
         ],
       ),
@@ -1084,6 +1096,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
         'image_public_ids': imagePublicIds,
         'documents': const <String>[],
         'owner_user_id': authUid,
+        'input_language': _inputLanguage,
         'status': _status,
         'videoUrl': _videoUrl.text.trim(),
         'tags': _tags,

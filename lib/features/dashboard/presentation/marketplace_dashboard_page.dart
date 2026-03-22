@@ -161,7 +161,10 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     return src.where((item) {
       final matchSearch = query.isEmpty ||
           item.titleForLanguage(languageCode).toLowerCase().contains(query) ||
-          item.categoryForLanguage(languageCode).toLowerCase().contains(query) ||
+          item
+              .categoryForLanguage(languageCode)
+              .toLowerCase()
+              .contains(query) ||
           item.location.toLowerCase().contains(query);
 
       final matchPrice = item.pricePerDay >= _filter.minPrice &&

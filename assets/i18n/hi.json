@@ -45,5 +45,16 @@
   "ai_guide": "AI गाइड",
   "generate_equipment_guide": "उपकरण गाइड बनाएं",
   "ai_generated_guide": "AI द्वारा बनाई गई गाइड",
-  "unable_generate_guide": "अभी गाइड तैयार नहीं हो सकी"
+  "unable_generate_guide": "अभी गाइड तैयार नहीं हो सकी",
+  "input_language_title": "इनपुट की भाषा चुनें",
+  "input_language_hint": "इनपुट भाषा",
+  "generate_other_languages": "अन्य भाषाएं बनाएं",
+  "equipment_input_section": "उपकरण इनपुट",
+  "equipment_title_hint": "उपकरण का शीर्षक दर्ज करें",
+  "equipment_category_hint": "श्रेणी दर्ज करें",
+  "equipment_description_hint": "स्थिति और उपयोग लिखें",
+  "translations_edit_title": "अनुवाद संपादित करें",
+  "translation_input_required": "पहले शीर्षक, विवरण और श्रेणी दर्ज करें",
+  "translation_generated": "अनुवाद तैयार हैं। सेव करने से पहले संपादित कर सकते हैं।",
+  "translation_failed": "अनुवाद तैयार नहीं हो सके"
 }

@@ -199,8 +199,14 @@ exports.translateEquipmentData = functions
       );
     }
 
-    const collectionName =
-      String(data?.collection || '').trim() || 'equipment';
+    let collectionName = String(data?.collection || '').trim();
+    if (!collectionName) {
+      const equipmentsProbe = await db
+        .collection('equipments')
+        .limit(1)
+        .get();
+      collectionName = equipmentsProbe.empty ? 'equipment' : 'equipments';
+    }
 
     const snapshot = await db.collection(collectionName).get();
     let processed = 0;

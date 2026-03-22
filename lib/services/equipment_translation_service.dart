@@ -2,7 +2,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 
 class EquipmentTranslationService {
   EquipmentTranslationService({FirebaseFunctions? functions})
-      : _functions = functions ?? FirebaseFunctions.instance;
+      : _functions =
+            functions ?? FirebaseFunctions.instanceFor(region: 'asia-south1');
 
   final FirebaseFunctions _functions;
 

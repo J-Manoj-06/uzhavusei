@@ -45,5 +45,16 @@
   "ai_guide": "AI Guide",
   "generate_equipment_guide": "Generate Equipment Guide",
   "ai_generated_guide": "AI Generated Guide",
-  "unable_generate_guide": "Unable to generate guide right now"
+  "unable_generate_guide": "Unable to generate guide right now",
+  "input_language_title": "Select Language of Input",
+  "input_language_hint": "Input language",
+  "generate_other_languages": "Generate Other Languages",
+  "equipment_input_section": "Equipment Input",
+  "equipment_title_hint": "Enter equipment title",
+  "equipment_category_hint": "Enter category",
+  "equipment_description_hint": "Describe condition and usage",
+  "translations_edit_title": "Edit Translations",
+  "translation_input_required": "Enter title, description and category first",
+  "translation_generated": "Translations generated. You can edit before saving.",
+  "translation_failed": "Unable to generate translations"
 }
