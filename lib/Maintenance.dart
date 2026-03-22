@@ -29,6 +29,12 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _dateController = TextEditingController();
   bool _isChatActive = false;
+  String _selectedLanguage = 'English';
+  static const List<String> _supportedLanguages = <String>[
+    'English',
+    'Tamil',
+    'Hindi',
+  ];
   DateTime? _selectedDate;
   final List<ChatMessage> _messages = [];
   late final GenerativeModel _model;
@@ -56,6 +62,24 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
     });
   }
 
+  void _clearChat() {
+    setState(() {
+      _messages.clear();
+      _supportMessageController.clear();
+    });
+  }
+
+  String _languageInstruction() {
+    switch (_selectedLanguage) {
+      case 'Tamil':
+        return 'Reply in Tamil. Keep wording simple and practical for farmers.';
+      case 'Hindi':
+        return 'Reply in Hindi. Keep wording simple and practical for farmers.';
+      default:
+        return 'Reply in English. Keep wording simple and practical for farmers.';
+    }
+  }
+
   Future<void> _sendMessage() async {
     final message = _supportMessageController.text.trim();
     if (message.isNotEmpty) {
@@ -79,6 +103,8 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
             
             Please provide clear, concise, and practical advice. If the query is not maintenance-related, 
             politely redirect the user to the appropriate support channel.
+
+            Language instruction: ${_languageInstruction()}
             
             User query: $message''',
           ),
@@ -312,9 +338,17 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
       bottomSheet: _isChatActive
           ? ChatWindow(
               onClose: _toggleChat,
+              onClearChat: _clearChat,
+              onLanguageChanged: (value) {
+                setState(() {
+                  _selectedLanguage = value;
+                });
+              },
               onSendMessage: _sendMessage,
               controller: _supportMessageController,
               messages: _messages,
+              selectedLanguage: _selectedLanguage,
+              supportedLanguages: _supportedLanguages,
             )
           : null,
     );
@@ -366,16 +400,24 @@ class FAQItem extends StatelessWidget {
 
 class ChatWindow extends StatelessWidget {
   final VoidCallback onClose;
+  final VoidCallback onClearChat;
   final VoidCallback onSendMessage;
+  final ValueChanged<String> onLanguageChanged;
   final TextEditingController controller;
   final List<ChatMessage> messages;
+  final String selectedLanguage;
+  final List<String> supportedLanguages;
 
   const ChatWindow({
     super.key,
     required this.onClose,
+    required this.onClearChat,
     required this.onSendMessage,
+    required this.onLanguageChanged,
     required this.controller,
     required this.messages,
+    required this.selectedLanguage,
+    required this.supportedLanguages,
   });
 
   @override
@@ -399,7 +441,32 @@ class ChatWindow extends StatelessWidget {
                   ),
                 ],
               ),
-              IconButton(icon: const Icon(Icons.close), onPressed: onClose),
+              Row(
+                children: [
+                  DropdownButton<String>(
+                    value: selectedLanguage,
+                    underline: const SizedBox.shrink(),
+                    items: supportedLanguages
+                        .map(
+                          (lang) => DropdownMenuItem<String>(
+                            value: lang,
+                            child: Text(lang),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      onLanguageChanged(value);
+                    },
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_sweep_outlined),
+                    tooltip: 'Clear chat',
+                    onPressed: onClearChat,
+                  ),
+                  IconButton(icon: const Icon(Icons.close), onPressed: onClose),
+                ],
+              ),
             ],
           ),
           Expanded(

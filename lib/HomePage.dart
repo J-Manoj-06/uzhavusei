@@ -182,18 +182,41 @@ class _HomePageState extends State<HomePage> {
           ..addAll(_allNearbyItems);
       } else {
         _filteredEquipment = _allEquipment
-            .where((item) =>
-                (item['category']?.toString().toLowerCase() ?? '') ==
-                category.toLowerCase())
+            .where((item) => _categoryMatches(
+                  item['category']?.toString() ?? '',
+                  category,
+                ))
             .toList();
         _filteredItems
           ..clear()
           ..addAll(_allNearbyItems.where((item) {
-            return (item['category']?.toString().toLowerCase() ?? '') ==
-                category.toLowerCase();
+            return _categoryMatches(
+              item['category']?.toString() ?? '',
+              category,
+            );
           }));
       }
     });
+  }
+
+  bool _categoryMatches(String itemCategory, String selectedCategory) {
+    final item = _normalizeCategory(itemCategory);
+    final selected = _normalizeCategory(selectedCategory);
+    if (selected.isEmpty) return true;
+    return item == selected ||
+        item.contains(selected) ||
+        selected.contains(item);
+  }
+
+  String _normalizeCategory(String raw) {
+    final value = raw.trim().toLowerCase();
+    if (value.endsWith('ies') && value.length > 3) {
+      return '${value.substring(0, value.length - 3)}y';
+    }
+    if (value.endsWith('s') && value.length > 1) {
+      return value.substring(0, value.length - 1);
+    }
+    return value;
   }
 
   void _sortEquipment(String sortBy) {
@@ -481,72 +504,6 @@ class _HomePageState extends State<HomePage> {
             ),
             const SizedBox(height: 16),
 
-            // Quick Actions with additional options
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _buildQuickAction(Icons.local_shipping, 'Rent', () {
-                    _filterEquipment('Rent');
-                  }),
-                  _buildQuickAction(Icons.shopping_cart, 'Buy', () {
-                    _filterEquipment('Buy');
-                  }),
-                  _buildQuickAction(Icons.sell, 'Sell', () {
-                    _filterEquipment('Sell');
-                  }),
-                  _buildQuickAction(Icons.list, 'Listings', () {
-                    _filterEquipment('All');
-                  }),
-                  _buildQuickAction(Icons.eco, 'Organic', () {
-                    _filterEquipment('Organic');
-                  }),
-                ],
-              ),
-            ),
-
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
-              child: Container(
-                width: double.infinity,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFC8E6C9)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.add_business_rounded,
-                        color: Color(0xFF2E7D32)),
-                    const SizedBox(width: 10),
-                    const Expanded(
-                      child: Text(
-                        'List your equipment for rent',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF2E7D32),
-                        ),
-                      ),
-                    ),
-                    ElevatedButton(
-                      onPressed: _openAddEquipmentForm,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
-                        minimumSize: Size.zero,
-                      ),
-                      child: const Text('Add Equipment'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
             // Category Filter
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -814,33 +771,6 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildQuickAction(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            width: 60,
-            height: 60,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Icon(icon, color: const Color(0xFF4CAF50), size: 32),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

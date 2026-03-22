@@ -46,7 +46,8 @@ class MarketplaceProfilePage extends StatelessWidget {
             StreamBuilder<List<MarketplaceEquipmentModel>>(
               stream: service.watchEquipmentsByOwner(currentUser.userId),
               builder: (context, snapshot) {
-                final items = snapshot.data ?? const <MarketplaceEquipmentModel>[];
+                final items =
+                    snapshot.data ?? const <MarketplaceEquipmentModel>[];
                 if (snapshot.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
                 }
@@ -88,7 +89,8 @@ class MarketplaceProfilePage extends StatelessWidget {
                   return const Center(child: CircularProgressIndicator());
                 }
                 if (list.isEmpty) return _inlineEmpty('No renter bookings yet');
-                return Column(children: list.take(5).map(_bookingTile).toList());
+                return Column(
+                    children: list.take(5).map(_bookingTile).toList());
               },
             ),
           ] else ...[
@@ -105,10 +107,6 @@ class MarketplaceProfilePage extends StatelessWidget {
                 return Column(children: list.map(_bookingTile).toList());
               },
             ),
-            const SizedBox(height: 16),
-            _sectionTitle('Saved Machines'),
-            const SizedBox(height: 8),
-            _inlineEmpty('Saved machines feature ready for integration'),
           ],
         ],
       ),
@@ -129,11 +127,15 @@ class MarketplaceProfilePage extends StatelessWidget {
             radius: 30,
             backgroundColor: const Color(0xFFE8F5E9),
             child: user.profileImage.trim().isNotEmpty
-                ? ClipOval(child: buildSmartImage(user.profileImage, width: 60, height: 60))
+                ? ClipOval(
+                    child: buildSmartImage(user.profileImage,
+                        width: 60, height: 60))
                 : const Icon(Icons.person, size: 32, color: Color(0xFF2E7D32)),
           ),
           const SizedBox(height: 10),
-          Text(user.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+          Text(user.name,
+              style:
+                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
           const SizedBox(height: 2),
           Text(user.email),
           const SizedBox(height: 2),
@@ -162,7 +164,8 @@ class MarketplaceProfilePage extends StatelessWidget {
           ),
         ),
         title: Text(item.equipmentName),
-        subtitle: Text('₹${item.pricePerDay.toStringAsFixed(0)}/day • ${item.location}'),
+        subtitle: Text(
+            '₹${item.pricePerDay.toStringAsFixed(0)}/day • ${item.location}'),
         trailing: PopupMenuButton<String>(
           onSelected: (value) async {
             if (value == 'edit') {
@@ -184,8 +187,12 @@ class MarketplaceProfilePage extends StatelessWidget {
                 title: const Text('Delete Equipment'),
                 content: const Text('Do you want to remove this equipment?'),
                 actions: [
-                  TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-                  ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Delete')),
+                  TextButton(
+                      onPressed: () => Navigator.pop(context, false),
+                      child: const Text('Cancel')),
+                  ElevatedButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Delete')),
                 ],
               ),
             );
@@ -216,7 +223,8 @@ class MarketplaceProfilePage extends StatelessWidget {
   }
 
   Widget _sectionTitle(String title) {
-    return Text(title, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700));
+    return Text(title,
+        style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700));
   }
 
   Widget _inlineEmpty(String text) {

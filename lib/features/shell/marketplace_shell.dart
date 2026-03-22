@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../Calender.dart';
 import '../../HomePage.dart';
 import '../../Maintenance.dart';
-import '../../ProfilePage.dart';
 import '../../TransactionsPage.dart';
 import '../../models/app_user_model.dart';
 import '../../services/auth_service.dart';
+import '../profile/presentation/marketplace_profile_page.dart';
 
 class MarketplaceShell extends StatefulWidget {
   const MarketplaceShell({
@@ -30,7 +30,10 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
     const Calendar(),
     const TransactionsPage(),
     const MaintenancePage(),
-    const ProfilePage(),
+    MarketplaceProfilePage(
+      currentUser: widget.currentUser,
+      authService: widget.authService,
+    ),
   ];
 
   @override
