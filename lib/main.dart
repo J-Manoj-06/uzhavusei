@@ -8,6 +8,7 @@ import 'providers/locale_provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_bootstrap.dart';
+import 'splash_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,9 +43,11 @@ class MyApp extends StatelessWidget {
             GlobalWidgetsLocalizations.delegate,
             GlobalCupertinoLocalizations.delegate,
           ],
-          home: FirebaseBootstrap.initialized
-              ? AuthGate(authService: AuthService())
-              : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
+          home: SplashScreen(
+            nextScreen: FirebaseBootstrap.initialized
+                ? AuthGate(authService: AuthService())
+                : _FirebaseSetupScreen(error: FirebaseBootstrap.initError),
+          ),
         ),
       ),
     );

@@ -6,6 +6,7 @@ import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
+import 'chatbot_page.dart';
 import 'explore_details_page.dart';
 
 class ExplorePage extends StatefulWidget {
@@ -36,6 +37,17 @@ class _ExplorePageState extends State<ExplorePage> {
         title: Text(l10n.tr('explore')),
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const ChatbotPage()),
+          );
+        },
+        child: const Icon(Icons.chat_bubble_rounded),
       ),
       body: Column(
         children: [

@@ -46,5 +46,13 @@ app.*.map.json
 
 # Environment secrets
 .env
+*.env
 .env.*
 !.env.example
+
+# API key / secret files
+config.dart
+*secret*
+*secrets*
+*api_key*
+*apikey*

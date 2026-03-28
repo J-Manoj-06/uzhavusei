@@ -99,6 +99,7 @@ flutter:
     - assets/kubota.jpg
     - assets/paddy.jpg
     - assets/eicher.png
+    - assets/0.jpeg
 
   # To add assets to your application, add an assets section, like this:
   # assets:
