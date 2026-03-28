@@ -67,7 +67,8 @@ class _ChatbotPageState extends State<ChatbotPage> {
     final languageCode = context.read<LocaleProvider>().languageCode;
 
     setState(() {
-      _messages.add(_ChatMessage(text: input, isUser: true, time: DateTime.now()));
+      _messages
+          .add(_ChatMessage(text: input, isUser: true, time: DateTime.now()));
       _isLoading = true;
       _controller.clear();
     });
@@ -263,7 +264,8 @@ class _ChatBubble extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           borderRadius: BorderRadius.circular(14),
-          border: message.isUser ? null : Border.all(color: Colors.grey.shade300),
+          border:
+              message.isUser ? null : Border.all(color: Colors.grey.shade300),
         ),
         child: Text(
           message.text,
