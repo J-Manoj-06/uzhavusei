@@ -56,5 +56,6 @@
   "translations_edit_title": "Edit Translations",
   "translation_input_required": "Enter title, description and category first",
   "translation_generated": "Translations generated. You can edit before saving.",
-  "translation_failed": "Unable to generate translations"
+  "translation_failed": "Unable to generate translations",
+  "logout_confirm": "Are you sure you want to logout?"
 }

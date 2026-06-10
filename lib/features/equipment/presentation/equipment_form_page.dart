@@ -14,7 +14,7 @@ import '../../../services/cloudinary_service.dart';
 import '../../../services/equipment_translation_service.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../utils/localized_text.dart';
-import '../../location/presentation/location_picker_page.dart';
+import '../../location/services/city_service.dart';
 
 class EquipmentFormPage extends StatefulWidget {
   const EquipmentFormPage({
@@ -78,6 +78,9 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   bool _saving = false;
   bool _translating = false;
   bool _languageSyncedFromApp = false;
+  
+  List<String> _cities = [];
+  bool _isLoadingCities = true;
 
   final List<File> _newImages = [];
   final List<String> _existingImages = [];
@@ -86,6 +89,7 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
   @override
   void initState() {
     super.initState();
+    _loadCities();
     final e = widget.existing;
     final titleMap = normalizeLocalizedField(
       e?.titleLocalized ?? e?.equipmentName,
@@ -154,6 +158,16 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
 
     _inputLanguage =
         _resolveInitialLanguage(titleMap, descriptionMap, categoryMap);
+  }
+
+  Future<void> _loadCities() async {
+    final cities = await CityService.getCities();
+    if (mounted) {
+      setState(() {
+        _cities = cities;
+        _isLoadingCities = false;
+      });
+    }
   }
 
   @override
@@ -474,33 +488,36 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
             _sectionCard(
               title: 'Location',
               icon: Icons.location_on_rounded,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.grey.shade300),
+              child: _isLoadingCities
+                  ? const Center(child: CircularProgressIndicator())
+                  : Autocomplete<String>(
+                      initialValue: TextEditingValue(text: _location),
+                      optionsBuilder: (TextEditingValue textEditingValue) {
+                        if (textEditingValue.text.isEmpty) {
+                          return const Iterable<String>.empty();
+                        }
+                        return _cities.where((String city) {
+                          return city.toLowerCase().contains(textEditingValue.text.toLowerCase());
+                        });
+                      },
+                      onSelected: (String selection) {
+                        setState(() {
+                          _location = selection;
+                        });
+                      },
+                      fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                        return TextFormField(
+                          controller: controller,
+                          focusNode: focusNode,
+                          onEditingComplete: onEditingComplete,
+                          onChanged: (val) {
+                            _location = val;
+                          },
+                          decoration: _fieldDecoration('Search for your city (e.g., Coimbatore)'),
+                          validator: _required,
+                        );
+                      },
                     ),
-                    child: Text(
-                      _location.isEmpty ? 'No location selected' : _location,
-                      style: TextStyle(
-                        color: _location.isEmpty
-                            ? Colors.grey.shade600
-                            : Colors.black87,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton.icon(
-                    onPressed: _pickLocation,
-                    icon: const Icon(Icons.map_rounded),
-                    label: const Text('Pick on Map'),
-                  ),
-                ],
-              ),
             ),
             const SizedBox(height: 12),
             _sectionCard(
@@ -925,25 +942,6 @@ class _EquipmentFormPageState extends State<EquipmentFormPage> {
     if (picked.isEmpty) return;
     setState(() {
       _newImages.addAll(picked.map((e) => File(e.path)));
-    });
-  }
-
-  Future<void> _pickLocation() async {
-    final result = await Navigator.push<LocationPickerResult>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => LocationPickerPage(
-          initialLatLng: (_lat == 0 && _lng == 0) ? null : LatLng(_lat, _lng),
-          initialAddress: _location,
-        ),
-      ),
-    );
-
-    if (result == null) return;
-    setState(() {
-      _lat = result.latitude;
-      _lng = result.longitude;
-      _location = _extractCity(result.address);
     });
   }
 

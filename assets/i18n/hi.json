@@ -56,5 +56,6 @@
   "translations_edit_title": "अनुवाद संपादित करें",
   "translation_input_required": "पहले शीर्षक, विवरण और श्रेणी दर्ज करें",
   "translation_generated": "अनुवाद तैयार हैं। सेव करने से पहले संपादित कर सकते हैं।",
-  "translation_failed": "अनुवाद तैयार नहीं हो सके"
+  "translation_failed": "अनुवाद तैयार नहीं हो सके",
+  "logout_confirm": "क्या आप सचमुच लॉगआउट करना चाहते हैं?"
 }

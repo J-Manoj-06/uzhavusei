@@ -147,7 +147,7 @@ class MarketplaceProfilePage extends StatelessWidget {
       _ActionItem(
         icon: Icons.logout,
         title: l10n.tr('logout'),
-        onTap: authService.signOut,
+        onTap: () => _showLogoutDialog(context, l10n),
         danger: true,
       ),
     ];
@@ -171,6 +171,35 @@ class MarketplaceProfilePage extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showLogoutDialog(BuildContext context, AppLocalizations l10n) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(l10n.tr('logout')),
+        content: Text(l10n.tr('logout_confirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l10n.tr('cancel')),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.tr('logout')),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await authService.signOut();
+    }
   }
 
   Future<void> _showLanguageSheet(BuildContext context, String selected) async {

@@ -5,7 +5,7 @@ import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../shell/marketplace_shell.dart';
 import 'login_register_page.dart';
-import 'role_selection_page.dart';
+
 
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -29,7 +29,10 @@ class _AuthGateState extends State<AuthGate> {
       stream: widget.authService.authStateChanges(),
       initialData: widget.authService.currentUser,
       builder: (context, authSnapshot) {
-        final user = authSnapshot.data ?? _lastAuthedUser;
+        final user = authSnapshot.connectionState == ConnectionState.waiting
+            ? (authSnapshot.data ?? _lastAuthedUser)
+            : authSnapshot.data;
+
         if (authSnapshot.connectionState == ConnectionState.waiting &&
             user == null) {
           return const _CenteredLoader();
@@ -46,15 +49,17 @@ class _AuthGateState extends State<AuthGate> {
           stream: widget.authService.watchCurrentUserProfile(),
           initialData: _lastProfile,
           builder: (context, profileSnapshot) {
-            final profile = profileSnapshot.data ?? _lastProfile;
+            final profile = profileSnapshot.connectionState == ConnectionState.waiting
+                ? (profileSnapshot.data ?? _lastProfile)
+                : profileSnapshot.data;
 
             if (profileSnapshot.connectionState == ConnectionState.waiting &&
                 profile == null) {
               return const _CenteredLoader();
             }
 
-            if (profile == null || profile.role.trim().isEmpty) {
-              return RoleSelectionPage(authService: widget.authService);
+            if (profile == null) {
+              return const _CenteredLoader();
             }
 
             _lastProfile = profile;

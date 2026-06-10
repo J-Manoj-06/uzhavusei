@@ -570,7 +570,7 @@ class _RegisterPageState extends State<RegisterPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-            content: Text('Account created. Please select your role.')),
+            content: Text('Account created successfully.')),
       );
     } catch (error) {
       if (!mounted) return;

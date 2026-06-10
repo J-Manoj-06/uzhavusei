@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "792343486148-4accpom5ci56v55jk7lsmrkdmj6n4v1d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uzhavusei",
+            "certificate_hash": "d658d5e17c8f654cfe2a2fbbed69990e0273fe5d"
+          }
+        },
+        {
+          "client_id": "792343486148-d5srb3eg909bqru68d1hpdt3lu21vlaa.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.uzhavusei",
+            "certificate_hash": "5c5608e24ffabfcc4a3304e1cda945d49baf4549"
+          }
+        },
+        {
           "client_id": "792343486148-7568i2pe75ukl959rm7vscq7f8rago4p.apps.googleusercontent.com",
           "client_type": 3
         }

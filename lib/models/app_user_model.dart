@@ -10,6 +10,8 @@ class AppUserModel {
     required this.profileImage,
     required this.language,
     required this.createdAt,
+    this.latitude,
+    this.longitude,
   });
 
   final String userId;
@@ -20,6 +22,8 @@ class AppUserModel {
   final String profileImage;
   final String language;
   final DateTime createdAt;
+  final double? latitude;
+  final double? longitude;
 
   bool get isRenter =>
       role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
@@ -37,6 +41,8 @@ class AppUserModel {
       profileImage: (data['profileImage'] ?? '').toString(),
       language: (data['language'] ?? 'en').toString(),
       createdAt: _toDate(data['createdAt']),
+      latitude: (data['latitude'] as num?)?.toDouble(),
+      longitude: (data['longitude'] as num?)?.toDouble(),
     );
   }
 
@@ -50,6 +56,8 @@ class AppUserModel {
       'profileImage': profileImage,
       'language': language,
       'createdAt': Timestamp.fromDate(createdAt),
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
     };
   }
 }

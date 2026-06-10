@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'models/marketplace_equipment_model.dart';
 import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
@@ -70,17 +71,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _getCurrentLocation() async {
     try {
-      bool serviceEnabled;
-      LocationPermission permission;
-
-      serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) {
-        if (!mounted) return;
-        setState(() => _currentLocation = 'Location services disabled');
-        return;
-      }
-
-      permission = await Geolocator.checkPermission();
+      LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
@@ -97,12 +88,29 @@ class _HomePageState extends State<HomePage> {
         return;
       }
 
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!mounted) return;
+        setState(() => _currentLocation = 'Location services disabled');
+        return;
+      }
+
       Position position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
+      
       setState(() {
-        _currentLocation = '${position.latitude}, ${position.longitude}';
+        _currentLocation = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
         _isLoading = false;
       });
+
+      // Save to database
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+        }).catchError((_) {}); // Ignore if document doesn't exist yet
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _currentLocation = 'Error getting location');
@@ -459,12 +467,64 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openAddEquipmentForm,
-        backgroundColor: const Color(0xFF4CAF50),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_business_rounded),
-        label: const Text('Add Equipment'),
+      floatingActionButton: Theme(
+        data: Theme.of(context).copyWith(
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: PopupMenuButton<String>(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          offset: const Offset(0, -120),
+          tooltip: 'Add options',
+          onSelected: (String value) {
+            if (value == 'equipment') {
+              _openAddEquipmentForm();
+            } else if (value == 'surplus') {
+              // Redirect to future Add Surplus page
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Add Surplus page coming soon!')),
+              );
+            }
+          },
+          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+            const PopupMenuItem<String>(
+              value: 'equipment',
+              child: Row(
+                children: [
+                  Icon(Icons.precision_manufacturing, color: Color(0xFF4CAF50)),
+                  SizedBox(width: 12),
+                  Text('Add Equipment'),
+                ],
+              ),
+            ),
+            const PopupMenuItem<String>(
+              value: 'surplus',
+              child: Row(
+                children: [
+                  Icon(Icons.eco, color: Color(0xFF4CAF50)),
+                  SizedBox(width: 12),
+                  Text('Add Surplus'),
+                ],
+              ),
+            ),
+          ],
+          child: Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: const Color(0xFF4CAF50),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(
+                  color: Colors.black26,
+                  blurRadius: 6,
+                  offset: Offset(0, 3),
+                ),
+              ],
+            ),
+            child: const Icon(Icons.add, color: Colors.white, size: 28),
+          ),
+        ),
       ),
       body: SingleChildScrollView(
         child: Column(
