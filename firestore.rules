@@ -10,7 +10,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isSelf(userId);
+      allow read: if isSelf(userId) || (request.query.limit <= 1 && request.query.filters[0].field == 'phoneNumber');
       allow create: if isSelf(userId);
       allow update: if isSelf(userId);
       allow delete: if false;

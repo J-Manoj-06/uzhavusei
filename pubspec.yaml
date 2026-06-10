@@ -61,6 +61,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.2
   geocoding: ^4.0.0
+  pinput: ^6.0.2
 
 dev_dependencies:
   flutter_test:
@@ -102,6 +103,7 @@ flutter:
     - assets/paddy.jpg
     - assets/eicher.png
     - assets/0.jpeg
+    - assets/images/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

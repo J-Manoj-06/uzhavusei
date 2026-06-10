@@ -17,6 +17,12 @@ class AppUserModel {
     this.landArea,
     this.serviceRange,
     this.primaryCrops,
+    this.state,
+    this.district,
+    this.village,
+    this.landType,
+    this.ownedEquipment,
+    this.preferredServices,
   });
 
   final String userId;
@@ -34,6 +40,12 @@ class AppUserModel {
   final String? landArea;
   final String? serviceRange;
   final String? primaryCrops;
+  final String? state;
+  final String? district;
+  final String? village;
+  final String? landType;
+  final List<String>? ownedEquipment;
+  final List<String>? preferredServices;
 
   bool get isRenter =>
       role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
@@ -58,6 +70,12 @@ class AppUserModel {
       landArea: data['landArea'] as String?,
       serviceRange: data['serviceRange'] as String?,
       primaryCrops: data['primaryCrops'] as String?,
+      state: data['state'] as String?,
+      district: data['district'] as String?,
+      village: data['village'] as String?,
+      landType: data['landType'] as String?,
+      ownedEquipment: (data['ownedEquipment'] as List?)?.map((e) => e.toString()).toList(),
+      preferredServices: (data['preferredServices'] as List?)?.map((e) => e.toString()).toList(),
     );
   }
 
@@ -78,6 +96,12 @@ class AppUserModel {
       if (landArea != null) 'landArea': landArea,
       if (serviceRange != null) 'serviceRange': serviceRange,
       if (primaryCrops != null) 'primaryCrops': primaryCrops,
+      if (state != null) 'state': state,
+      if (district != null) 'district': district,
+      if (village != null) 'village': village,
+      if (landType != null) 'landType': landType,
+      if (ownedEquipment != null) 'ownedEquipment': ownedEquipment,
+      if (preferredServices != null) 'preferredServices': preferredServices,
     };
   }
 }
