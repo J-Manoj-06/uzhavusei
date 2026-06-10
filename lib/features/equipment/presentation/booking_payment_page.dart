@@ -80,7 +80,17 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
       _endDate != null &&
       _endTime != null;
 
-  bool get _isValidRange => _datesReady && _endDT.isAfter(_startDT);
+  bool get _isValidRange {
+    if (!_datesReady || !_endDT.isAfter(_startDT)) return false;
+    
+    final start = widget.equipment.availabilityFrom;
+    final end = widget.equipment.availabilityTo;
+    
+    if (start != null && _startDT.isBefore(start)) return false;
+    if (end != null && _endDT.isAfter(end)) return false;
+    
+    return true;
+  }
 
   Duration get _duration =>
       _isValidRange ? _endDT.difference(_startDT) : Duration.zero;
@@ -474,13 +484,18 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
             border: Border.all(color: Colors.red.shade200),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.warning_amber_rounded,
                   size: 16, color: Colors.red.shade700),
               const SizedBox(width: 8),
-              Text(
-                'End date & time must be after start.',
-                style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+              Expanded(
+                child: Text(
+                  !_endDT.isAfter(_startDT)
+                      ? 'End date & time must be after start.'
+                      : 'Selected times are outside owner\'s availability.',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                ),
               ),
             ],
           ),
@@ -676,11 +691,22 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
   Future<void> _pickStartDate() async {
     final now = DateTime.now();
+    final availStart = widget.equipment.availabilityFrom ?? now;
+    final firstDate = availStart.isAfter(now) ? availStart : now;
+    
+    final availEnd = widget.equipment.availabilityTo ?? now.add(const Duration(days: 365));
+    final lastDate = availEnd.isAfter(firstDate) ? availEnd : firstDate;
+
+    // ensure initialDate is within bounds
+    DateTime initial = _startDate ?? firstDate;
+    if (initial.isBefore(firstDate)) initial = firstDate;
+    if (initial.isAfter(lastDate)) initial = lastDate;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _startDate ?? now,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365)),
+      initialDate: initial,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: _pickerTheme,
     );
     if (picked == null || !mounted) return;
@@ -704,11 +730,19 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
 
   Future<void> _pickEndDate() async {
     final earliest = _startDate ?? DateTime.now();
+    
+    final availEnd = widget.equipment.availabilityTo ?? DateTime.now().add(const Duration(days: 365));
+    final lastDate = availEnd.isAfter(earliest) ? availEnd : earliest;
+
+    DateTime initial = _endDate ?? earliest.add(const Duration(days: 1));
+    if (initial.isBefore(earliest)) initial = earliest;
+    if (initial.isAfter(lastDate)) initial = lastDate;
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? earliest.add(const Duration(days: 1)),
+      initialDate: initial,
       firstDate: earliest,
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: lastDate,
       builder: _pickerTheme,
     );
     if (picked == null || !mounted) return;

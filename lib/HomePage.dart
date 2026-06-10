@@ -8,6 +8,8 @@ import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
 import 'widgets/image_loader.dart';
 import 'features/equipment/presentation/booking_payment_page.dart';
+import 'features/equipment/presentation/equipment_details_page.dart' as real_details;
+
 import 'features/equipment/presentation/equipment_form_page.dart';
 
 class HomePage extends StatefulWidget {
@@ -177,6 +179,7 @@ class _HomePageState extends State<HomePage> {
       'delivery': 'Contact owner',
       'available': equipment.availability ? 'In Stock' : 'Unavailable',
       'category': equipment.category,
+      'original_model': equipment,
     };
   }
 
@@ -291,28 +294,29 @@ class _HomePageState extends State<HomePage> {
     await _loadMarketplaceData();
   }
 
-  void _navigateToPayment(Map<String, dynamic> item) async {
+  void _navigateToDetails(Map<String, dynamic> item) async {
     final user = FirebaseAuth.instance.currentUser;
 
     if (user == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please log in to book equipment.'),
+          content: Text('Please log in to view equipment details.'),
           backgroundColor: Color(0xFFC62828),
         ),
       );
       return;
     }
 
-    final equipment = _mapCardItemToEquipment(item);
+    final equipment = item['original_model'] as MarketplaceEquipmentModel? ??
+        _mapCardItemToEquipment(item);
 
     if (!mounted) return;
 
-    // Navigate to BookingPaymentPage with real Firebase user data
+    // Navigate to the newly redesigned EquipmentDetailsPage
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => BookingPaymentPage(
+        builder: (context) => real_details.EquipmentDetailsPage(
           equipment: equipment,
           userId: user.uid,
           userName: user.displayName ?? 'User',
@@ -666,7 +670,7 @@ class _HomePageState extends State<HomePage> {
                             MaterialPageRoute(
                               builder: (context) => EquipmentListPage(
                                 equipment: _filteredEquipment,
-                                onItemSelected: _navigateToPayment,
+                                onItemSelected: _navigateToDetails,
                               ),
                             ),
                           );
@@ -690,7 +694,7 @@ class _HomePageState extends State<HomePage> {
                           child: _buildEquipmentCard(
                             _filteredEquipment[index],
                             onTap: () =>
-                                _navigateToPayment(_filteredEquipment[index]),
+                                _navigateToDetails(_filteredEquipment[index]),
                           ),
                         );
                       },
@@ -818,18 +822,8 @@ class _HomePageState extends State<HomePage> {
                 ElevatedButton(
                   onPressed: () {
                     if (_filteredEquipment.isEmpty) return;
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EquipmentDetailsPage(
-                          item: _filteredEquipment[
-                              _currentPage % _filteredEquipment.length],
-                          onAddToWishlist: _addToWishlist,
-                          isInWishlist: _isInWishlist(_filteredEquipment[
-                              _currentPage % _filteredEquipment.length]),
-                        ),
-                      ),
-                    );
+                    _navigateToDetails(_filteredEquipment[
+                              _currentPage % _filteredEquipment.length]);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF4CAF50),
@@ -1026,7 +1020,7 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildNearbyItem(Map<String, dynamic> item) {
     return GestureDetector(
-      onTap: () => _navigateToPayment(item),
+      onTap: () => _navigateToDetails(item),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
@@ -1157,7 +1151,7 @@ class _HomePageState extends State<HomePage> {
                               ],
                             ),
                             ElevatedButton(
-                              onPressed: () => _navigateToPayment(item),
+                              onPressed: () => _navigateToDetails(item),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: const Color(0xFF4CAF50),
                                 shape: RoundedRectangleBorder(
@@ -1467,254 +1461,6 @@ class EquipmentListPage extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-// New Equipment Details Page
-class EquipmentDetailsPage extends StatelessWidget {
-  final Map<String, dynamic> item;
-  final Function(Map<String, dynamic>) onAddToWishlist;
-  final bool isInWishlist;
-
-  const EquipmentDetailsPage({
-    super.key,
-    required this.item,
-    required this.onAddToWishlist,
-    required this.isInWishlist,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Equipment Details'),
-        backgroundColor: const Color(0xFF4CAF50),
-        actions: [
-          IconButton(
-            icon: Icon(
-              isInWishlist ? Icons.favorite : Icons.favorite_border,
-              color: Colors.white,
-            ),
-            onPressed: () => onAddToWishlist(item),
-          ),
-        ],
-      ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CachedNetworkImage(
-              imageUrl: item['imageUrl'],
-              height: 300,
-              width: double.infinity,
-              fit: BoxFit.cover,
-              placeholder: (context, url) => Container(
-                color: Colors.grey[200],
-                child: const Center(
-                  child: CircularProgressIndicator(
-                    valueColor:
-                        AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
-                  ),
-                ),
-              ),
-              errorWidget: (context, url, error) => const Icon(Icons.error),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item['title'],
-                    style: const TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      const Icon(Icons.star, color: Colors.amber),
-                      const SizedBox(width: 4),
-                      Text(
-                        item['rating'].toString(),
-                        style: const TextStyle(fontSize: 16),
-                      ),
-                      const SizedBox(width: 16),
-                      const Icon(Icons.location_pin, color: Colors.grey),
-                      const SizedBox(width: 4),
-                      Text(
-                        item['distance'],
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Description',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    item['description'] ?? 'No description available',
-                    style: const TextStyle(fontSize: 16),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Specifications',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _buildSpecification('Category', item['category']),
-                  _buildSpecification('Price', item['price']),
-                  _buildSpecification(
-                      'Availability', item['available'] ?? 'In Stock'),
-                  _buildSpecification(
-                      'Delivery', item['delivery'] ?? 'Standard Delivery'),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final user = FirebaseAuth.instance.currentUser;
-                        if (user == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please log in to book equipment.'),
-                              backgroundColor: Color(0xFFC62828),
-                            ),
-                          );
-                          return;
-                        }
-
-                        final priceText = (item['price'] ?? '').toString();
-                        final normalizedPrice = priceText.replaceAll(',', '');
-                        final priceMatch = RegExp(r'(\d+(?:\.\d+)?)')
-                            .firstMatch(normalizedPrice);
-                        final priceAmount =
-                            double.tryParse(priceMatch?.group(1) ?? '') ?? 0.0;
-                        final normalizedLower = priceText.toLowerCase();
-                        final isHourly = normalizedLower.contains('/hr') ||
-                            normalizedLower.contains('/hour');
-
-                        final double pricePerHour =
-                            isHourly ? priceAmount : priceAmount / 24.0;
-                        final double pricePerDay =
-                            isHourly ? priceAmount * 24.0 : priceAmount;
-
-                        final rawRating = item['rating'];
-                        final title = (item['title'] ?? 'Equipment').toString();
-                        final category =
-                            (item['category'] ?? 'General').toString();
-                        final description =
-                            (item['description'] ?? 'No description available')
-                                .toString();
-
-                        final equipment = MarketplaceEquipmentModel(
-                          equipmentId: item['title'] ??
-                              'equipment-${DateTime.now().millisecondsSinceEpoch}',
-                          ownerId: 'local-owner',
-                          equipmentName: title,
-                          category: category,
-                          description: description,
-                          titleLocalized: {
-                            'en': title,
-                            'ta': title,
-                            'hi': title
-                          },
-                          categoryLocalized: {
-                            'en': category,
-                            'ta': category,
-                            'hi': category,
-                          },
-                          descriptionLocalized: {
-                            'en': description,
-                            'ta': description,
-                            'hi': description,
-                          },
-                          pricePerHour: pricePerHour,
-                          pricePerDay: pricePerDay,
-                          location: item['distance'] ?? 'Unknown location',
-                          latitude: 0.0,
-                          longitude: 0.0,
-                          imageUrls: [item['imageUrl'] ?? 'assets/logo.jpg'],
-                          availability: item['available'] != 'Unavailable',
-                          rating: rawRating is num ? rawRating.toDouble() : 4.5,
-                          createdAt: DateTime.now(),
-                          ownerName: item['seller'] ?? 'Local Seller',
-                          machineSpecs: '',
-                        );
-
-                        String phone = (user.phoneNumber ?? '9000000000')
-                            .replaceAll(RegExp(r'\D'), '');
-                        if (phone.isEmpty) phone = '9000000000';
-                        if (phone.length < 10) {
-                          phone = phone.padLeft(10, '0');
-                        } else if (phone.length > 10) {
-                          phone = phone.substring(phone.length - 10);
-                        }
-
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => BookingPaymentPage(
-                              equipment: equipment,
-                              userId: user.uid,
-                              userName: user.displayName ?? 'User',
-                              userEmail: user.email ?? '',
-                              userPhone: phone,
-                            ),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF4CAF50),
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                      ),
-                      child: const Text(
-                        'Rent Now',
-                        style: TextStyle(fontSize: 18),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSpecification(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 16,
-            ),
-          ),
-          Text(
-            value,
-            style: const TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
       ),
     );
   }
