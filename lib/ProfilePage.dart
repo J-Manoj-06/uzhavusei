@@ -510,8 +510,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     height: 40,
                     decoration: BoxDecoration(
                       color: achievement['unlocked']
-                          ? Colors.green.withOpacity(0.1)
-                          : Colors.grey.withOpacity(0.1),
+                          ? Colors.green.withValues(alpha: 0.1)
+                          : Colors.grey.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -630,7 +630,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     height: 40,
                     decoration: BoxDecoration(
                       color:
-                          _getActivityColor(activity['type']).withOpacity(0.1),
+                          _getActivityColor(activity['type']).withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -896,8 +896,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: document['status'] == 'Verified'
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.orange.withOpacity(0.1),
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.orange.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -985,8 +985,8 @@ class _ProfilePageState extends State<ProfilePage> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: method['default']
-                                ? Colors.green.withOpacity(0.1)
-                                : Colors.grey.withOpacity(0.1),
+                                ? Colors.green.withValues(alpha: 0.1)
+                                : Colors.grey.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
@@ -1959,7 +1959,7 @@ class NotificationCenter extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: notification['read']
                         ? Colors.grey[200]
-                        : Colors.green.withOpacity(0.1),
+                        : Colors.green.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(

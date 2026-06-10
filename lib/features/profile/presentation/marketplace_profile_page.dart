@@ -86,7 +86,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
           child: AppBar(
-            backgroundColor: Colors.white.withOpacity(0.7),
+            backgroundColor: Colors.white.withValues(alpha: 0.7),
             elevation: 0,
             title: Row(
               children: [
@@ -117,7 +117,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
             bottom: PreferredSize(
               preferredSize: const Size.fromHeight(1.0),
               child: Container(
-                color: const Color(0xFFBECAB9).withOpacity(0.2),
+                color: const Color(0xFFBECAB9).withValues(alpha: 0.2),
                 height: 1.0,
               ),
             ),
@@ -147,14 +147,14 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
               Positioned(
                 top: 16,
                 left: 16,
-                child: Icon(Icons.agriculture, size: 60, color: Colors.white.withOpacity(0.1)),
+                child: Icon(Icons.agriculture, size: 60, color: Colors.white.withValues(alpha: 0.1)),
               ),
               Positioned(
                 bottom: 16,
                 right: 16,
                 child: Transform.rotate(
                   angle: 0.2,
-                  child: Icon(Icons.grass, size: 80, color: Colors.white.withOpacity(0.1)),
+                  child: Icon(Icons.grass, size: 80, color: Colors.white.withValues(alpha: 0.1)),
                 ),
               ),
             ],
@@ -165,12 +165,12 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
           margin: const EdgeInsets.only(top: 100, left: 16, right: 16),
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
+            color: Colors.white.withValues(alpha: 0.7),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE0E0E0).withOpacity(0.3)),
+            border: Border.all(color: const Color(0xFFE0E0E0).withValues(alpha: 0.3)),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 10,
                 offset: const Offset(0, 4),
               ),
@@ -190,7 +190,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                       border: Border.all(color: Colors.white, width: 4),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.1),
+                          color: Colors.black.withValues(alpha: 0.1),
                           blurRadius: 10,
                         )
                       ],
@@ -295,9 +295,9 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          const Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: const [
+            children: [
               Text(
                 'Profile Completion',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
@@ -349,7 +349,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFBECAB9).withOpacity(0.2)),
+          border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.2)),
         ),
         child: Column(
           children: [
@@ -372,18 +372,18 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
       decoration: BoxDecoration(
         color: const Color(0xFFF3F4F3),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBECAB9).withOpacity(0.1)),
+        border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.1)),
       ),
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withOpacity(0.1),
+              color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
               borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
             ),
-            child: Row(
-              children: const [
+            child: const Row(
+              children: [
                 Icon(Icons.eco, color: Color(0xFF006E1C)),
                 SizedBox(width: 12),
                 Text(
@@ -494,12 +494,12 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withOpacity(0.1),
+                        color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Column(
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
+                        children: [
                           Icon(Icons.payments, color: Color(0xFF006E1C)),
                           SizedBox(height: 8),
                           Text('Total Earnings', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
@@ -513,12 +513,12 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFED7CA).withOpacity(0.3),
+                        color: const Color(0xFFFED7CA).withValues(alpha: 0.3),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Column(
+                      child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
+                        children: [
                           Icon(Icons.list_alt, color: Color(0xFF75584D)),
                           SizedBox(height: 8),
                           Text('Active Listings', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
@@ -580,8 +580,8 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                     border: Border.all(color: const Color(0xFFBECAB9)),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Column(
-                    children: const [
+                  child: const Column(
+                    children: [
                       Text('0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                       Text('My Products', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
                     ],
@@ -596,8 +596,8 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                     border: Border.all(color: const Color(0xFFBECAB9)),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: Column(
-                    children: const [
+                  child: const Column(
+                    children: [
                       Text('12', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                       Text('Saved Items', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
                     ],
@@ -647,7 +647,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.02),
+            color: Colors.black.withValues(alpha: 0.02),
             blurRadius: 5,
             offset: const Offset(0, 2),
           ),

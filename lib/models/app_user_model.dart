@@ -14,6 +14,9 @@ class AppUserModel {
     required this.phoneVerified,
     this.latitude,
     this.longitude,
+    this.landArea,
+    this.serviceRange,
+    this.primaryCrops,
   });
 
   final String userId;
@@ -28,6 +31,9 @@ class AppUserModel {
   final bool phoneVerified;
   final double? latitude;
   final double? longitude;
+  final String? landArea;
+  final String? serviceRange;
+  final String? primaryCrops;
 
   bool get isRenter =>
       role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
@@ -49,6 +55,9 @@ class AppUserModel {
       phoneVerified: data['phoneVerified'] == true,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
+      landArea: data['landArea'] as String?,
+      serviceRange: data['serviceRange'] as String?,
+      primaryCrops: data['primaryCrops'] as String?,
     );
   }
 
@@ -66,6 +75,9 @@ class AppUserModel {
       'phoneVerified': phoneVerified,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
+      if (landArea != null) 'landArea': landArea,
+      if (serviceRange != null) 'serviceRange': serviceRange,
+      if (primaryCrops != null) 'primaryCrops': primaryCrops,
     };
   }
 }

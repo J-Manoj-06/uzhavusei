@@ -591,7 +591,7 @@ class _HomePageState extends State<HomePage> {
                     shape: BoxShape.circle,
                     color: _currentPage == index
                         ? const Color(0xFF4CAF50)
-                        : Colors.grey.withOpacity(0.3),
+                        : Colors.grey.withValues(alpha: 0.3),
                   ),
                 ),
               ),
@@ -771,7 +771,7 @@ class _HomePageState extends State<HomePage> {
             end: Alignment.bottomCenter,
             colors: [
               Colors.transparent,
-              Colors.black.withOpacity(0.8),
+              Colors.black.withValues(alpha: 0.8),
             ],
           ),
         ),
@@ -869,7 +869,7 @@ class _HomePageState extends State<HomePage> {
           _filterEquipment(category);
         },
         backgroundColor: Colors.grey[200],
-        selectedColor: const Color(0xFF4CAF50).withOpacity(0.2),
+        selectedColor: const Color(0xFF4CAF50).withValues(alpha: 0.2),
         labelStyle: TextStyle(
           color: _selectedCategory == category
               ? const Color(0xFF4CAF50)
@@ -890,7 +890,7 @@ class _HomePageState extends State<HomePage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               spreadRadius: 1,
               blurRadius: 10,
               offset: const Offset(0, 2),
@@ -1027,7 +1027,7 @@ class _HomePageState extends State<HomePage> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: Colors.grey.withValues(alpha: 0.1),
               spreadRadius: 1,
               blurRadius: 10,
               offset: const Offset(0, 2),
@@ -1071,8 +1071,8 @@ class _HomePageState extends State<HomePage> {
                                   horizontal: 8, vertical: 4),
                               decoration: BoxDecoration(
                                 color: item['available'] == 'In Stock'
-                                    ? Colors.green.withOpacity(0.1)
-                                    : Colors.orange.withOpacity(0.1),
+                                    ? Colors.green.withValues(alpha: 0.1)
+                                    : Colors.orange.withValues(alpha: 0.1),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(

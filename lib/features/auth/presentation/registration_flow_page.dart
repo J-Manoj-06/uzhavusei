@@ -19,17 +19,27 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
   final _phoneController = TextEditingController(text: '+91 ');
   final _otpController = TextEditingController();
 
-  final _formKey = GlobalKey<FormState>();
+  final _accountFormKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
+  
+  final _profileFormKey = GlobalKey<FormState>();
+  final _landAreaController = TextEditingController();
+  final _serviceRangeController = TextEditingController();
+  final _primaryCropsController = TextEditingController();
 
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
 
   String? _verificationId;
   int? _resendToken;
+  
+  bool _otpSent = false;
+  bool _phoneVerified = false;
+  bool _emailLinked = false;
+  bool _emailVerificationSent = false;
 
   @override
   void dispose() {
@@ -39,12 +49,23 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
+    _landAreaController.dispose();
+    _serviceRangeController.dispose();
+    _primaryCropsController.dispose();
     super.dispose();
   }
 
   void _showError(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  void _showSuccess(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: Colors.green,
+    ));
   }
 
   Future<void> _sendOtp() async {
@@ -61,13 +82,19 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
         phoneNumber: phone,
         verificationCompleted: (PhoneAuthCredential credential) async {
           // Auto-resolution (Android)
-          // We can automatically advance to the next step
           if (!mounted) return;
-          setState(() {
-            _otpController.text = credential.smsCode ?? '';
-            _currentStep = 2; // Jump to details if auto verified, or keep at 1 to let them know.
-            _submitting = false;
-          });
+          try {
+            await FirebaseAuth.instance.signInWithCredential(credential);
+            setState(() {
+              _otpController.text = credential.smsCode ?? '';
+              _phoneVerified = true;
+              _submitting = false;
+            });
+            _showSuccess('Phone verified automatically!');
+          } catch(e) {
+            setState(() => _submitting = false);
+            _showError(e.toString());
+          }
         },
         verificationFailed: (FirebaseAuthException e) {
           if (!mounted) return;
@@ -79,9 +106,10 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
           setState(() {
             _verificationId = verificationId;
             _resendToken = resendToken;
-            _currentStep = 1;
+            _otpSent = true;
             _submitting = false;
           });
+          _showSuccess('OTP Sent to $phone');
         },
         codeAutoRetrievalTimeout: (String verificationId) {
           if (mounted) {
@@ -113,27 +141,14 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
         smsCode: otp,
       );
       
-      // We don't sign in here because we need to link it to an email/password account
-      // or we just trust the OTP is correct since getPhoneAuthCredential doesn't immediately 
-      // throw until it's used. Wait, we should verify the credential.
-      // To do that without signing in right now, we can actually just proceed.
-      // If we want to strictly verify, we could do signInWithCredential but that logs them in with Phone.
-      // According to Firebase best practices for this, we will just proceed to Step 2 
-      // and let the credential be used or simply rely on the fact they received the OTP.
-      // Actually, we can sign them in anonymously, link it, but wait. We can just proceed.
-      
-      // For simplicity, we proceed to Step 2. If they enter the wrong OTP, it will fail when linking,
-      // but since we aren't linking right now, we can't easily verify the OTP validity here without
-      // actually signing them in.
-      // Wait, let's sign them in with the phone credential, then update their email/password!
-      // This is the cleanest way:
       await FirebaseAuth.instance.signInWithCredential(credential);
 
       if (!mounted) return;
       setState(() {
-        _currentStep = 2;
+        _phoneVerified = true;
         _submitting = false;
       });
+      _showSuccess('Phone successfully verified!');
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -145,49 +160,46 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
     }
   }
 
-  Future<void> _registerUser() async {
-    if (!_formKey.currentState!.validate()) return;
+  Future<void> _linkAccountAndSendEmail() async {
+    if (!_accountFormKey.currentState!.validate()) return;
+    
     setState(() => _submitting = true);
 
     try {
-      // The user is currently signed in via Phone Number!
-      // We need to link the email/password credential or update the current user.
       final user = FirebaseAuth.instance.currentUser;
       
       if (user != null) {
-        // Create an Email/Password credential
         final credential = EmailAuthProvider.credential(
           email: _emailController.text.trim(),
           password: _passwordController.text,
         );
 
-        // Link the current Phone-Auth user to the Email/Password credential
         await user.linkWithCredential(credential);
         await user.updateDisplayName(_nameController.text.trim());
         await user.sendEmailVerification();
 
-        final uid = user.uid;
-        final appUser = AppUserModel(
-          userId: uid,
-          name: _nameController.text.trim(),
-          email: _emailController.text.trim(),
-          role: '',
-          phoneNumber: _phoneController.text.trim(),
-          profileImage: '',
-          language: 'en',
-          createdAt: DateTime.now(),
-          emailVerified: false,
-          phoneVerified: true,
-        );
-        await FirebaseFirestore.instance.collection('users').doc(uid).set(appUser.toMap());
-        
         if (!mounted) return;
-        Navigator.pop(context); // Pop back to AuthGate, which will route to VerifyEmailPage
+        setState(() {
+           _emailLinked = true;
+           _emailVerificationSent = true;
+           _submitting = false;
+        });
+        _showSuccess('Verification email sent! Please check your inbox.');
+      } else {
+        throw Exception("You must verify phone number first.");
       }
     } on FirebaseAuthException catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
-      _showError(e.message ?? 'Error creating account');
+      // Wait, if the user account is already linked (e.g. they hit Continue again), we shouldn't fail.
+      if (e.code == 'credential-already-in-use') {
+         setState(() {
+           _emailLinked = true;
+           _emailVerificationSent = true;
+         });
+      } else {
+         _showError(e.message ?? 'Error creating account');
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _submitting = false);
@@ -195,159 +207,98 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
     }
   }
 
-  Widget _buildPhoneStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Icon(Icons.phone_android, size: 80, color: Color(0xFF4CAF50)),
-        const SizedBox(height: 24),
-        const Text(
-          'Verify your phone number',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _phoneController,
-          enabled: !_submitting,
-          decoration: const InputDecoration(
-            labelText: 'Phone Number',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.phone),
-          ),
-          keyboardType: TextInputType.phone,
-        ),
-        const SizedBox(height: 24),
-        _submitting
-            ? const Center(child: CircularProgressIndicator())
-            : ElevatedButton(
-                onPressed: _sendOtp,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: const Color(0xFF43A047),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Send OTP', style: TextStyle(fontSize: 16)),
-              ),
-      ],
-    );
+  Future<void> _checkEmailVerified() async {
+    setState(() => _submitting = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await user.reload();
+        if (user.emailVerified) {
+          _showSuccess('Email is verified!');
+          setState(() {
+             _submitting = false;
+          });
+        } else {
+          _showError('Email is not verified yet. Please check your inbox.');
+          setState(() {
+             _submitting = false;
+          });
+        }
+      }
+    } catch(e) {
+      setState(() => _submitting = false);
+      _showError(e.toString());
+    }
   }
 
-  Widget _buildOtpStep() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const Icon(Icons.message, size: 80, color: Color(0xFF4CAF50)),
-        const SizedBox(height: 24),
-        const Text(
-          'Enter OTP',
-          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 16),
-        Text('We sent an SMS to ${_phoneController.text}', textAlign: TextAlign.center),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _otpController,
-          enabled: !_submitting,
-          decoration: const InputDecoration(
-            labelText: '6-digit OTP',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(Icons.password),
-          ),
-          keyboardType: TextInputType.number,
-        ),
-        const SizedBox(height: 24),
-        _submitting
-            ? const Center(child: CircularProgressIndicator())
-            : ElevatedButton(
-                onPressed: _verifyOtp,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  backgroundColor: const Color(0xFF43A047),
-                  foregroundColor: Colors.white,
-                ),
-                child: const Text('Verify OTP', style: TextStyle(fontSize: 16)),
-              ),
-      ],
-    );
+  Future<void> _saveProfileAndComplete() async {
+    if (!_profileFormKey.currentState!.validate()) return;
+    
+    setState(() => _submitting = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        // Refresh to check if they clicked the email link
+        await user.reload();
+        
+        final uid = user.uid;
+        final appUser = AppUserModel(
+          userId: uid,
+          name: _nameController.text.trim(),
+          email: _emailController.text.trim(),
+          role: 'farmer', // default role
+          phoneNumber: _phoneController.text.trim(),
+          profileImage: '',
+          language: 'en',
+          createdAt: DateTime.now(),
+          emailVerified: user.emailVerified,
+          phoneVerified: true,
+          landArea: _landAreaController.text.trim(),
+          serviceRange: _serviceRangeController.text.trim(),
+          primaryCrops: _primaryCropsController.text.trim(),
+        );
+        
+        await FirebaseFirestore.instance.collection('users').doc(uid).set(appUser.toMap());
+        
+        if (!mounted) return;
+        Navigator.pop(context); // Pop back to AuthGate
+      }
+    } catch(e) {
+      if (!mounted) return;
+      setState(() => _submitting = false);
+      _showError(e.toString());
+    }
   }
 
-  Widget _buildDetailsStep() {
-    return Form(
-      key: _formKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          const SizedBox(height: 20),
-          const Text(
-            'Complete your profile',
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 20),
-          TextFormField(
-            controller: _nameController,
-            enabled: !_submitting,
-            decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
-            validator: (val) => val == null || val.isEmpty ? 'Required' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _emailController,
-            enabled: !_submitting,
-            decoration: const InputDecoration(labelText: 'Email Address', border: OutlineInputBorder()),
-            keyboardType: TextInputType.emailAddress,
-            validator: (val) {
-              if (val == null || val.isEmpty) return 'Required';
-              if (!val.contains('@')) return 'Enter valid email';
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _passwordController,
-            enabled: !_submitting,
-            decoration: InputDecoration(
-              labelText: 'Password',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-              )
+  Widget _buildStepControls(ControlsDetails details) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 20),
+      child: Row(
+        children: <Widget>[
+          if (_currentStep < 2)
+            ElevatedButton(
+              onPressed: details.onStepContinue,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Continue'),
             ),
-            obscureText: _obscurePassword,
-            validator: (val) => val != null && val.length < 6 ? 'Min 6 chars' : null,
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _confirmController,
-            enabled: !_submitting,
-            decoration: InputDecoration(
-              labelText: 'Confirm Password',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
-                icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
-                onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
-              )
+          if (_currentStep == 2)
+             ElevatedButton(
+              onPressed: details.onStepContinue,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF4CAF50),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Complete Profile'),
             ),
-            obscureText: _obscureConfirmPassword,
-            validator: (val) => val != _passwordController.text ? 'Passwords do not match' : null,
-          ),
-          const SizedBox(height: 24),
-          _submitting
-              ? const Center(child: CircularProgressIndicator())
-              : ElevatedButton(
-                  onPressed: _registerUser,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    backgroundColor: const Color(0xFF43A047),
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('Create Account', style: TextStyle(fontSize: 16)),
-                ),
-          const SizedBox(height: 20),
+          const SizedBox(width: 12),
+          if (_currentStep > 0)
+            TextButton(
+              onPressed: details.onStepCancel,
+              child: const Text('Back', style: TextStyle(color: Colors.grey)),
+            ),
         ],
       ),
     );
@@ -357,18 +308,248 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Registration'),
+        title: const Text('Create Account'),
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: _currentStep == 0
-              ? _buildPhoneStep()
-              : _currentStep == 1
-                  ? _buildOtpStep()
-                  : _buildDetailsStep(),
+        child: Stepper(
+          type: StepperType.vertical,
+          currentStep: _currentStep,
+          onStepContinue: () {
+            if (_currentStep == 0) {
+              if (!_phoneVerified) {
+                _showError('Please verify your phone number first.');
+                return;
+              }
+              setState(() => _currentStep += 1);
+            } else if (_currentStep == 1) {
+              if (!_emailLinked) {
+                _linkAccountAndSendEmail();
+              } else {
+                setState(() => _currentStep += 1);
+              }
+            } else if (_currentStep == 2) {
+              _saveProfileAndComplete();
+            }
+          },
+          onStepCancel: () {
+            if (_currentStep > 0) {
+              setState(() => _currentStep -= 1);
+            }
+          },
+          controlsBuilder: (BuildContext context, ControlsDetails details) {
+            return _buildStepControls(details);
+          },
+          steps: [
+            // STEP 1: PHONE VERIFICATION
+            Step(
+              title: const Text('Phone Verification', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              subtitle: const Text('Secure your account'),
+              isActive: _currentStep >= 0,
+              state: _phoneVerified ? StepState.complete : StepState.editing,
+              content: Column(
+                children: [
+                  TextField(
+                    controller: _phoneController,
+                    enabled: !_submitting && !_phoneVerified,
+                    decoration: const InputDecoration(
+                      labelText: 'Phone Number',
+                      border: OutlineInputBorder(),
+                      prefixIcon: Icon(Icons.phone),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 16),
+                  if (!_phoneVerified)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _submitting ? null : _sendOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.grey[200],
+                              foregroundColor: Colors.black,
+                            ),
+                            child: Text(_otpSent ? 'Resend OTP' : 'Send OTP'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  if (_otpSent && !_phoneVerified) ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: _otpController,
+                      enabled: !_submitting,
+                      decoration: const InputDecoration(
+                        labelText: '6-digit OTP',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.password),
+                      ),
+                      keyboardType: TextInputType.number,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _submitting ? null : _verifyOtp,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF4CAF50),
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('Verify OTP'),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                  if (_phoneVerified)
+                    const Padding(
+                      padding: EdgeInsets.all(8.0),
+                      child: Row(
+                        children: [
+                          Icon(Icons.check_circle, color: Colors.green),
+                          SizedBox(width: 8),
+                          Text('Phone Verified', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            
+            // STEP 2: ACCOUNT DETAILS & EMAIL VERIFICATION
+            Step(
+              title: const Text('Account Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              subtitle: const Text('Name, Email & Password'),
+              isActive: _currentStep >= 1,
+              state: _emailLinked ? StepState.complete : StepState.editing,
+              content: Form(
+                key: _accountFormKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _nameController,
+                      enabled: !_submitting && !_emailLinked,
+                      decoration: const InputDecoration(labelText: 'Full Name', border: OutlineInputBorder()),
+                      validator: (val) => val == null || val.isEmpty ? 'Required' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _emailController,
+                      enabled: !_submitting && !_emailLinked,
+                      decoration: const InputDecoration(labelText: 'Email Address', border: OutlineInputBorder()),
+                      keyboardType: TextInputType.emailAddress,
+                      validator: (val) {
+                        if (val == null || val.isEmpty) return 'Required';
+                        if (!val.contains('@')) return 'Enter valid email';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _passwordController,
+                      enabled: !_submitting && !_emailLinked,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        )
+                      ),
+                      obscureText: _obscurePassword,
+                      validator: (val) => val != null && val.length < 6 ? 'Min 6 chars' : null,
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _confirmController,
+                      enabled: !_submitting && !_emailLinked,
+                      decoration: InputDecoration(
+                        labelText: 'Confirm Password',
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
+                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                        )
+                      ),
+                      obscureText: _obscureConfirmPassword,
+                      validator: (val) => val != _passwordController.text ? 'Passwords do not match' : null,
+                    ),
+                    if (_emailVerificationSent) ...[
+                       const SizedBox(height: 16),
+                       Container(
+                         padding: const EdgeInsets.all(12),
+                         decoration: BoxDecoration(
+                           color: Colors.blue[50],
+                           borderRadius: BorderRadius.circular(8),
+                           border: Border.all(color: Colors.blue.shade200),
+                         ),
+                         child: Column(
+                           children: [
+                             const Text(
+                               'A verification link has been sent to your email. Please click the link to verify your email address.',
+                               style: TextStyle(color: Colors.blueGrey),
+                             ),
+                             const SizedBox(height: 12),
+                             ElevatedButton.icon(
+                               onPressed: _submitting ? null : _checkEmailVerified,
+                               icon: const Icon(Icons.refresh),
+                               label: const Text('I have verified'),
+                             )
+                           ],
+                         ),
+                       )
+                    ]
+                  ],
+                ),
+              ),
+            ),
+
+            // STEP 3: FARMING PROFILE
+            Step(
+              title: const Text('Farming Profile', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              subtitle: const Text('Optional details'),
+              isActive: _currentStep >= 2,
+              content: Form(
+                key: _profileFormKey,
+                child: Column(
+                  children: [
+                    TextFormField(
+                      controller: _landAreaController,
+                      enabled: !_submitting,
+                      decoration: const InputDecoration(
+                        labelText: 'Land Area (e.g., 5 Acres)', 
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.landscape),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _serviceRangeController,
+                      enabled: !_submitting,
+                      decoration: const InputDecoration(
+                        labelText: 'Service Range (e.g., 15 km)', 
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.map),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _primaryCropsController,
+                      enabled: !_submitting,
+                      decoration: const InputDecoration(
+                        labelText: 'Primary Crops (e.g., Paddy, Corn)', 
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.grass),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
