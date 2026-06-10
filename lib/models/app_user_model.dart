@@ -10,6 +10,8 @@ class AppUserModel {
     required this.profileImage,
     required this.language,
     required this.createdAt,
+    required this.emailVerified,
+    required this.phoneVerified,
     this.latitude,
     this.longitude,
   });
@@ -22,6 +24,8 @@ class AppUserModel {
   final String profileImage;
   final String language;
   final DateTime createdAt;
+  final bool emailVerified;
+  final bool phoneVerified;
   final double? latitude;
   final double? longitude;
 
@@ -41,6 +45,8 @@ class AppUserModel {
       profileImage: (data['profileImage'] ?? '').toString(),
       language: (data['language'] ?? 'en').toString(),
       createdAt: _toDate(data['createdAt']),
+      emailVerified: data['emailVerified'] == true,
+      phoneVerified: data['phoneVerified'] == true,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
     );
@@ -56,6 +62,8 @@ class AppUserModel {
       'profileImage': profileImage,
       'language': language,
       'createdAt': Timestamp.fromDate(createdAt),
+      'emailVerified': emailVerified,
+      'phoneVerified': phoneVerified,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
     };

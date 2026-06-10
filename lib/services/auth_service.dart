@@ -21,19 +21,65 @@ class AuthService {
 
   GoogleSignIn get _google => _googleSignIn ??= GoogleSignIn();
 
-  Stream<User?> authStateChanges() => _auth.authStateChanges();
+  Stream<User?> authStateChanges() => _auth.userChanges();
 
   User? get currentUser => _auth.currentUser;
 
   Future<UserCredential> signIn({
     required String email,
     required String password,
-  }) {
-    return _auth.signInWithEmailAndPassword(email: email, password: password);
+  }) async {
+    String actualEmail = email.trim();
+    if (!actualEmail.contains('@')) {
+      final snapshot = await _firestore
+          .collection('users')
+          .where('phoneNumber', isEqualTo: actualEmail)
+          .limit(1)
+          .get();
+      if (snapshot.docs.isNotEmpty) {
+        actualEmail = snapshot.docs.first.data()['email'] as String;
+      } else {
+        throw FirebaseAuthException(
+          code: 'user-not-found',
+          message: 'No user found with this phone number.',
+        );
+      }
+    }
+    return _auth.signInWithEmailAndPassword(email: actualEmail, password: password);
   }
 
   Future<void> sendPasswordResetEmail({required String email}) {
     return _auth.sendPasswordResetEmail(email: email);
+  }
+
+  Future<void> reloadUser() async {
+    await _auth.currentUser?.reload();
+  }
+
+  Future<void> verifyPhoneNumber({
+    required String phoneNumber,
+    required void Function(PhoneAuthCredential) verificationCompleted,
+    required void Function(FirebaseAuthException) verificationFailed,
+    required void Function(String verificationId, int? resendToken) codeSent,
+    required void Function(String verificationId) codeAutoRetrievalTimeout,
+  }) async {
+    await _auth.verifyPhoneNumber(
+      phoneNumber: phoneNumber,
+      verificationCompleted: verificationCompleted,
+      verificationFailed: verificationFailed,
+      codeSent: codeSent,
+      codeAutoRetrievalTimeout: codeAutoRetrievalTimeout,
+    );
+  }
+
+  PhoneAuthCredential getPhoneAuthCredential({
+    required String verificationId,
+    required String smsCode,
+  }) {
+    return PhoneAuthProvider.credential(
+      verificationId: verificationId,
+      smsCode: smsCode,
+    );
   }
 
   Future<UserCredential> register({
@@ -48,6 +94,7 @@ class AuthService {
     );
 
     await credential.user?.updateDisplayName(name);
+    await credential.user?.sendEmailVerification();
 
     final uid = credential.user?.uid;
     if (uid != null) {
@@ -60,6 +107,8 @@ class AuthService {
         profileImage: '',
         language: 'en',
         createdAt: DateTime.now(),
+        emailVerified: false,
+        phoneVerified: true,
       );
       await _firestore.collection('users').doc(uid).set(user.toMap());
     }

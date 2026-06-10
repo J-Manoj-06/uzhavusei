@@ -5,6 +5,7 @@ import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../shell/marketplace_shell.dart';
 import 'login_register_page.dart';
+import 'verify_email_page.dart';
 
 
 class AuthGate extends StatefulWidget {
@@ -44,6 +45,10 @@ class _AuthGateState extends State<AuthGate> {
           return LoginRegisterPage(authService: widget.authService);
         }
         _lastAuthedUser = user;
+
+        if (!user.emailVerified) {
+          return VerifyEmailPage(authService: widget.authService);
+        }
 
         return StreamBuilder<AppUserModel?>(
           stream: widget.authService.watchCurrentUserProfile(),

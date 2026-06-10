@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 
 import '../../../services/auth_service.dart';
+import 'registration_flow_page.dart';
 
 class LoginRegisterPage extends StatefulWidget {
   const LoginRegisterPage({
@@ -89,16 +90,18 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                       _AuthTextField(
                         controller: _emailController,
                         enabled: !_submitting,
-                        label: 'Email',
-                        hint: 'Enter your email',
-                        prefixIcon: Icons.email_outlined,
+                        label: 'Email or Phone Number',
+                        hint: 'Enter your email or phone number',
+                        prefixIcon: Icons.person_outline,
                         keyboardType: TextInputType.emailAddress,
                         validator: (value) {
                           final text = value?.trim() ?? '';
-                          if (text.isEmpty) return 'Email is required';
-                          final pattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
-                          if (!pattern.hasMatch(text)) {
-                            return 'Enter a valid email';
+                          if (text.isEmpty) return 'Required';
+                          if (text.contains('@')) {
+                            final pattern = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
+                            if (!pattern.hasMatch(text)) return 'Enter a valid email';
+                          } else if (text.length < 10) {
+                            return 'Enter a valid phone number';
                           }
                           return null;
                         },
@@ -173,7 +176,9 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                                 ),
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
+                      const _OrDivider(),
+                      const SizedBox(height: 16),
                       SizedBox(
                         width: double.infinity,
                         child: OutlinedButton.icon(
@@ -198,8 +203,6 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                         ),
                       ),
                       const SizedBox(height: 16),
-                      const _OrDivider(),
-                      const SizedBox(height: 8),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -209,7 +212,7 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                                 ? null
                                 : () {
                                     Navigator.of(context).push(_slideRoute(
-                                      RegisterPage(
+                                      RegistrationFlowPage(
                                           authService: widget.authService),
                                     ));
                                   },
@@ -463,10 +466,16 @@ class _RegisterPageState extends State<RegisterPage> {
                 _AuthTextField(
                   controller: _phoneController,
                   enabled: !_submitting,
-                  label: 'Phone Number (optional)',
+                  label: 'Phone Number',
                   hint: 'Enter phone number',
                   prefixIcon: Icons.phone_outlined,
                   keyboardType: TextInputType.phone,
+                  validator: (value) {
+                    final text = value?.trim() ?? '';
+                    if (text.isEmpty) return 'Phone number is required';
+                    if (text.length < 10) return 'Enter a valid phone number';
+                    return null;
+                  },
                   onChanged: (_) => setState(() {}),
                 ),
                 const SizedBox(height: 18),
@@ -549,7 +558,8 @@ class _RegisterPageState extends State<RegisterPage> {
         _nameController.text.trim().isNotEmpty &&
         _emailController.text.trim().isNotEmpty &&
         _passwordController.text.trim().isNotEmpty &&
-        _confirmController.text.trim().isNotEmpty;
+        _confirmController.text.trim().isNotEmpty &&
+        _phoneController.text.trim().isNotEmpty;
   }
 
   Future<void> _submit() async {

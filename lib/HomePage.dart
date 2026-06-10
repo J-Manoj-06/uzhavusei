@@ -91,7 +91,7 @@ class _HomePageState extends State<HomePage> {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!mounted) return;
-        setState(() => _currentLocation = 'Location services disabled');
+        setState(() => _currentLocation = 'GPS is disabled. Tap to enable.');
         return;
       }
 
@@ -426,10 +426,25 @@ class _HomePageState extends State<HomePage> {
                     const Icon(Icons.location_pin, color: Colors.grey),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(
-                        _currentLocation,
-                        style: const TextStyle(color: Colors.grey),
-                        overflow: TextOverflow.ellipsis,
+                      child: GestureDetector(
+                        onTap: () async {
+                          if (_currentLocation == 'GPS is disabled. Tap to enable.') {
+                            await Geolocator.openLocationSettings();
+                            _getCurrentLocation();
+                          }
+                        },
+                        child: Text(
+                          _currentLocation,
+                          style: TextStyle(
+                            color: _currentLocation == 'GPS is disabled. Tap to enable.' 
+                                ? Colors.red 
+                                : Colors.grey,
+                            decoration: _currentLocation == 'GPS is disabled. Tap to enable.' 
+                                ? TextDecoration.underline 
+                                : TextDecoration.none,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
                     if (_isLoading)
