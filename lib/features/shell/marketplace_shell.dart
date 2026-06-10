@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../Calender.dart';
 import '../../HomePage.dart';
@@ -8,6 +9,7 @@ import '../../localization/app_localizations.dart';
 import '../../models/app_user_model.dart';
 import '../../providers/locale_provider.dart';
 import '../../services/auth_service.dart';
+import '../explore/presentation/chatbot_page.dart';
 import '../explore/presentation/explore_page.dart';
 import '../profile/presentation/marketplace_profile_page.dart';
 
@@ -30,9 +32,8 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
 
   late final List<Widget> _pages = [
     const HomePage(),
-    const Calendar(),
-    const TransactionsPage(),
     const ExplorePage(),
+    const TransactionsPage(),
     MarketplaceProfilePage(
       currentUser: widget.currentUser,
       authService: widget.authService,
@@ -55,43 +56,97 @@ class _MarketplaceShellState extends State<MarketplaceShell> {
     }
   }
 
+  void _openChatbot() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ChatbotPage()),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: _pages[_selectedIndex],
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        selectedItemColor: const Color(0xFF4CAF50),
-        unselectedItemColor: Colors.grey,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        items: [
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.home),
-            label: l10n.tr('home'),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _openChatbot,
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: const CircleBorder(),
+        child: const Icon(Icons.smart_toy, size: 28), // Robot icon
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      bottomNavigationBar: BottomAppBar(
+        shape: const CircularNotchedRectangle(),
+        notchMargin: 8.0,
+        color: Colors.white,
+        elevation: 8,
+        height: 70, // Explicit height to prevent flex overflow
+        padding: EdgeInsets.zero, // Remove M3 default internal padding
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Left side
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildNavItem(icon: Icons.home, label: l10n.tr('home'), index: 0),
+                  const SizedBox(width: 8),
+                  _buildNavItem(icon: Icons.explore_rounded, label: l10n.tr('explore'), index: 1),
+                ],
+              ),
+              // Right side
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildNavItem(icon: Icons.currency_rupee, label: l10n.tr('transactions'), index: 2),
+                  const SizedBox(width: 8),
+                  _buildNavItem(icon: Icons.person, label: l10n.tr('profile'), index: 3),
+                ],
+              ),
+            ],
           ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.calendar_today),
-            label: l10n.tr('calendar'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.currency_rupee),
-            label: l10n.tr('transactions'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.explore_rounded),
-            label: l10n.tr('explore'),
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.person),
-            label: l10n.tr('profile'),
-          ),
-        ],
-        selectedLabelStyle: const TextStyle(fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({required IconData icon, required String label, required int index}) {
+    final isSelected = _selectedIndex == index;
+    return InkWell(
+      onTap: () => setState(() => _selectedIndex = index),
+      borderRadius: BorderRadius.circular(24),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: isSelected
+            ? BoxDecoration(
+                color: const Color(0xFFE8F5E9), // Light green capsule shape
+                borderRadius: BorderRadius.circular(24),
+              )
+            : const BoxDecoration(color: Colors.transparent),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              color: isSelected ? const Color(0xFF4CAF50) : Colors.grey,
+            ),
+            if (isSelected) ...[
+              const SizedBox(height: 2),
+              Text(
+                label,
+                style: const TextStyle(
+                  color: Color(0xFF4CAF50),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ]
+          ],
+        ),
       ),
     );
   }

@@ -384,7 +384,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
             ),
             child: Row(
               children: const [
-                Icon(Icons.potted_plant, color: Color(0xFF006E1C)),
+                Icon(Icons.eco, color: Color(0xFF006E1C)),
                 SizedBox(width: 12),
                 Text(
                   'Agricultural Profile',
@@ -437,12 +437,22 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
           child: Icon(icon, color: const Color(0xFF006E1C)),
         ),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(title, style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-            Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title, 
+                style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                value, 
+                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
         )
       ],
     );
