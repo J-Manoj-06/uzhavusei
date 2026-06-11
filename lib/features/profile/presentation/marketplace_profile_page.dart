@@ -11,6 +11,7 @@ import '../../../widgets/image_loader.dart';
 import 'edit_profile_page.dart';
 import 'my_bookings_page.dart';
 import 'my_equipments_page.dart';
+import '../../../TransactionsPage.dart';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -459,21 +460,24 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
   }
 
   Widget _buildActivityGroup(AppUserModel user, AppLocalizations l10n) {
-    return _buildCollapsibleSection(
-      icon: Icons.pending_actions,
-      title: 'My Activity',
-      isExpanded: _activityExpanded,
-      onToggle: () => setState(() => _activityExpanded = !_activityExpanded),
-      children: [
-        _buildListTile('Booking History', onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => MyBookingsPage(currentUser: user)),
-          );
-        }),
-        _buildListTile('Rentals Management'),
-        _buildListTile('Order Tracking'),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 5,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: _buildListTile('My Transactions', icon: Icons.receipt_long, onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const TransactionsPage()),
+        );
+      }),
     );
   }
 
