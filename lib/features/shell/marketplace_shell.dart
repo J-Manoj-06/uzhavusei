@@ -12,6 +12,8 @@ import '../explore/presentation/explore_page.dart';
 import '../profile/presentation/marketplace_profile_page.dart';
 import '../profile/presentation/my_equipments_page.dart';
 import '../equipment/presentation/equipment_form_page.dart';
+import '../surplus/presentation/surplus_form_page.dart';
+import '../surplus/presentation/farm_exchange_form_page.dart';
 
 class MarketplaceShell extends StatefulWidget {
   const MarketplaceShell({
@@ -80,125 +82,16 @@ class _MarketplaceShellState extends State<MarketplaceShell>
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (ctx) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-          padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Handle bar
-                Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'What do you want to do?',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Choose how you\'d like to list your equipment',
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildActionCard(
-                        ctx: ctx,
-                        icon: Icons.sell_rounded,
-                        label: 'Sell',
-                        description: 'List for permanent sale',
-                        color: const Color(0xFF1565C0),
-                        bgColor: const Color(0xFFE3F2FD),
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: _buildActionCard(
-                        ctx: ctx,
-                        icon: Icons.agriculture_rounded,
-                        label: 'Rent',
-                        description: 'List for equipment rental',
-                        color: _darkGreen,
-                        bgColor: _lightGreen,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 28),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildActionCard({
-    required BuildContext ctx,
-    required IconData icon,
-    required String label,
-    required String description,
-    required Color color,
-    required Color bgColor,
-  }) {
-    return InkWell(
-      onTap: () {
-        Navigator.pop(ctx);
-        _navigateToEquipmentForm();
-      },
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: bgColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: color.withValues(alpha: 0.2)),
-        ),
-        child: Column(
-          children: [
-            Container(
-              width: 56,
-              height: 56,
-              decoration: BoxDecoration(
-                color: color,
-                shape: BoxShape.circle,
-              ),
-              child: Icon(icon, color: Colors.white, size: 28),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: color,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              description,
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, color: color.withValues(alpha: 0.7)),
-            ),
-          ],
-        ),
+      useSafeArea: true,
+      builder: (ctx) => _ActionSheet(
+        onFarmExchange: () {
+          Navigator.pop(ctx);
+          _navigateToFarmExchangeForm();
+        },
+        onRentEquipment: () {
+          Navigator.pop(ctx);
+          _navigateToEquipmentForm();
+        },
       ),
     );
   }
@@ -208,6 +101,30 @@ class _MarketplaceShellState extends State<MarketplaceShell>
       context,
       MaterialPageRoute(
         builder: (_) => EquipmentFormPage(
+          ownerId: widget.currentUser.userId,
+          ownerName: widget.currentUser.name,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToSurplusForm() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SurplusFormPage(
+          ownerId: widget.currentUser.userId,
+          ownerName: widget.currentUser.name,
+        ),
+      ),
+    );
+  }
+
+  void _navigateToFarmExchangeForm() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => FarmExchangeFormPage(
           ownerId: widget.currentUser.userId,
           ownerName: widget.currentUser.name,
         ),
@@ -247,14 +164,17 @@ class _MarketplaceShellState extends State<MarketplaceShell>
             ),
           ],
         ),
-        child: Row(
-          children: [
-            _buildNavItem(icon: Icons.home_rounded, label: 'Home', index: 0),
-            _buildNavItem(icon: Icons.support_agent_rounded, label: 'Help', index: 1),
-            _buildCenterRentButton(),
-            _buildNavItem(icon: Icons.inventory_2_rounded, label: 'My Listings', index: 3),
-            _buildNavItem(icon: Icons.person_rounded, label: 'Profile', index: 4),
-          ],
+        child: ClipRect(
+          clipBehavior: Clip.none,
+          child: Row(
+            children: [
+              _buildNavItem(icon: Icons.home_rounded, label: 'Home', index: 0),
+              _buildNavItem(icon: Icons.support_agent_rounded, label: 'Help', index: 1),
+              _buildCenterRentButton(),
+              _buildNavItem(icon: Icons.inventory_2_rounded, label: 'My Listings', index: 3),
+              _buildNavItem(icon: Icons.person_rounded, label: 'Profile', index: 4),
+            ],
+          ),
         ),
       ),
     );
@@ -313,82 +233,442 @@ class _MarketplaceShellState extends State<MarketplaceShell>
       child: GestureDetector(
         onTap: () => _onTabTapped(2),
         behavior: HitTestBehavior.opaque,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            Transform.translate(
-              offset: const Offset(0, -18),
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  // Main circular button
-                  Container(
-                    width: 60,
-                    height: 60,
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF66BB6A), _darkGreen],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
+        child: OverflowBox(
+          maxHeight: 100,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const SizedBox(height: 0),
+              Transform.translate(
+                offset: const Offset(0, -10),
+                child: Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF66BB6A), _darkGreen],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _green.withValues(alpha: 0.45),
+                        blurRadius: 16,
+                        offset: const Offset(0, 6),
                       ),
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: _green.withValues(alpha: 0.45),
-                          blurRadius: 16,
-                          offset: const Offset(0, 6),
-                        ),
-                        BoxShadow(
-                          color: _green.withValues(alpha: 0.20),
-                          blurRadius: 4,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.agriculture_rounded,
-                      color: Colors.white,
-                      size: 28,
-                    ),
+                    ],
                   ),
-                  // + badge in top-right corner
-                  Positioned(
-                    top: -2,
-                    right: -2,
-                    child: Container(
-                      width: 20,
-                      height: 20,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: _green, width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.10),
-                            blurRadius: 4,
-                          ),
-                        ],
-                      ),
-                      child: const Icon(Icons.add, size: 13, color: _darkGreen),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Transform.translate(
-              offset: const Offset(0, -14),
-              child: const Text(
-                'Rent/Sell',
-                style: TextStyle(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: _darkGreen,
-                  letterSpacing: 0.1,
+                  child: const Icon(Icons.add, color: Colors.white, size: 30),
                 ),
               ),
+              Transform.translate(
+                offset: const Offset(0, -6),
+                child: const Text(
+                  'Rent/Sell',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: _darkGreen,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Premium Action Sheet
+// ─────────────────────────────────────────────────────────────
+class _ActionSheet extends StatefulWidget {
+  const _ActionSheet({
+    required this.onRentEquipment,
+    required this.onFarmExchange,
+  });
+
+  final VoidCallback onRentEquipment;
+  final VoidCallback onFarmExchange;
+
+  @override
+  State<_ActionSheet> createState() => _ActionSheetState();
+}
+
+class _ActionSheetState extends State<_ActionSheet>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _fadeIn;
+  late Animation<Offset> _slideUp;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+    _fadeIn = CurvedAnimation(parent: _controller, curve: Curves.easeOut);
+    _slideUp = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic));
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fadeIn,
+      child: SlideTransition(
+        position: _slideUp,
+        child: Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                const SizedBox(height: 12),
+                // Handle bar
+                Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE0E0E0),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Header
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      // Icon row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _headerEmoji('🌾'),
+                          const SizedBox(width: 8),
+                          _headerEmoji('🚜'),
+                          const SizedBox(width: 8),
+                          _headerEmoji('🌽'),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'What would you like to do today?',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1A1A1A),
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Earn more from your farm by renting equipment\nor selling agricultural products.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey.shade600,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 24),
+
+                // Option cards
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    children: [
+                      _OptionCard(
+                        emoji: '🌱',
+                        tag: '♻️ Zero Waste',
+                        tagColor: const Color(0xFF8BC34A),
+                        title: 'Farm Surplus Exchange',
+                        description:
+                            'Share or exchange unused seeds, fertilizers, and pesticides with nearby farmers.',
+                        features: const ['Reduce Waste', 'Community Giveaway', 'Exchanges'],
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFF1F8E9), Color(0xFFDCEDC8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        iconBgGradient: const LinearGradient(
+                          colors: [Color(0xFF8BC34A), Color(0xFF7CB342)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderColor: const Color(0xFFAED581),
+                        titleColor: const Color(0xFF558B2F),
+                        onTap: widget.onFarmExchange,
+                      ),
+                      const SizedBox(height: 12),
+                      _OptionCard(
+                        emoji: '🚜',
+                        tag: '🚜  Equipment Rental',
+                        tagColor: const Color(0xFF2E7D32),
+                        title: 'Rent Out Equipment',
+                        description:
+                            'Generate income by renting out your idle farming machinery to nearby farmers.',
+                        features: const ['Extra Income', 'Nearby Farmers', 'Flexible Pricing'],
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFE8F5E9), Color(0xFFF1F8E9)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        iconBgGradient: const LinearGradient(
+                          colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        borderColor: const Color(0xFFA5D6A7),
+                        titleColor: const Color(0xFF2E7D32),
+                        onTap: widget.onRentEquipment,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-          ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _headerEmoji(String emoji) {
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: const Color(0xFFF5F5F5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Center(
+        child: Text(emoji, style: const TextStyle(fontSize: 24)),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+//  Single Option Card
+// ─────────────────────────────────────────────────────────────
+class _OptionCard extends StatefulWidget {
+  const _OptionCard({
+    required this.emoji,
+    required this.tag,
+    required this.tagColor,
+    required this.title,
+    required this.description,
+    required this.features,
+    required this.gradient,
+    required this.iconBgGradient,
+    required this.borderColor,
+    required this.titleColor,
+    required this.onTap,
+  });
+
+  final String emoji;
+  final String tag;
+  final Color tagColor;
+  final String title;
+  final String description;
+  final List<String> features;
+  final LinearGradient gradient;
+  final LinearGradient iconBgGradient;
+  final Color borderColor;
+  final Color titleColor;
+  final VoidCallback onTap;
+
+  @override
+  State<_OptionCard> createState() => _OptionCardState();
+}
+
+class _OptionCardState extends State<_OptionCard>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _scaleCtrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _scaleCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 120),
+      lowerBound: 0.97,
+      upperBound: 1.0,
+      value: 1.0,
+    );
+    _scale = _scaleCtrl;
+  }
+
+  @override
+  void dispose() {
+    _scaleCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _scaleCtrl.reverse(),
+      onTapUp: (_) {
+        _scaleCtrl.forward();
+        widget.onTap();
+      },
+      onTapCancel: () => _scaleCtrl.forward(),
+      child: AnimatedBuilder(
+        animation: _scale,
+        builder: (_, child) =>
+            Transform.scale(scale: _scale.value, child: child),
+        child: Container(
+          decoration: BoxDecoration(
+            gradient: widget.gradient,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(color: widget.borderColor, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: widget.borderColor.withValues(alpha: 0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Icon
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: widget.iconBgGradient,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Center(
+                    child: Text(
+                      widget.emoji,
+                      style: const TextStyle(fontSize: 30),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Content
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Tag chip
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: widget.tagColor.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          widget.tag,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: widget.tagColor,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        widget.title,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: widget.titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        widget.description,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade700,
+                          height: 1.4,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      // Feature chips
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: widget.features
+                            .map((f) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white
+                                        .withValues(alpha: 0.8),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: widget.borderColor,
+                                        width: 1),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(Icons.check_circle_rounded,
+                                          size: 11,
+                                          color: widget.titleColor),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        f,
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w600,
+                                          color: widget.titleColor,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow
+                Padding(
+                  padding: const EdgeInsets.only(top: 18),
+                  child: Icon(Icons.arrow_forward_ios_rounded,
+                      size: 14, color: widget.titleColor),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

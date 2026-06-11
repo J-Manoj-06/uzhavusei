@@ -486,65 +486,6 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
       ),
-      floatingActionButton: Theme(
-        data: Theme.of(context).copyWith(
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: PopupMenuButton<String>(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          offset: const Offset(0, -120),
-          tooltip: 'Add options',
-          onSelected: (String value) {
-            if (value == 'equipment') {
-              _openAddEquipmentForm();
-            } else if (value == 'surplus') {
-              // Redirect to future Add Surplus page
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Add Surplus page coming soon!')),
-              );
-            }
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            const PopupMenuItem<String>(
-              value: 'equipment',
-              child: Row(
-                children: [
-                  Icon(Icons.precision_manufacturing, color: Color(0xFF4CAF50)),
-                  SizedBox(width: 12),
-                  Text('Add Equipment'),
-                ],
-              ),
-            ),
-            const PopupMenuItem<String>(
-              value: 'surplus',
-              child: Row(
-                children: [
-                  Icon(Icons.eco, color: Color(0xFF4CAF50)),
-                  SizedBox(width: 12),
-                  Text('Add Surplus'),
-                ],
-              ),
-            ),
-          ],
-          child: Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50),
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 6,
-                  offset: Offset(0, 3),
-                ),
-              ],
-            ),
-            child: const Icon(Icons.add, color: Colors.white, size: 28),
-          ),
-        ),
-      ),
       body: SingleChildScrollView(
         child: Column(
           children: [

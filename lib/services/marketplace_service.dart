@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/marketplace_booking_model.dart';
 import '../models/marketplace_equipment_model.dart';
+import '../models/marketplace_surplus_model.dart';
+import '../models/farm_surplus_exchange_model.dart';
 
 class MarketplaceService {
   MarketplaceService({FirebaseFirestore? firestore})
@@ -9,6 +11,8 @@ class MarketplaceService {
 
   final FirebaseFirestore _firestore;
   static const String _equipmentCollection = 'equipment';
+  static const String _surplusCollection = 'marketplace_surplus';
+  static const String _exchangeCollection = 'farm_surplus_exchange';
 
   Stream<List<MarketplaceEquipmentModel>> watchEquipments({
     String? category,
@@ -52,6 +56,133 @@ class MarketplaceService {
       return items;
     });
   }
+
+  // ── Surplus Operations ──────────────────────────────────────────
+
+  Stream<List<MarketplaceSurplusModel>> watchSurplus({
+    String? category,
+  }) {
+    final query = _firestore.collection(_surplusCollection);
+    final categoryQuery = category?.trim().toLowerCase() ?? '';
+
+    return query.snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map(MarketplaceSurplusModel.fromDoc)
+          .where((item) {
+            if (categoryQuery.isEmpty || categoryQuery == 'all') return true;
+            final values = <String>{
+              item.categoryLocalized['en']?.toLowerCase() ?? '',
+              item.categoryLocalized['ta']?.toLowerCase() ?? '',
+              item.categoryLocalized['hi']?.toLowerCase() ?? '',
+            };
+            return values.contains(categoryQuery);
+          })
+          .where((item) => item.status.toLowerCase() == 'published')
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Stream<List<MarketplaceSurplusModel>> watchSurplusByOwner(String ownerId) {
+    return _firestore
+        .collection(_surplusCollection)
+        .where('ownerId', isEqualTo: ownerId)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map(MarketplaceSurplusModel.fromDoc)
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Future<String> addSurplusRecord(Map<String, dynamic> surplusData) async {
+    final doc = _firestore.collection(_surplusCollection).doc();
+    await doc.set(
+      surplusData
+        ..['surplusId'] = doc.id
+        ..['createdAt'] = (surplusData['createdAt'] ?? FieldValue.serverTimestamp())
+        ..['updatedAt'] = (surplusData['updatedAt'] ?? FieldValue.serverTimestamp()),
+    );
+    return doc.id;
+  }
+
+  Future<void> updateSurplus({
+    required String surplusId,
+    required Map<String, dynamic> updates,
+  }) {
+    return _firestore.collection(_surplusCollection).doc(surplusId).update(
+          updates..['updatedAt'] = FieldValue.serverTimestamp(),
+        );
+  }
+
+  Future<void> deleteSurplus(String surplusId) {
+    return _firestore.collection(_surplusCollection).doc(surplusId).delete();
+  }
+
+  // ── Farm Surplus Exchange Operations ─────────────────────────────
+
+  Stream<List<FarmSurplusExchangeModel>> watchExchanges({
+    String? category,
+  }) {
+    final query = _firestore.collection(_exchangeCollection);
+    final categoryQuery = category?.trim().toLowerCase() ?? '';
+
+    return query.snapshots().map((snapshot) {
+      final items = snapshot.docs
+          .map(FarmSurplusExchangeModel.fromDoc)
+          .where((item) {
+            if (categoryQuery.isEmpty || categoryQuery == 'all') return true;
+            return item.category.toLowerCase() == categoryQuery;
+          })
+          .where((item) => item.status.toLowerCase() == 'published')
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Stream<List<FarmSurplusExchangeModel>> watchExchangesByOwner(String ownerId) {
+    return _firestore
+        .collection(_exchangeCollection)
+        .where('ownerId', isEqualTo: ownerId)
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map(FarmSurplusExchangeModel.fromDoc)
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    });
+  }
+
+  Future<String> addExchangeRecord(Map<String, dynamic> exchangeData) async {
+    final doc = _firestore.collection(_exchangeCollection).doc();
+    await doc.set(
+      exchangeData
+        ..['exchangeId'] = doc.id
+        ..['createdAt'] = (exchangeData['createdAt'] ?? FieldValue.serverTimestamp())
+        ..['updatedAt'] = (exchangeData['updatedAt'] ?? FieldValue.serverTimestamp()),
+    );
+    return doc.id;
+  }
+
+  Future<void> updateExchange({
+    required String exchangeId,
+    required Map<String, dynamic> updates,
+  }) {
+    return _firestore.collection(_exchangeCollection).doc(exchangeId).update(
+          updates..['updatedAt'] = FieldValue.serverTimestamp(),
+        );
+  }
+
+  Future<void> deleteExchange(String exchangeId) {
+    return _firestore.collection(_exchangeCollection).doc(exchangeId).delete();
+  }
+
+  // ──────────────────────────────────────────────────────────────
 
   Stream<List<MarketplaceBookingModel>> watchUserBookings(String userId) {
     return _firestore
