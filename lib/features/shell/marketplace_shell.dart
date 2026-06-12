@@ -10,7 +10,7 @@ import '../../services/auth_service.dart';
 import '../explore/presentation/chatbot_page.dart';
 import '../explore/presentation/explore_page.dart';
 import '../profile/presentation/marketplace_profile_page.dart';
-import '../profile/presentation/my_equipments_page.dart';
+import '../profile/presentation/my_listings_page.dart';
 import '../equipment/presentation/equipment_form_page.dart';
 import '../surplus/presentation/surplus_form_page.dart';
 import '../surplus/presentation/farm_exchange_form_page.dart';
@@ -39,7 +39,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
     const HomePage(),
     const ChatbotPage(),
     const ExplorePage(), // placeholder for index 2 (Rent)
-    MyEquipmentsPage(currentUser: widget.currentUser),
+    MyListingsPage(currentUser: widget.currentUser),
     MarketplaceProfilePage(
       currentUser: widget.currentUser,
       authService: widget.authService,
@@ -406,7 +406,7 @@ class _ActionSheetState extends State<_ActionSheet>
                         emoji: '🌱',
                         tag: '♻️ Zero Waste',
                         tagColor: const Color(0xFF8BC34A),
-                        title: 'Farm Surplus Exchange',
+                        title: 'Sell Surplus',
                         description:
                             'Share or exchange unused seeds, fertilizers, and pesticides with nearby farmers.',
                         features: const ['Reduce Waste', 'Community Giveaway', 'Exchanges'],

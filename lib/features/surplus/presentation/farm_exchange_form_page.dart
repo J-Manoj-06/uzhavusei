@@ -36,7 +36,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
   final _cloudinary = CloudinaryService();
 
   int _step = 0;
-  static const int _totalSteps = 10;
+  static const int _totalSteps = 9;
 
   // ── Data ────────────────────────────────────────────────
   static const List<Map<String, String>> _categories = [
@@ -190,7 +190,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
       backgroundColor: Colors.white,
       elevation: 0,
       centerTitle: true,
-      title: const Text('🌱 Farm Surplus Exchange', style: TextStyle(color: _darkGreen, fontSize: 16, fontWeight: FontWeight.w800)),
+      title: const Text('🌱 Sell Surplus', style: TextStyle(color: _darkGreen, fontSize: 16, fontWeight: FontWeight.w800)),
       leading: IconButton(
         icon: const Icon(Icons.close_rounded, color: Colors.black87),
         onPressed: () => Navigator.pop(context),
@@ -226,9 +226,8 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
       case 4: return _buildStep4Expiry();
       case 5: return _buildStep5Photos();
       case 6: return _buildStep6Location();
-      case 7: return _buildStep7ListingType();
-      case 8: return _buildStep8Value();
-      case 9: return _buildStep9Preview();
+      case 7: return _buildStep7Value();
+      case 8: return _buildStep8Preview();
       default: return const SizedBox();
     }
   }
@@ -460,7 +459,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
           GestureDetector(
             onTap: () {
               if (combined.length >= 10) return _showSnack('Max 10 images');
-              _pickAndCropImage(ImageSource.gallery);
+              _showPhotoSourceSheet();
             },
             child: Container(
               width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 40),
@@ -496,6 +495,23 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
             ),
           ]
         ],
+      ),
+    );
+  }
+
+  void _showPhotoSourceSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (_) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(padding: EdgeInsets.all(20), child: Text('Select Photo Source', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold))),
+            ListTile(leading: const Icon(Icons.camera_alt_rounded, color: _green), title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.w600)), onTap: () { Navigator.pop(context); _pickAndCropImage(ImageSource.camera); }),
+            ListTile(leading: const Icon(Icons.photo_library_rounded, color: _green), title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.w600)), onTap: () { Navigator.pop(context); _pickAndCropImage(ImageSource.gallery); }),
+          ],
+        ),
       ),
     );
   }
@@ -550,45 +566,13 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
     );
   }
 
-  Widget _buildStep7ListingType() {
-    if (_isNearExpiry()) {
-      return Center(child: Padding(padding: const EdgeInsets.all(40), child: Column(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.check_circle, color: _green, size: 64), const SizedBox(height: 16), const Text('Auto-Configured', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), const Text('Because this is near expiry, it has been set as a Community Giveaway.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)), const SizedBox(height: 24), ElevatedButton(onPressed: () => _goToStep(_step + 1), style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white), child: const Text('Continue'))])));
-    }
-
-    return SingleChildScrollView(
-      key: const ValueKey('step7'), padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _stepHeader(emoji: '📋', title: 'Listing Type', subtitle: 'Are you selling this or exchanging it?'),
-          const SizedBox(height: 24),
-          _typeCard('Sell Surplus', '💰', 'Sell it for a discounted price.', 'Sell Surplus'),
-          const SizedBox(height: 12),
-          _typeCard('Exchange', '♻', 'Trade it for another farm input you need.', 'Exchange'),
-        ],
-      ),
-    );
-  }
-
-  Widget _typeCard(String title, String emoji, String subtitle, String value) {
-    final sel = _listingType == value;
-    return GestureDetector(
-      onTap: () => setState(() => _listingType = value),
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: sel ? _lightGreen : Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: sel ? _green : const Color(0xFFEBEBEB), width: sel ? 2 : 1)),
-        child: Row(children: [Text(emoji, style: const TextStyle(fontSize: 28)), const SizedBox(width: 16), Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(title, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: sel ? _darkGreen : Colors.black87)), const SizedBox(height: 4), Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 12))])), Icon(sel ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: sel ? _green : Colors.grey)]),
-      ),
-    );
-  }
-
-  Widget _buildStep8Value() {
+  Widget _buildStep7Value() {
     if (_listingType == 'Community Giveaway') {
       return Center(child: Padding(padding: const EdgeInsets.all(40), child: Column(mainAxisSize: MainAxisSize.min, children: [const Text('🤝', style: TextStyle(fontSize: 64)), const SizedBox(height: 16), const Text('Free Giveaway', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)), const SizedBox(height: 8), const Text('You are awesome! This will be listed for free.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)), const SizedBox(height: 24), ElevatedButton(onPressed: () => _goToStep(_step + 1), style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white), child: const Text('See Preview'))])));
     }
 
     return SingleChildScrollView(
-      key: const ValueKey('step8'), padding: const EdgeInsets.all(20),
+      key: const ValueKey('step7'), padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -606,12 +590,12 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
     );
   }
 
-  Widget _buildStep9Preview() {
+  Widget _buildStep8Preview() {
     final qty = double.tryParse(_quantity.text.trim()) ?? 0;
     final combined = [..._existingImages, ..._newImages];
 
     return SingleChildScrollView(
-      key: const ValueKey('step9'), padding: const EdgeInsets.all(20),
+      key: const ValueKey('step8'), padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -676,7 +660,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
             ),
           ),
           const SizedBox(height: 24),
-          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: _green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: _saving ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white)) : const Text('Publish Exchange', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))),
+          SizedBox(width: double.infinity, child: ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 18), backgroundColor: _green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))), child: _saving ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 3, color: Colors.white)) : const Text('Publish', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)))),
         ],
       ),
     );
@@ -705,7 +689,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
       if (_existingImages.isEmpty && _newImages.isEmpty) { _showSnack('At least 1 photo required'); return false; }
     } else if (_step == 6) {
       if (_location.trim().isEmpty) { _showSnack('Location required'); return false; }
-    } else if (_step == 8) {
+    } else if (_step == 7) {
       if (_listingType == 'Sell Surplus') {
         final p = double.tryParse(_price.text.trim()) ?? 0;
         if (p <= 0) { _showSnack('Price must be greater than 0'); return false; }
@@ -778,8 +762,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
                 flex: 1,
                 child: OutlinedButton(
                   onPressed: _saving ? null : () {
-                    if (_step == 8 && _isNearExpiry()) _goToStep(6);
-                    else _goToStep(_step - 1);
+                    _goToStep(_step - 1);
                   },
                   style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: _green, width: 2), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))),
                   child: const Text('Back', style: TextStyle(color: _green, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -792,8 +775,7 @@ class _FarmExchangeFormPageState extends State<FarmExchangeFormPage> with Ticker
                 child: ElevatedButton(
                   onPressed: _saving ? null : () {
                     if (_validateCurrentStep()) {
-                      if (_step == 6 && _isNearExpiry()) _goToStep(8);
-                      else _goToStep(_step + 1);
+                      _goToStep(_step + 1);
                     }
                   },
                   style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: _green, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)), elevation: 0),

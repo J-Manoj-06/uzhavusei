@@ -28,6 +28,7 @@ class MyEquipmentsPage extends StatelessWidget {
         foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'my_equipments_fab',
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(

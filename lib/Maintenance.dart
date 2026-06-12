@@ -331,6 +331,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
         ),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'maintenance_fab',
         onPressed: _toggleChat,
         backgroundColor: const Color(0xFF4CAF50),
         child: const Icon(Icons.message, color: Colors.white),

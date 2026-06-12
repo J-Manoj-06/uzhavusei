@@ -35,6 +35,9 @@ class MarketplaceEquipmentModel {
     this.priceType = 'hour',
     this.status = 'published',
     this.tags = const <String>[],
+    this.views = 0,
+    this.savedBy = const <String>[],
+    this.bookingsCount = 0,
   });
 
   final String equipmentId;
@@ -68,6 +71,10 @@ class MarketplaceEquipmentModel {
   final String priceType;
   final String status;
   final List<String> tags;
+  
+  final int views;
+  final List<String> savedBy;
+  final int bookingsCount;
 
   String titleForLanguage(String languageCode) =>
       getLocalizedText(titleLocalized, languageCode);
@@ -168,6 +175,9 @@ class MarketplaceEquipmentModel {
       priceType: (data['price_type'] ?? 'hour').toString(),
       status: (data['status'] ?? 'published').toString(),
       tags: _toStringList(data['tags']),
+      views: data['views'] ?? 0,
+      savedBy: _toStringList(data['savedBy']),
+      bookingsCount: data['bookingsCount'] ?? 0,
     );
   }
 
@@ -217,6 +227,9 @@ class MarketplaceEquipmentModel {
       'ownerName': ownerName,
       'machineSpecs': machineSpecs,
       'videoUrl': videoUrl,
+      'views': views,
+      'savedBy': savedBy,
+      'bookingsCount': bookingsCount,
     };
   }
 }

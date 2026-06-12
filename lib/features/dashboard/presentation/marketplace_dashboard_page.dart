@@ -43,6 +43,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'marketplace_dashboard_fab',
         onPressed: _openAddEquipmentForm,
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,

@@ -238,6 +238,36 @@ class AuthService {
     }, SetOptions(merge: true));
   }
 
+  Future<void> updateAdvancedUserProfile({
+    required String name,
+    required String phoneNumber,
+    required String state,
+    required String district,
+    required String village,
+    required String landArea,
+    required String primaryCrops,
+    required String serviceRange,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) {
+      throw Exception('User is not signed in');
+    }
+
+    await _auth.currentUser?.updateDisplayName(name);
+
+    await _firestore.collection('users').doc(uid).set({
+      'name': name,
+      'phoneNumber': phoneNumber,
+      'state': state,
+      'district': district,
+      'village': village,
+      'landArea': landArea,
+      'primaryCrops': primaryCrops,
+      'serviceRange': serviceRange,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
   Future<void> updateLanguage(String languageCode) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {

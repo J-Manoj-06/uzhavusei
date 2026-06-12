@@ -39,6 +39,7 @@ class _ExplorePageState extends State<ExplorePage> {
         foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'explore_fab',
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
         onPressed: () {

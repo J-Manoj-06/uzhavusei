@@ -34,6 +34,18 @@ service cloud.firestore {
       allow update, delete: if signedIn() && resource.data.owner_user_id == request.auth.uid;
     }
 
+    match /marketplace_surplus/{surplusId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
+    match /farm_surplus_exchange/{exchangeId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      allow update, delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+    }
+
     match /bookings/{bookingId} {
       allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
 

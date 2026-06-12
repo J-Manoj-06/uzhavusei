@@ -9,9 +9,15 @@ import '../../../providers/locale_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../widgets/image_loader.dart';
 import 'edit_profile_page.dart';
+import 'complete_profile_page.dart';
 import 'my_bookings_page.dart';
 import 'my_equipments_page.dart';
 import '../../../TransactionsPage.dart';
+import '../../../services/marketplace_service.dart';
+import '../../../models/marketplace_equipment_model.dart';
+import '../../../models/marketplace_booking_model.dart';
+import '../../../models/marketplace_surplus_model.dart';
+import '../../../models/farm_surplus_exchange_model.dart';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -30,7 +36,6 @@ class MarketplaceProfilePage extends StatefulWidget {
 class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
   // Expansion states
   bool _activityExpanded = false;
-  bool _equipmentExpanded = false;
   bool _marketplaceExpanded = false;
 
   @override
@@ -53,17 +58,15 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                   child: Column(
                     children: [
                       const SizedBox(height: 16),
-                      _buildProfileCompletion(),
+                      _buildProfileCompletion(user),
                       const SizedBox(height: 16),
-                      _buildQuickStats(),
+                      _buildQuickStats(user),
                       const SizedBox(height: 24),
-                      _buildAgriculturalFeatures(),
+                      _buildAgriculturalFeatures(user),
                       const SizedBox(height: 16),
                       _buildActivityGroup(user, l10n),
                       const SizedBox(height: 16),
-                      _buildEquipmentManagement(user, l10n),
-                      const SizedBox(height: 16),
-                      _buildMarketplaceGroup(),
+                      _buildMarketplaceGroup(user),
                       const SizedBox(height: 16),
                       _buildSettingsGroup(l10n),
                       const SizedBox(height: 24),
@@ -268,10 +271,14 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                   const SizedBox(width: 8),
                   const Icon(Icons.location_on, size: 16, color: Color(0xFF3F4A3C)),
                   const SizedBox(width: 4),
-                  const Text(
-                    'Coimbatore, TN', // Placeholder
-                    style: TextStyle(fontSize: 14, color: Color(0xFF3F4A3C)),
-                  ),
+                  Builder(builder: (context) {
+                    final locParts = [user.village, user.district, user.state].where((e) => e != null && e.trim().isNotEmpty).toList();
+                    final displayLoc = locParts.isNotEmpty ? locParts.join(', ') : 'Location not set';
+                    return Text(
+                      displayLoc,
+                      style: const TextStyle(fontSize: 14, color: Color(0xFF3F4A3C)),
+                    );
+                  }),
                 ],
               ),
               const SizedBox(height: 8),
@@ -286,89 +293,168 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
     );
   }
 
-  Widget _buildProfileCompletion() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFEDEEED),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Profile Completion',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
-              ),
-              Text(
-                '85%',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF006E1C)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: const LinearProgressIndicator(
-              value: 0.85,
-              backgroundColor: Color(0x4DBECAB9),
-              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF006E1C)),
-              minHeight: 8,
+  Widget _buildProfileCompletion(AppUserModel user) {
+    int score = 0;
+    if (user.name.isNotEmpty) score += 20;
+    if (user.email.isNotEmpty) score += 20;
+    if (user.phoneNumber.isNotEmpty) score += 20;
+    if (user.profileImage.isNotEmpty) score += 10;
+    if (user.state != null && user.state!.isNotEmpty) score += 10;
+    if (user.landArea != null && user.landArea!.isNotEmpty) score += 10;
+    if (user.primaryCrops != null && user.primaryCrops!.isNotEmpty) score += 10;
+    
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => CompleteProfilePage(
+              initialUser: user,
+              authService: widget.authService,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Complete your bank details to start earning from rentals.',
-            style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStats() {
-    return Row(
-      children: [
-        _buildStatBox('12', 'Equipment'),
-        const SizedBox(width: 12),
-        _buildStatBox('45', 'Rentals'),
-        const SizedBox(width: 12),
-        _buildStatBox('08', 'Orders'),
-        const SizedBox(width: 12),
-        _buildStatBox('15', 'Wishlist'),
-      ],
-    );
-  }
-
-  Widget _buildStatBox(String value, String label) {
-    return Expanded(
+        );
+      },
+      borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFEDEEED),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.2)),
+          border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.3)),
         ),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              value,
-              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Profile Completion',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
+                ),
+                Text(
+                  '$score%',
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF006E1C)),
+                ),
+              ],
             ),
-            Text(
-              label.toUpperCase(),
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
+            const SizedBox(height: 8),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(4),
+              child: LinearProgressIndicator(
+                value: score / 100.0,
+                backgroundColor: const Color(0x4DBECAB9),
+                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF006E1C)),
+                minHeight: 8,
+              ),
             ),
+            const SizedBox(height: 8),
+            if (score < 100)
+              const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Tap to complete your profile for better trust & visibility.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF6F7A6B)),
+                ],
+              )
+            else
+              const Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Your profile is complete! Tap to update details.',
+                      style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                    ),
+                  ),
+                  Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF6F7A6B)),
+                ],
+              )
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAgriculturalFeatures() {
+  Widget _buildQuickStats(AppUserModel user) {
+    final service = MarketplaceService();
+    return StreamBuilder<List<dynamic>>(
+      stream: Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
+        // Just return a dummy stream to trigger future builder logic
+        return [];
+      }),
+      builder: (context, _) {
+        return Row(
+          children: [
+            Expanded(
+              child: StreamBuilder<List<MarketplaceEquipmentModel>>(
+                stream: service.watchEquipmentsByOwner(user.userId),
+                builder: (context, snap) => _buildStatBox(
+                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
+                  'Equipment'
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StreamBuilder<List<MarketplaceBookingModel>>(
+                stream: service.watchOwnerBookings(user.userId),
+                builder: (context, snap) => _buildStatBox(
+                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
+                  'Rentals'
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: StreamBuilder<List<MarketplaceBookingModel>>(
+                stream: service.watchUserBookings(user.userId),
+                builder: (context, snap) => _buildStatBox(
+                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
+                  'Orders'
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatBox('00', 'Wishlist')),
+          ],
+        );
+      }
+    );
+  }
+
+  Widget _buildStatBox(String value, String label) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.2)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            value,
+            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
+          ),
+          Text(
+            label.toUpperCase(),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAgriculturalFeatures(AppUserModel user) {
+    final landArea = user.landArea?.trim().isNotEmpty == true ? user.landArea! : 'Not set';
+    final primaryCrops = user.primaryCrops?.trim().isNotEmpty == true ? user.primaryCrops! : 'Not set';
+    final serviceRange = user.serviceRange?.trim().isNotEmpty == true ? '${user.serviceRange!} km' : 'Not set';
+
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF3F4F3),
@@ -401,10 +487,10 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildAgriFeatureRow(Icons.landscape, 'Land Area', '5 Acres'),
+                      child: _buildAgriFeatureRow(Icons.landscape, 'Land Area', landArea),
                     ),
                     Expanded(
-                      child: _buildAgriFeatureRow(Icons.eco, 'Primary Crops', 'Paddy, Sugarcane'),
+                      child: _buildAgriFeatureRow(Icons.eco, 'Primary Crops', primaryCrops),
                     ),
                   ],
                 ),
@@ -412,7 +498,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                 Row(
                   children: [
                     Expanded(
-                      child: _buildAgriFeatureRow(Icons.radar, 'Service Radius', '20km Range'),
+                      child: _buildAgriFeatureRow(Icons.radar, 'Service Radius', serviceRange),
                     ),
                     const Expanded(child: SizedBox()),
                   ],
@@ -481,92 +567,9 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
     );
   }
 
-  Widget _buildEquipmentManagement(AppUserModel user, AppLocalizations l10n) {
-    return _buildCollapsibleSection(
-      icon: Icons.precision_manufacturing,
-      title: 'Equipment Management',
-      isExpanded: _equipmentExpanded,
-      onToggle: () => setState(() => _equipmentExpanded = !_equipmentExpanded),
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.payments, color: Color(0xFF006E1C)),
-                          SizedBox(height: 8),
-                          Text('Total Earnings', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-                          Text('₹42,500', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFED7CA).withValues(alpha: 0.3),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(Icons.list_alt, color: Color(0xFF75584D)),
-                          SizedBox(height: 8),
-                          Text('Active Listings', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-                          Text('04 Units', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () {
-                    if (user.isOwner) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => MyEquipmentsPage(currentUser: user)),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('You need to be an owner to add equipment')),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF006E1C),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add New Equipment', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-                ),
-              )
-            ],
-          ),
-        ),
-      ],
-    );
-  }
 
-  Widget _buildMarketplaceGroup() {
+  Widget _buildMarketplaceGroup(AppUserModel user) {
+    final service = MarketplaceService();
     return _buildCollapsibleSection(
       icon: Icons.storefront,
       title: 'Marketplace',
@@ -584,11 +587,23 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                     border: Border.all(color: const Color(0xFFBECAB9)),
                     borderRadius: BorderRadius.circular(16),
                   ),
-                  child: const Column(
-                    children: [
-                      Text('0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                      Text('My Products', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-                    ],
+                  child: StreamBuilder<List<MarketplaceSurplusModel>>(
+                    stream: service.watchSurplusByOwner(user.userId),
+                    builder: (context, snapSurplus) {
+                      return StreamBuilder<List<FarmSurplusExchangeModel>>(
+                        stream: service.watchExchangesByOwner(user.userId),
+                        builder: (context, snapExchanges) {
+                          final c1 = snapSurplus.data?.length ?? 0;
+                          final c2 = snapExchanges.data?.length ?? 0;
+                          return Column(
+                            children: [
+                              Text('${c1 + c2}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                              const Text('My Products', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
+                            ],
+                          );
+                        }
+                      );
+                    }
                   ),
                 ),
               ),
@@ -602,7 +617,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                   ),
                   child: const Column(
                     children: [
-                      Text('12', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                      Text('0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                       Text('Saved Items', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
                     ],
                   ),
@@ -673,7 +688,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                   Expanded(
                     child: Text(
                       title,
-                      style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
                     ),
                   ),
                   Icon(isExpanded ? Icons.expand_less : Icons.expand_more, color: const Color(0xFF6F7A6B)),

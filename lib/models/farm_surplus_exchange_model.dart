@@ -25,6 +25,9 @@ class FarmSurplusExchangeModel {
     required this.status,
     required this.createdAt,
     this.updatedAt,
+    this.views = 0,
+    this.savedBy = const <String>[],
+    this.bookingsCount = 0,
   });
 
   final String exchangeId;
@@ -56,6 +59,10 @@ class FarmSurplusExchangeModel {
 
   final DateTime createdAt;
   final DateTime? updatedAt;
+  
+  final int views;
+  final List<String> savedBy;
+  final int bookingsCount;
 
   bool get isCommunityGiveaway => listingType == 'Community Giveaway';
   bool get isNearExpiry => condition == 'Near Expiry';
@@ -88,6 +95,9 @@ class FarmSurplusExchangeModel {
       status: (data['status'] ?? 'published').toString(),
       createdAt: _toDate(data['createdAt']),
       updatedAt: _toDateOrNull(data['updatedAt']),
+      views: data['views'] ?? 0,
+      savedBy: List<String>.from(data['savedBy'] ?? []),
+      bookingsCount: data['bookingsCount'] ?? 0,
     );
   }
 
@@ -116,6 +126,9 @@ class FarmSurplusExchangeModel {
       'status': status,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp(),
+      'views': views,
+      'savedBy': savedBy,
+      'bookingsCount': bookingsCount,
     };
   }
 
