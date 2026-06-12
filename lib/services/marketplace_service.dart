@@ -57,6 +57,61 @@ class MarketplaceService {
     });
   }
 
+  Stream<MarketplaceEquipmentModel> watchEquipmentById(String equipmentId) {
+    return _firestore
+        .collection(_equipmentCollection)
+        .doc(equipmentId)
+        .snapshots()
+        .map((doc) => MarketplaceEquipmentModel.fromDoc(doc));
+  }
+
+  Stream<List<MarketplaceEquipmentModel>> watchRelatedEquipment({
+    required String category,
+    required String currentEquipmentId,
+  }) {
+    return _firestore
+        .collection(_equipmentCollection)
+        .where('status', isEqualTo: 'published')
+        // Firestore can only range query on one field, so we just filter locally if needed
+        .snapshots()
+        .map((snapshot) {
+      final items = snapshot.docs
+          .map(MarketplaceEquipmentModel.fromDoc)
+          .where((item) => item.equipmentId != currentEquipmentId)
+          .where((item) => item.category.toLowerCase() == category.toLowerCase())
+          .toList(growable: false)
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items.take(5).toList();
+    });
+  }
+
+  Future<void> incrementEquipmentViews(String equipmentId) async {
+    final docRef = _firestore.collection(_equipmentCollection).doc(equipmentId);
+    await docRef.update({
+      'views': FieldValue.increment(1),
+    });
+  }
+
+  Future<void> toggleSaveEquipment(String userId, String equipmentId) async {
+    final docRef = _firestore.collection(_equipmentCollection).doc(equipmentId);
+    
+    return _firestore.runTransaction((transaction) async {
+      final doc = await transaction.get(docRef);
+      if (!doc.exists) return;
+      
+      final data = doc.data()!;
+      final savedBy = List<String>.from(data['savedBy'] ?? []);
+      
+      if (savedBy.contains(userId)) {
+        savedBy.remove(userId);
+        transaction.update(docRef, {'savedBy': savedBy});
+      } else {
+        savedBy.add(userId);
+        transaction.update(docRef, {'savedBy': savedBy});
+      }
+    });
+  }
+
   // ── Surplus Operations ──────────────────────────────────────────
 
   Stream<List<MarketplaceSurplusModel>> watchSurplus({
