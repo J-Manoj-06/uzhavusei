@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.uzhavusei",
+      "sha256_cert_fingerprints": [
+        "D6:58:D5:E1:7C:8F:65:4C:FE:2A:2F:BB:ED:69:99:0E:02:73:FE:5D",
+        "5C:56:08:E2:4F:FA:BF:CC:4A:33:04:E1:CD:A9:45:D4:9B:AF:45:49"
+      ]
+    }
+  }
+]

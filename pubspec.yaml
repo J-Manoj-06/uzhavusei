@@ -63,6 +63,8 @@ dependencies:
   geocoding: ^4.0.0
   pinput: ^6.0.2
   image_cropper: ^12.2.1
+  app_links: ^7.1.2
+  share_plus: ^13.1.0
 
 dev_dependencies:
   flutter_test:

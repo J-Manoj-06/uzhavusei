@@ -65,6 +65,12 @@ class MarketplaceService {
         .map((doc) => MarketplaceEquipmentModel.fromDoc(doc));
   }
 
+  Future<MarketplaceEquipmentModel?> getEquipmentById(String equipmentId) async {
+    final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
+    if (!doc.exists) return null;
+    return MarketplaceEquipmentModel.fromDoc(doc);
+  }
+
   Stream<List<MarketplaceEquipmentModel>> watchRelatedEquipment({
     required String category,
     required String currentEquipmentId,
@@ -137,6 +143,12 @@ class MarketplaceService {
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return items;
     });
+  }
+
+  Future<MarketplaceSurplusModel?> getSurplusById(String surplusId) async {
+    final doc = await _firestore.collection(_surplusCollection).doc(surplusId).get();
+    if (!doc.exists) return null;
+    return MarketplaceSurplusModel.fromDoc(doc);
   }
 
   Stream<List<MarketplaceSurplusModel>> watchSurplusByOwner(String ownerId) {

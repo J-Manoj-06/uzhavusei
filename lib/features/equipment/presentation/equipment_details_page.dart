@@ -4,10 +4,12 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
+import '../../../services/deep_link_handler.dart';
 import '../../../widgets/image_loader.dart';
 import 'booking_payment_page.dart';
 
@@ -81,15 +83,15 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     }
   }
 
-  void _shareListing(MarketplaceEquipmentModel item) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Link copied to clipboard!'),
-        backgroundColor: const Color(0xFF4CAF50),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+  void _shareListing(MarketplaceEquipmentModel item) async {
+    final url = 'https://uzhavusei-a8be3.web.app/equipment/${item.equipmentId}';
+    final text = 'Check out this ${item.equipmentName} available for rent on UzhavuSei!\n📍 ${item.location}\n💰 ₹${item.pricePerDay.toStringAsFixed(0)}/day\n\n$url';
+    
+    // Log analytics
+    DeepLinkHandler.logShareEvent(item.equipmentId, widget.userId);
+    
+    // Native share sheet
+    await Share.share(text);
   }
 
   bool _isDateAvailable(DateTime day, MarketplaceEquipmentModel item) {

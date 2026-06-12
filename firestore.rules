@@ -31,7 +31,11 @@ service cloud.firestore {
     match /equipment/{equipmentId} {
       allow read: if true;
       allow create: if signedIn() && request.resource.data.owner_user_id == request.auth.uid;
-      allow update, delete: if signedIn() && resource.data.owner_user_id == request.auth.uid;
+      allow update: if signedIn() && (
+        resource.data.owner_user_id == request.auth.uid || 
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['views', 'savedBy'])
+      );
+      allow delete: if signedIn() && resource.data.owner_user_id == request.auth.uid;
     }
 
     match /marketplace_surplus/{surplusId} {
@@ -61,6 +65,10 @@ service cloud.firestore {
         resource.data.ownerId == request.auth.uid
       );
       allow delete: if false;
+    }
+
+    match /shared_links_analytics/{docId} {
+      allow read, write: if signedIn();
     }
   }
 }

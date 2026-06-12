@@ -14,6 +14,7 @@ import '../profile/presentation/my_listings_page.dart';
 import '../equipment/presentation/equipment_form_page.dart';
 import '../surplus/presentation/surplus_form_page.dart';
 import '../surplus/presentation/farm_exchange_form_page.dart';
+import '../../services/deep_link_handler.dart';
 
 class MarketplaceShell extends StatefulWidget {
   const MarketplaceShell({
@@ -51,6 +52,21 @@ class _MarketplaceShellState extends State<MarketplaceShell>
   static const Color _lightGreen = Color(0xFFE8F5E9);
   static const Color _grey = Color(0xFF9E9E9E);
   static const Color _lightGrey = Color(0xFFF5F5F5);
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize Deep Link Handler
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      DeepLinkHandler.instance.init(context, widget.currentUser);
+    });
+  }
+
+  @override
+  void dispose() {
+    DeepLinkHandler.instance.dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
