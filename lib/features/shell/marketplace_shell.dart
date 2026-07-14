@@ -47,15 +47,28 @@ class _MarketplaceShellState extends State<MarketplaceShell>
     ),
   ];
 
-  static const Color _green = Color(0xFF4CAF50);
+  static const Color _green = Color(0xFF2E7D32);
   static const Color _darkGreen = Color(0xFF2E7D32);
   static const Color _lightGreen = Color(0xFFE8F5E9);
   static const Color _grey = Color(0xFF9E9E9E);
   static const Color _lightGrey = Color(0xFFF5F5F5);
 
+  late final AnimationController _floatController;
+  late final Animation<double> _floatAnimation;
+
   @override
   void initState() {
     super.initState();
+    _floatController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 2),
+    )..repeat(reverse: true);
+    _floatAnimation = Tween<double>(begin: 0.0, end: -6.0).animate(
+      CurvedAnimation(
+        parent: _floatController,
+        curve: Curves.easeInOut,
+      ),
+    );
     // Initialize Deep Link Handler
     WidgetsBinding.instance.addPostFrameCallback((_) {
       DeepLinkHandler.instance.init(context, widget.currentUser);
@@ -64,6 +77,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
 
   @override
   void dispose() {
+    _floatController.dispose();
     DeepLinkHandler.instance.dispose();
     super.dispose();
   }
@@ -185,7 +199,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
           child: Row(
             children: [
               _buildNavItem(icon: Icons.home_rounded, label: 'Home', index: 0),
-              _buildNavItem(icon: Icons.support_agent_rounded, label: 'Help', index: 1),
+              _buildNavItem(icon: Icons.auto_awesome, label: 'AI', index: 1),
               _buildCenterRentButton(),
               _buildNavItem(icon: Icons.inventory_2_rounded, label: 'My Listings', index: 3),
               _buildNavItem(icon: Icons.person_rounded, label: 'Profile', index: 4),
@@ -215,7 +229,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
             children: [
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
                 decoration: BoxDecoration(
                   color: isSelected ? _lightGreen : Colors.transparent,
                   borderRadius: BorderRadius.circular(16),
@@ -226,7 +240,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
                   color: isSelected ? _green : _grey,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 200),
                 style: TextStyle(
@@ -255,28 +269,33 @@ class _MarketplaceShellState extends State<MarketplaceShell>
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const SizedBox(height: 0),
-              Transform.translate(
-                offset: const Offset(0, -10),
-                child: Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF66BB6A), _darkGreen],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: _green.withValues(alpha: 0.45),
-                        blurRadius: 16,
-                        offset: const Offset(0, 6),
+              AnimatedBuilder(
+                animation: _floatAnimation,
+                builder: (context, child) {
+                  return Transform.translate(
+                    offset: Offset(0, -10 + _floatAnimation.value),
+                    child: Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF66BB6A), _darkGreen],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: _green.withValues(alpha: 0.45),
+                            blurRadius: 16,
+                            offset: const Offset(0, 6),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
-                  child: const Icon(Icons.add, color: Colors.white, size: 30),
-                ),
+                      child: const Icon(Icons.add, color: Colors.white, size: 30),
+                    ),
+                  );
+                },
               ),
               Transform.translate(
                 offset: const Offset(0, -6),
