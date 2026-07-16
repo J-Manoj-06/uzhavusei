@@ -13,7 +13,8 @@ import 'services/firebase_bootstrap.dart';
 import 'services/firestore_booking_repository.dart';
 import 'services/razorpay_checkout_service.dart';
 import 'widgets/image_loader.dart';
-import 'features/equipment/presentation/equipment_form_page.dart';
+import 'features/equipment/presentation/create_listing_flow.dart';
+import 'models/app_user_model.dart';
 
 class Calendar extends StatefulWidget {
   const Calendar({super.key});
@@ -1135,16 +1136,17 @@ class _CalendarState extends State<Calendar> {
       return;
     }
 
-    final ownerName = (user.displayName ?? '').trim().isEmpty
-        ? 'Farmer'
-        : user.displayName!.trim();
+    // Fetch user details from Firestore
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!doc.exists) return;
+    final appUser = AppUserModel.fromDoc(doc);
 
+    if (!mounted) return;
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => EquipmentFormPage(
-          ownerId: user.uid,
-          ownerName: ownerName,
+        builder: (_) => CategorySelectionPage(
+          currentUser: appUser,
         ),
       ),
     );

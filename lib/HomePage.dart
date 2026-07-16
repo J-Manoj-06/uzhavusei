@@ -16,10 +16,11 @@ import 'features/equipment/presentation/equipment_details_page.dart' as real_det
 
 import 'features/explore/presentation/global_search_page.dart';
 import 'features/equipment/presentation/category_marketplace_page.dart';
-import 'features/equipment/presentation/equipment_form_page.dart';
+import 'features/equipment/presentation/create_listing_flow.dart';
 import 'features/equipment/presentation/books_marketplace_page.dart';
 import 'features/equipment/presentation/farm_marketplace_page.dart';
 import 'features/equipment/presentation/construction_marketplace_page.dart';
+import 'models/app_user_model.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -592,14 +593,17 @@ class _HomePageState extends State<HomePage> {
       return;
     }
 
+    // Fetch user details from Firestore
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    if (!doc.exists) return;
+    final appUser = AppUserModel.fromDoc(doc);
+
+    if (!mounted) return;
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => EquipmentFormPage(
-          ownerId: user.uid,
-          ownerName: (user.displayName ?? '').trim().isEmpty
-              ? 'Farmer'
-              : user.displayName!.trim(),
+        builder: (_) => CategorySelectionPage(
+          currentUser: appUser,
         ),
       ),
     );

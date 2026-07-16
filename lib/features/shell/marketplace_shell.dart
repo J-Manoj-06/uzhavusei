@@ -11,9 +11,7 @@ import '../explore/presentation/chatbot_page.dart';
 import '../explore/presentation/explore_page.dart';
 import '../profile/presentation/marketplace_profile_page.dart';
 import '../profile/presentation/my_listings_page.dart';
-import '../equipment/presentation/equipment_form_page.dart';
-import '../surplus/presentation/surplus_form_page.dart';
-import '../surplus/presentation/farm_exchange_form_page.dart';
+import '../equipment/presentation/create_listing_flow.dart';
 import '../../services/deep_link_handler.dart';
 
 class MarketplaceShell extends StatefulWidget {
@@ -108,55 +106,11 @@ class _MarketplaceShellState extends State<MarketplaceShell>
   }
 
   void _openAddOptions() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      useSafeArea: true,
-      builder: (ctx) => _ActionSheet(
-        onFarmExchange: () {
-          Navigator.pop(ctx);
-          _navigateToFarmExchangeForm();
-        },
-        onRentEquipment: () {
-          Navigator.pop(ctx);
-          _navigateToEquipmentForm();
-        },
-      ),
-    );
-  }
-
-  void _navigateToEquipmentForm() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => EquipmentFormPage(
-          ownerId: widget.currentUser.userId,
-          ownerName: widget.currentUser.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToSurplusForm() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => SurplusFormPage(
-          ownerId: widget.currentUser.userId,
-          ownerName: widget.currentUser.name,
-        ),
-      ),
-    );
-  }
-
-  void _navigateToFarmExchangeForm() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => FarmExchangeFormPage(
-          ownerId: widget.currentUser.userId,
-          ownerName: widget.currentUser.name,
+        builder: (_) => CategorySelectionPage(
+          currentUser: widget.currentUser,
         ),
       ),
     );

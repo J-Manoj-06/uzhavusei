@@ -6,7 +6,7 @@ import '../../../../../models/farm_surplus_exchange_model.dart';
 import '../../../../../services/marketplace_service.dart';
 import 'widgets/unified_listing.dart';
 import 'widgets/equipment_listing_card.dart';
-import 'widgets/create_listing_wizard.dart';
+import '../../equipment/presentation/create_listing_flow.dart';
 import '../../../localization/app_localizations.dart';
 
 class MyListingsPage extends StatefulWidget {
@@ -205,19 +205,38 @@ class _MyListingsPageState extends State<MyListingsPage> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => CreateListingWizard(
-          ownerId: widget.currentUser.userId,
-          ownerName: widget.currentUser.name,
-          onPublished: () {},
+        builder: (_) => CategorySelectionPage(
+          currentUser: widget.currentUser,
         ),
       ),
     );
   }
 
   Future<void> _editListing(UnifiedListing item) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Editing listing: ${item.title}')),
-    );
+    if (item.isEquipment) {
+      final equip = item.originalEquipment!;
+      Widget page;
+      if (equip.category.toLowerCase().contains('book')) {
+        page = BookListingFormPage(
+          currentUser: widget.currentUser,
+          existing: equip,
+        );
+      } else if (equip.category.toLowerCase().contains('construction')) {
+        page = ConstructionEquipmentFormPage(
+          currentUser: widget.currentUser,
+          existing: equip,
+        );
+      } else {
+        page = FarmEquipmentFormPage(
+          currentUser: widget.currentUser,
+          existing: equip,
+        );
+      }
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => page),
+      );
+    }
   }
 
   Future<void> _pauseResumeListing(UnifiedListing item) async {

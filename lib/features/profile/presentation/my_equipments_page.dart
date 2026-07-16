@@ -7,7 +7,7 @@ import '../../../models/marketplace_equipment_model.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
-import '../../equipment/presentation/equipment_form_page.dart';
+import '../../equipment/presentation/create_listing_flow.dart';
 
 class MyEquipmentsPage extends StatefulWidget {
   const MyEquipmentsPage({
@@ -43,9 +43,8 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
         onPressed: () => Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => EquipmentFormPage(
-              ownerId: widget.currentUser.userId,
-              ownerName: widget.currentUser.name,
+            builder: (_) => CategorySelectionPage(
+              currentUser: widget.currentUser,
             ),
           ),
         ),
@@ -188,15 +187,26 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
                                       ),
                                     );
                                   } else if (value == 'edit') {
+                                    Widget page;
+                                    if (item.category.toLowerCase().contains('book')) {
+                                      page = BookListingFormPage(
+                                        currentUser: widget.currentUser,
+                                        existing: item,
+                                      );
+                                    } else if (item.category.toLowerCase().contains('construction')) {
+                                      page = ConstructionEquipmentFormPage(
+                                        currentUser: widget.currentUser,
+                                        existing: item,
+                                      );
+                                    } else {
+                                      page = FarmEquipmentFormPage(
+                                        currentUser: widget.currentUser,
+                                        existing: item,
+                                      );
+                                    }
                                     Navigator.push(
                                       context,
-                                      MaterialPageRoute(
-                                        builder: (_) => EquipmentFormPage(
-                                          ownerId: widget.currentUser.userId,
-                                          ownerName: widget.currentUser.name,
-                                          existing: item,
-                                        ),
-                                      ),
+                                      MaterialPageRoute(builder: (_) => page),
                                     );
                                   } else if (value == 'pause') {
                                     final sm = ScaffoldMessenger.of(context);
@@ -297,9 +307,8 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => EquipmentFormPage(
-                      ownerId: widget.currentUser.userId,
-                      ownerName: widget.currentUser.name,
+                    builder: (_) => CategorySelectionPage(
+                      currentUser: widget.currentUser,
                     ),
                   ),
                 );

@@ -7,7 +7,7 @@ import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
-import '../../equipment/presentation/equipment_form_page.dart';
+import '../../equipment/presentation/create_listing_flow.dart';
 
 class MarketplaceDashboardPage extends StatefulWidget {
   const MarketplaceDashboardPage({
@@ -194,9 +194,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (_) => EquipmentFormPage(
-          ownerId: widget.currentUser.userId,
-          ownerName: widget.currentUser.name,
+        builder: (_) => CategorySelectionPage(
+          currentUser: widget.currentUser,
         ),
       ),
     );
