@@ -1,17 +1,18 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../services/deep_link_handler.dart';
 import '../../../widgets/image_loader.dart';
-import 'booking_payment_page.dart';
+import '../../profile/presentation/public_profile_page.dart';
+import '../../../services/logger_service.dart';
 
 class EquipmentDetailsPage extends StatefulWidget {
   const EquipmentDetailsPage({
@@ -71,8 +72,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     try {
       await _service.toggleSaveEquipment(widget.userId, item.equipmentId);
     } catch (e, stacktrace) {
-      print('Save Error: $e');
-      print(stacktrace);
+      LoggerService.error('Save Error', e, stacktrace);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to save listing: $e')),
@@ -85,7 +85,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
 
   void _shareListing(MarketplaceEquipmentModel item) async {
     final url = 'https://uzhavusei-a8be3.web.app/equipment/${item.equipmentId}';
-    final text = 'Check out this ${item.equipmentName} available for rent on UzhavuSei!\n📍 ${item.location}\n💰 ₹${item.pricePerDay.toStringAsFixed(0)}/day\n\n$url';
+    final text = 'Check out this ${item.equipmentName} available to borrow on Borrow!\n📍 ${item.location}\n🌱 Free community sharing\n\n$url';
     
     // Log analytics
     DeepLinkHandler.logShareEvent(item.equipmentId, widget.userId);
@@ -116,13 +116,10 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     return true;
   }
 
-  double _calculateTotal(MarketplaceEquipmentModel item) {
+  int _calculateBorrowDays() {
     if (_selectedStartDay == null) return 0;
-    
     final endDay = _selectedEndDay ?? _selectedStartDay!;
-    final diff = endDay.difference(_selectedStartDay!).inDays + 1; // inclusive
-    
-    return diff * item.pricePerDay;
+    return endDay.difference(_selectedStartDay!).inDays + 1;
   }
 
   void _openFullscreenImage(String imageUrl) {
@@ -194,7 +191,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                     const SizedBox(height: 24),
                     _buildModernCalendar(item),
                     const SizedBox(height: 24),
-                    _buildPriceCalculator(item),
+                    _buildBorrowSummary(),
                     const SizedBox(height: 24),
                     _buildRelatedEquipment(item, category),
                   ],
@@ -385,7 +382,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   ),
                   const SizedBox(width: 6),
                   Text(
-                    isAvailable ? 'Available Now' : 'Currently Rented',
+                    isAvailable ? 'Available Now' : 'Currently On Loan',
                     style: TextStyle(
                       color: isAvailable ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
                       fontSize: 12,
@@ -415,17 +412,17 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
-            const Icon(Icons.location_on, size: 16, color: Color(0xFF6F7A6B)),
-            const SizedBox(width: 4),
-            Expanded(
-              child: Text(
-                item.location,
-                style: const TextStyle(color: Color(0xFF6F7A6B), fontSize: 14, fontWeight: FontWeight.w500),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
+             const SizedBox(width: 12),
+             const Icon(Icons.location_on, size: 16, color: Color(0xFF6F7A6B)),
+             const SizedBox(width: 4),
+             Expanded(
+               child: Text(
+                 '${item.distanceInfo != null ? "${item.distanceInfo!.formattedString} away • " : ""}Near ${item.area.isNotEmpty ? item.area : (item.city.isNotEmpty ? item.city : item.location)}',
+                 style: const TextStyle(color: Color(0xFF6F7A6B), fontSize: 14, fontWeight: FontWeight.w500),
+                 maxLines: 1,
+                 overflow: TextOverflow.ellipsis,
+               ),
+             ),
           ],
         ),
       ],
@@ -433,21 +430,33 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
   }
 
   Widget _buildOwnerCard(MarketplaceEquipmentModel item) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PublicProfilePage(
+              userId: item.ownerId,
+              userName: item.ownerName,
+            ),
           ),
-        ],
-      ),
-      child: Row(
-        children: [
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 16,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
           CircleAvatar(
             radius: 28,
             backgroundColor: const Color(0xFFE8F5E9),
@@ -487,8 +496,9 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildSocialProof(MarketplaceEquipmentModel item) {
     return Row(
@@ -498,7 +508,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
         Container(width: 1, height: 30, color: const Color(0xFFE0E0E0)),
         _buildStatColumn(Icons.favorite, '${item.savedBy.length}', 'Saved'),
         Container(width: 1, height: 30, color: const Color(0xFFE0E0E0)),
-        _buildStatColumn(Icons.calendar_month, '${item.bookingsCount}', 'Rentals'),
+        _buildStatColumn(Icons.calendar_month, '${item.bookingsCount}', 'Borrows'),
         Container(width: 1, height: 30, color: const Color(0xFFE0E0E0)),
         _buildStatColumn(Icons.star_rounded, item.rating > 0 ? item.rating.toStringAsFixed(1) : 'New', 'Rating', iconColor: Colors.amber),
       ],
@@ -707,7 +717,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            'Select Rental Dates',
+            'Select Borrow Dates',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
           ),
           const SizedBox(height: 16),
@@ -789,12 +799,13 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     );
   }
 
-  Widget _buildPriceCalculator(MarketplaceEquipmentModel item) {
+  Widget _buildBorrowSummary() {
     if (_selectedStartDay == null) return const SizedBox.shrink();
+    final days = _calculateBorrowDays();
+    final start = _selectedStartDay!;
+    final end = _selectedEndDay ?? _selectedStartDay!;
 
-    final endDay = _selectedEndDay ?? _selectedStartDay!;
-    final days = endDay.difference(_selectedStartDay!).inDays + 1;
-    final total = _calculateTotal(item);
+    String _fmt(DateTime d) => '${d.day}/${d.month}/${d.year}';
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -806,24 +817,30 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Booking Summary',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+          const Row(
+            children: [
+              Icon(Icons.handshake_rounded, color: Color(0xFF2E7D32), size: 20),
+              SizedBox(width: 8),
+              Text(
+                'Borrow Summary',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('₹${item.pricePerDay.toStringAsFixed(0)} x $days Days', style: const TextStyle(color: Color(0xFF3F4A3C), fontSize: 15)),
-              Text('₹${total.toStringAsFixed(0)}', style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 15, fontWeight: FontWeight.w600)),
+              const Text('From', style: TextStyle(color: Color(0xFF3F4A3C), fontSize: 14)),
+              Text(_fmt(start), style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 8),
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Security Deposit (Refundable)', style: TextStyle(color: Color(0xFF3F4A3C), fontSize: 15)),
-              Text('₹500', style: TextStyle(color: Color(0xFF1A1A1A), fontSize: 15, fontWeight: FontWeight.w600)),
+              const Text('Until', style: TextStyle(color: Color(0xFF3F4A3C), fontSize: 14)),
+              Text(_fmt(end), style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
           const Padding(
@@ -833,8 +850,22 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Total Estimate', style: TextStyle(color: Color(0xFF1A1A1A), fontSize: 18, fontWeight: FontWeight.bold)),
-              Text('₹${(total + 500).toStringAsFixed(0)}', style: const TextStyle(color: Color(0xFF006E1C), fontSize: 20, fontWeight: FontWeight.w900)),
+              const Text('Borrow Duration', style: TextStyle(color: Color(0xFF1A1A1A), fontSize: 16, fontWeight: FontWeight.bold)),
+              Text('$days ${days == 1 ? 'day' : 'days'}',
+                  style: const TextStyle(color: Color(0xFF006E1C), fontSize: 18, fontWeight: FontWeight.w900)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Row(
+            children: [
+              Icon(Icons.info_outline, size: 14, color: Color(0xFF6F7A6B)),
+              SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'This is a free community borrow. No payment required.',
+                  style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                ),
+              ),
             ],
           ),
         ],
@@ -932,9 +963,20 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  '₹${rel.pricePerDay.toStringAsFixed(0)}/day',
-                                  style: const TextStyle(fontWeight: FontWeight.w900, color: Color(0xFF006E1C), fontSize: 14),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                  decoration: BoxDecoration(
+                                    color: rel.availability ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    rel.availability ? 'Available' : 'On Loan',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: rel.availability ? const Color(0xFF2E7D32) : Colors.orange.shade800,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -976,73 +1018,54 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Price',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12, fontWeight: FontWeight.w600),
+                  item.availability ? '🟢 Available' : '🔴 On Loan',
+                  style: TextStyle(
+                    color: item.availability ? const Color(0xFF2E7D32) : Colors.red.shade700,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Text(
-                      '₹${item.pricePerDay.toStringAsFixed(0)}',
-                      style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w900,
-                        color: Color(0xFF1A1A1A),
-                      ),
-                    ),
-                    const Padding(
-                      padding: EdgeInsets.only(bottom: 4, left: 2),
-                      child: Text('/day', style: TextStyle(color: Color(0xFF6F7A6B), fontSize: 14)),
-                    ),
-                  ],
+                const Text(
+                  'Free to borrow',
+                  style: TextStyle(color: Color(0xFF6F7A6B), fontSize: 12),
                 ),
               ],
             ),
-            const SizedBox(width: 24),
+            const SizedBox(width: 16),
             Expanded(
               child: Container(
                 height: 56,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                  gradient: LinearGradient(
+                    colors: item.availability
+                        ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
+                        : [Colors.grey.shade400, Colors.grey.shade600],
                     begin: Alignment.centerLeft,
                     end: Alignment.centerRight,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: const Color(0xFF4CAF50).withValues(alpha: 0.3),
+                      color: item.availability
+                          ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
+                          : Colors.grey.withValues(alpha: 0.2),
                       blurRadius: 16,
                       offset: const Offset(0, 8),
                     ),
                   ],
                 ),
-                child: ElevatedButton(
-                  onPressed: item.availability
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BookingPaymentPage(
-                                equipment: item,
-                                userId: widget.userId,
-                                userName: widget.userName,
-                                userEmail: widget.userEmail,
-                                userPhone: widget.userPhone,
-                              ),
-                            ),
-                          );
-                        }
-                      : null,
+                child: ElevatedButton.icon(
+                  onPressed: item.availability ? () => _showBorrowRequestDialog(item) : null,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.transparent,
                     shadowColor: Colors.transparent,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
-                  child: const Text(
-                    'Rent Now',
-                    style: TextStyle(
-                      fontSize: 18,
+                  icon: const Icon(Icons.handshake_rounded, color: Colors.white, size: 20),
+                  label: Text(
+                    item.availability ? 'Request to Borrow' : 'Currently On Loan',
+                    style: const TextStyle(
+                      fontSize: 15,
                       fontWeight: FontWeight.w800,
                       color: Colors.white,
                     ),
@@ -1053,6 +1076,226 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showBorrowRequestDialog(MarketplaceEquipmentModel item) {
+    final purposeCtrl = TextEditingController();
+    final messageCtrl = TextEditingController();
+    final days = _calculateBorrowDays();
+    String selectedPref = 'Chat First';
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 24,
+            right: 24,
+            top: 24,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 32,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  const Icon(Icons.handshake_rounded, color: Color(0xFF2E7D32), size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Request to Borrow',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                        ),
+                        Text(
+                          item.equipmentName,
+                          style: const TextStyle(fontSize: 14, color: Color(0xFF6F7A6B)),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              if (_selectedStartDay != null) ...
+              [
+                Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF1F8E9),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFC8E6C9)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      Column(
+                        children: [
+                          const Text('From', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          Text(
+                            '${_selectedStartDay!.day}/${_selectedStartDay!.month}/${_selectedStartDay!.year}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                          ),
+                        ],
+                      ),
+                      const Icon(Icons.arrow_forward, color: Color(0xFF2E7D32), size: 18),
+                      Column(
+                        children: [
+                          const Text('Until', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          Text(
+                            '${(_selectedEndDay ?? _selectedStartDay!).day}/${(_selectedEndDay ?? _selectedStartDay!).month}/${(_selectedEndDay ?? _selectedStartDay!).year}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                          ),
+                        ],
+                      ),
+                      Column(
+                        children: [
+                          const Text('Duration', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          Text(
+                            '$days ${days == 1 ? 'day' : 'days'}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
+              StatefulBuilder(
+                builder: (context, setModalState) {
+                  return DropdownButtonFormField<String>(
+                    value: selectedPref,
+                    decoration: InputDecoration(
+                      labelText: 'Pickup Preference',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                      ),
+                    ),
+                    items: const [
+                      DropdownMenuItem(value: 'Exact Address', child: Text('Prefer Exact Address')),
+                      DropdownMenuItem(value: 'Approximate Area', child: Text('Prefer Approximate Area')),
+                      DropdownMenuItem(value: 'Chat First', child: Text('Prefer to Chat First')),
+                      DropdownMenuItem(value: 'Decide Later', child: Text('Decide Later')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setModalState(() => selectedPref = val);
+                      }
+                    },
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: messageCtrl,
+                maxLines: 3,
+                decoration: InputDecoration(
+                  labelText: 'Message to Owner',
+                  hintText: 'Introduce yourself and explain your need…',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(ctx);
+                    
+                    // Firestore Borrow request entry
+                    final doc = FirebaseFirestore.instance.collection('bookings').doc();
+                    await doc.set({
+                      'bookingId': doc.id,
+                      'equipmentId': item.equipmentId,
+                      'equipmentName': item.equipmentName,
+                      'imageUrl': item.imageUrls.isNotEmpty ? item.imageUrls.first : '',
+                      'ownerId': item.ownerId,
+                      'ownerName': item.ownerName,
+                      'userId': widget.userId,
+                      'userName': widget.userName,
+                      'startDate': Timestamp.fromDate(_selectedStartDay ?? DateTime.now()),
+                      'endDate': Timestamp.fromDate(_selectedEndDay ?? _selectedStartDay ?? DateTime.now()),
+                      'status': 'pending',
+                      'pickupPreference': selectedPref,
+                      'borrowMessage': messageCtrl.text.trim(),
+                      'createdAt': FieldValue.serverTimestamp(),
+                      'shareOption': '',
+                      'landmark': '',
+                      'pickupTime': '',
+                      'specialInstructions': '',
+                      'contactInfo': '',
+                      'readyToReturn': false,
+                      'returned': false,
+                    });
+
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Row(
+                            children: [
+                              const Icon(Icons.check_circle, color: Colors.white),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Borrow request sent to ${item.ownerName}!',
+                                  style: const TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                          backgroundColor: const Color(0xFF2E7D32),
+                          behavior: SnackBarBehavior.floating,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          duration: const Duration(seconds: 3),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  icon: const Icon(Icons.send_rounded),
+                  label: const Text(
+                    'Send Request',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

@@ -222,6 +222,11 @@ class AuthService {
     required String name,
     required String phoneNumber,
     required String profileImage,
+    String? username,
+    String? bio,
+    String? village,
+    String? district,
+    String? state,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
@@ -234,6 +239,11 @@ class AuthService {
       'name': name,
       'phoneNumber': phoneNumber,
       'profileImage': profileImage,
+      if (username != null) 'username': username,
+      if (bio != null) 'bio': bio,
+      if (village != null) 'village': village,
+      if (district != null) 'district': district,
+      if (state != null) 'state': state,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }

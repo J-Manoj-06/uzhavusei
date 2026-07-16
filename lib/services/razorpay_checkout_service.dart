@@ -122,7 +122,7 @@ class RazorpayCheckoutService {
       final options = {
         'key': request.key,
         'amount': request.amountInPaise,
-        'name': 'UzhavuSei',
+        'name': 'Borrow',
         'description': '${request.machineName} on ${request.bookingDate}',
         'prefill': {
           'contact': request.userPhone,

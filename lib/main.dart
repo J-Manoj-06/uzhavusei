@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'features/auth/presentation/auth_gate.dart';
 import 'localization/app_localizations.dart';
 import 'providers/locale_provider.dart';
+import 'providers/location_provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_bootstrap.dart';
@@ -26,6 +27,10 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => UserProfileProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(
+          create: (_) => LocationProvider(),
+          lazy: false, // initialise eagerly so GPS is ready early
+        ),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) => MaterialApp(

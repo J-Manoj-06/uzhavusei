@@ -14,6 +14,7 @@ import '../../../providers/locale_provider.dart';
 import '../../../services/cloudinary_service.dart';
 import '../../../services/equipment_translation_service.dart';
 import '../../../services/marketplace_service.dart';
+import '../../../services/location_service.dart';
 import '../../../utils/localized_text.dart';
 import '../../location/services/city_service.dart';
 
@@ -107,6 +108,14 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
 
   String _location = '';
   double _lat = 0, _lng = 0;
+  String _detectedArea = '';
+  String _detectedCity = '';
+  String _detectedState = '';
+  String _detectedCountry = '';
+  double _locationAccuracy = 0;
+  DateTime? _locationCapturedAt;
+  bool _detectingLocation = false;
+  String? _locationError;
 
   final List<String> _tags = [];
   bool _saving = false;
@@ -177,6 +186,12 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
     _location = e?.location ?? '';
     _lat = e?.latitude  ?? 0;
     _lng = e?.longitude ?? 0;
+    _detectedArea = e?.area ?? '';
+    _detectedCity = e?.city ?? '';
+    _detectedState = e?.state ?? '';
+    _detectedCountry = e?.country ?? '';
+    _locationAccuracy = e?.locationAccuracy ?? 0.0;
+    _locationCapturedAt = e?.locationCapturedAt;
     if (e != null) {
       _existingImages.addAll(e.imageUrls);
       _existingImagePublicIds.addAll(e.imagePublicIds);
@@ -214,8 +229,50 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
   }
 
   void _goToStep(int step) {
-    setState(() => _step = step);
+    setState(() {
+      _step = step;
+      if (_step == 2 && widget.existing == null && _location.isEmpty) {
+        _detectLocation();
+      }
+    });
     _updateProgress();
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() {
+      _detectingLocation = true;
+      _locationError = null;
+    });
+
+    final result = await LocationService.instance.getCurrentLocation();
+
+    if (!mounted) return;
+
+    if (result is LocationSuccess) {
+      final loc = result.location;
+      setState(() {
+        _lat = loc.latitude;
+        _lng = loc.longitude;
+        _detectedArea = loc.area ?? '';
+        _detectedCity = loc.city ?? '';
+        _detectedState = loc.state ?? '';
+        _detectedCountry = loc.country ?? '';
+        _locationAccuracy = loc.accuracy ?? 0.0;
+        _locationCapturedAt = loc.timestamp;
+        _location = [
+          if (_detectedArea.isNotEmpty) _detectedArea,
+          if (_detectedCity.isNotEmpty) _detectedCity,
+          if (_detectedState.isNotEmpty) _detectedState,
+        ].join(', ');
+        _locationCtrl.text = _location;
+        _detectingLocation = false;
+      });
+    } else if (result is LocationFailure) {
+      setState(() {
+        _locationError = result.reason;
+        _detectingLocation = false;
+      });
+    }
   }
 
   Future<void> _loadCities() async {
@@ -394,7 +451,8 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
         return true;
       case 2:
         if (_availabilityFrom == null || _availabilityTo == null) { _showSnack('Please select availability dates'); return false; }
-        if (_location.trim().isEmpty) { _showSnack('Please enter your location'); return false; }
+        if (_location.trim().isEmpty) { _showSnack('Please verify your location'); return false; }
+        if (_lat == 0 || _lng == 0) { _showSnack('A verified GPS location is required to list an item.'); return false; }
         return true;
       case 3:
         if (_existingImages.isEmpty && _newImages.isEmpty) { _showSnack('Please upload at least one photo'); return false; }
@@ -1108,67 +1166,120 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
 
           _fieldLabel('Location'),
           const SizedBox(height: 10),
-          if (_isLoadingCities)
-            const Center(child: CircularProgressIndicator())
-          else
-            Container(
-              decoration: _cardDecor(),
-              child: Autocomplete<String>(
-                initialValue: TextEditingValue(text: _location),
-                optionsBuilder: (v) {
-                  if (v.text.isEmpty) return const [];
-                  return _cities.where((c) => c.toLowerCase().contains(v.text.toLowerCase()));
-                },
-                onSelected: (s) => setState(() => _location = s),
-                fieldViewBuilder: (ctx, ctrl, focus, onComplete) => TextField(
-                  controller: ctrl,
-                  focusNode: focus,
-                  onEditingComplete: onComplete,
-                  onChanged: (val) => _location = val,
-                  decoration: InputDecoration(
-                    hintText: '🔍  Search your city (e.g. Coimbatore)',
-                    hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                    prefixIcon: const Icon(Icons.location_on_rounded, color: _green),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
-                  ),
+          if (_detectingLocation)
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Column(
+                  children: [
+                    CircularProgressIndicator(color: _green),
+                    SizedBox(height: 12),
+                    Text('Detecting location automatically...', style: TextStyle(color: Colors.grey, fontSize: 13)),
+                  ],
                 ),
-                optionsViewBuilder: (ctx, onSelected, opts) => Align(
-                  alignment: Alignment.topLeft,
-                  child: Material(
-                    elevation: 4,
-                    borderRadius: BorderRadius.circular(14),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      child: ListView.builder(
-                        shrinkWrap: true,
-                        itemCount: opts.length,
-                        itemBuilder: (_, i) {
-                          final opt = opts.elementAt(i);
-                          return ListTile(
-                            leading: const Icon(Icons.location_city, color: _green),
-                            title: Text(opt),
-                            onTap: () => onSelected(opt),
-                          );
-                        },
+              ),
+            )
+          else if (_locationError != null)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+                      SizedBox(width: 8),
+                      Text('Location Detection Failed', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange)),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(_locationError!, style: const TextStyle(fontSize: 13, color: Color(0xFF795548))),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: _detectLocation,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('Try Again'),
+                      style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_location.isNotEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFEBEFF0)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_rounded, color: _green, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.existing != null ? 'Listing Location' : '📍 Current Location',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: _green, fontSize: 14),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (_detectedArea.isNotEmpty)
+                    Text(
+                      _detectedArea,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                    ),
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (_detectedCity.isNotEmpty) _detectedCity,
+                      if (_detectedState.isNotEmpty) _detectedState,
+                    ].join(', '),
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    widget.existing != null ? 'Stored location coordinates: $_lat, $_lng' : 'Detected automatically',
+                    style: const TextStyle(fontSize: 10, color: Colors.grey, fontStyle: FontStyle.italic),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: _detectLocation,
+                      icon: const Icon(Icons.my_location, size: 14),
+                      label: Text(widget.existing != null ? 'Update to Current Location' : 'Refresh Location'),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: _green),
+                        foregroundColor: _darkGreen,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                     ),
                   ),
-                ),
+                ],
+              ),
+            )
+          else
+            Center(
+              child: ElevatedButton.icon(
+                onPressed: _detectLocation,
+                icon: const Icon(Icons.location_on),
+                label: const Text('Detect Current Location'),
+                style: ElevatedButton.styleFrom(backgroundColor: _green, foregroundColor: Colors.white),
               ),
             ),
-          if (_location.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: _lightGreen, borderRadius: BorderRadius.circular(12)),
-              child: Row(children: [
-                const Icon(Icons.verified_rounded, color: _green, size: 16),
-                const SizedBox(width: 8),
-                Text('📍 $_location', style: const TextStyle(color: _darkGreen, fontWeight: FontWeight.w600, fontSize: 13)),
-              ]),
-            ),
-          ],
         ],
       ),
     );
@@ -1759,6 +1870,14 @@ class _EquipmentFormPageState extends State<EquipmentFormPage>
         'min_rental_duration': parsedMinDuration,
         'min_rental_duration_type': _minDurationType,
         'location': _location.trim(),
+        'latitude': _lat,
+        'longitude': _lng,
+        'area': _detectedArea,
+        'city': _detectedCity,
+        'state': _detectedState,
+        'country': _detectedCountry,
+        'locationCapturedAt': _locationCapturedAt != null ? Timestamp.fromDate(_locationCapturedAt!) : null,
+        'locationAccuracy': _locationAccuracy,
         'availability': {
           'from': _availabilityFrom!.toUtc().toIso8601String(),
           'to':   _availabilityTo!.toUtc().toIso8601String(),

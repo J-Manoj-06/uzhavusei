@@ -23,6 +23,8 @@ class AppUserModel {
     this.landType,
     this.ownedEquipment,
     this.preferredServices,
+    this.username,
+    this.bio,
   });
 
   final String userId;
@@ -46,6 +48,8 @@ class AppUserModel {
   final String? landType;
   final List<String>? ownedEquipment;
   final List<String>? preferredServices;
+  final String? username;
+  final String? bio;
 
   bool get isRenter =>
       role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
@@ -76,6 +80,8 @@ class AppUserModel {
       landType: data['landType'] as String?,
       ownedEquipment: (data['ownedEquipment'] as List?)?.map((e) => e.toString()).toList(),
       preferredServices: (data['preferredServices'] as List?)?.map((e) => e.toString()).toList(),
+      username: data['username'] as String?,
+      bio: data['bio'] as String?,
     );
   }
 
@@ -102,6 +108,8 @@ class AppUserModel {
       if (landType != null) 'landType': landType,
       if (ownedEquipment != null) 'ownedEquipment': ownedEquipment,
       if (preferredServices != null) 'preferredServices': preferredServices,
+      if (username != null) 'username': username,
+      if (bio != null) 'bio': bio,
     };
   }
 }

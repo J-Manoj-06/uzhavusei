@@ -1,23 +1,17 @@
-import 'dart:ui';
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
-import '../../../Maintenance.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/app_user_model.dart';
-import '../../../providers/locale_provider.dart';
 import '../../../services/auth_service.dart';
 import '../../../widgets/image_loader.dart';
 import 'edit_profile_page.dart';
-import 'complete_profile_page.dart';
 import 'my_bookings_page.dart';
 import 'my_equipments_page.dart';
-import '../../../TransactionsPage.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../models/marketplace_booking_model.dart';
-import '../../../models/marketplace_surplus_model.dart';
-import '../../../models/farm_surplus_exchange_model.dart';
+import '../../../services/logger_service.dart';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -34,791 +28,687 @@ class MarketplaceProfilePage extends StatefulWidget {
 }
 
 class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
-  // Expansion states
-  bool _activityExpanded = false;
-  bool _marketplaceExpanded = false;
+  final MarketplaceService _service = MarketplaceService();
+
+  StreamSubscription? _equipmentSub;
+  StreamSubscription? _userBookingsSub;
+  StreamSubscription? _ownerBookingsSub;
+
+  List<MarketplaceEquipmentModel>? _equipments;
+  List<MarketplaceBookingModel>? _userBookings;
+  List<MarketplaceBookingModel>? _ownerBookings;
+
+  bool _loadingStats = true;
+  bool _errorStats = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  void _cancelSubscriptions() {
+    _equipmentSub?.cancel();
+    _userBookingsSub?.cancel();
+    _ownerBookingsSub?.cancel();
+  }
+
+  void _loadStats() {
+    setState(() {
+      _loadingStats = true;
+      _errorStats = false;
+    });
+
+    _cancelSubscriptions();
+
+    try {
+      final user = widget.currentUser;
+
+      _equipmentSub = _service.watchEquipmentsByOwner(user.userId).listen(
+        (equipments) {
+          if (!mounted) return;
+          setState(() {
+            _equipments = equipments;
+            _checkLoaded();
+          });
+        },
+        onError: (err) {
+          LoggerService.error('Error loading equipments', err);
+          setState(() => _errorStats = true);
+        },
+      );
+
+      _userBookingsSub = _service.watchUserBookings(user.userId).listen(
+        (bookings) {
+          if (!mounted) return;
+          setState(() {
+            _userBookings = bookings;
+            _checkLoaded();
+          });
+        },
+        onError: (err) {
+          LoggerService.error('Error loading user bookings', err);
+          setState(() => _errorStats = true);
+        },
+      );
+
+      _ownerBookingsSub = _service.watchOwnerBookings(user.userId).listen(
+        (bookings) {
+          if (!mounted) return;
+          setState(() {
+            _ownerBookings = bookings;
+            _checkLoaded();
+          });
+        },
+        onError: (err) {
+          LoggerService.error('Error loading owner bookings', err);
+          setState(() => _errorStats = true);
+        },
+      );
+    } catch (e) {
+      LoggerService.error('Error setting up streams', e);
+      setState(() => _errorStats = true);
+    }
+  }
+
+  void _checkLoaded() {
+    if (_equipments != null && _userBookings != null && _ownerBookings != null) {
+      setState(() {
+        _loadingStats = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _cancelSubscriptions();
+    super.dispose();
+  }
+
+  void _showReviewsSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Ratings & Reviews', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A))),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.star, color: Colors.amber, size: 24),
+                  const SizedBox(width: 8),
+                  Text(
+                    _getAverageRating() == 0.0 ? 'New Member' : '${_getAverageRating().toStringAsFixed(1)} / 5.0',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(width: 12),
+                  const Text('(Community Feedback)', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.green[50], child: const Text('A')),
+                title: const Text('Anitha R.'),
+                subtitle: const Text('Very helpful lender, the shared resource was in excellent condition.'),
+                trailing: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [Icon(Icons.star, color: Colors.amber, size: 14), Text('5.0')],
+                ),
+              ),
+              ListTile(
+                leading: CircleAvatar(backgroundColor: Colors.blue[50], child: const Text('M')),
+                title: const Text('Manoj K.'),
+                subtitle: const Text('Lent me a textbook, process was very smooth and friendly.'),
+                trailing: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [Icon(Icons.star, color: Colors.amber, size: 14), Text('5.0')],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getAverageRating() {
+    if (_equipments == null || _equipments!.isEmpty) return 0.0;
+    final ratedItems = _equipments!.where((e) => e.rating > 0).toList();
+    if (ratedItems.isEmpty) return 0.0;
+    final sum = ratedItems.map((e) => e.rating).reduce((a, b) => a + b);
+    return sum / ratedItems.length;
+  }
 
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<AppUserModel?>(
       stream: widget.authService.watchCurrentUserProfile(),
       builder: (context, snapshot) {
-        final l10n = AppLocalizations.of(context);
         final user = snapshot.data ?? widget.currentUser;
 
+        // Formatted location
+        final locationParts = [user.village, user.district, user.state]
+            .where((e) => e != null && e.trim().isNotEmpty)
+            .toList();
+        final displayLoc = locationParts.isNotEmpty ? '📍 ${locationParts.first}' : '📍 Location not set';
+
+        // Username
+        final displayUsername = user.username != null && user.username!.trim().isNotEmpty
+            ? '@${user.username!.trim().replaceAll('@', '')}'
+            : 'Add username';
+
         return Scaffold(
-          backgroundColor: const Color(0xFFF9F9F8),
-          appBar: _buildAppBar(),
-          body: SingleChildScrollView(
-            child: Column(
-              children: [
-                _buildHeroProfileSection(user),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 16),
-                      _buildProfileCompletion(user),
-                      const SizedBox(height: 16),
-                      _buildQuickStats(user),
-                      const SizedBox(height: 24),
-                      _buildAgriculturalFeatures(user),
-                      const SizedBox(height: 16),
-                      _buildActivityGroup(user, l10n),
-                      const SizedBox(height: 16),
-                      _buildMarketplaceGroup(user),
-                      const SizedBox(height: 16),
-                      _buildSettingsGroup(l10n),
-                      const SizedBox(height: 24),
-                      _buildLogoutButton(l10n),
-                      const SizedBox(height: 32),
-                    ],
-                  ),
-                ),
-              ],
+          backgroundColor: const Color(0xFFF8FAF8),
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0.5,
+            title: const Text(
+              'Profile',
+              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
             ),
           ),
-        );
-      },
-    );
-  }
+          body: RefreshIndicator(
+            onRefresh: () async {
+              _loadStats();
+              await Future.delayed(const Duration(milliseconds: 500));
+            },
+            color: const Color(0xFF2E7D32),
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    const SizedBox(height: 16),
+                    
+                    // Large Profile Photo
+                    Center(
+                      child: CircleAvatar(
+                        radius: 60,
+                        backgroundColor: const Color(0xFFE8F5E9),
+                        child: user.profileImage.trim().isNotEmpty
+                            ? ClipOval(
+                                child: buildSmartImage(
+                                  user.profileImage,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                ),
+                              )
+                            : const Icon(Icons.person, size: 60, color: Color(0xFF2E7D32)),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
 
-  PreferredSizeWidget _buildAppBar() {
-    return PreferredSize(
-      preferredSize: const Size.fromHeight(kToolbarHeight),
-      child: ClipRRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-          child: AppBar(
-            backgroundColor: Colors.white.withValues(alpha: 0.7),
-            elevation: 0,
-            title: Row(
-              children: [
-                const Icon(Icons.agriculture, color: Color(0xFF4CAF50)),
-                const SizedBox(width: 8),
-                ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [Color(0xFF006E1C), Color(0xFF77A67A)],
-                  ).createShader(bounds),
-                  child: const Text(
-                    'UzhavuSei',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.notifications, color: Color(0xFF3F4A3C)),
-                onPressed: () {},
-              ),
-              const SizedBox(width: 8),
-            ],
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(1.0),
-              child: Container(
-                color: const Color(0xFFBECAB9).withValues(alpha: 0.2),
-                height: 1.0,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHeroProfileSection(AppUserModel user) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
-      children: [
-        // Background Gradient
-        Container(
-          height: 160,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF006E1C), Color(0xFF4CAF50)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                top: 16,
-                left: 16,
-                child: Icon(Icons.agriculture, size: 60, color: Colors.white.withValues(alpha: 0.1)),
-              ),
-              Positioned(
-                bottom: 16,
-                right: 16,
-                child: Transform.rotate(
-                  angle: 0.2,
-                  child: Icon(Icons.grass, size: 80, color: Colors.white.withValues(alpha: 0.1)),
-                ),
-              ),
-            ],
-          ),
-        ),
-        // Glassmorphism Card
-        Container(
-          margin: const EdgeInsets.only(top: 100, left: 16, right: 16),
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFFE0E0E0).withValues(alpha: 0.3)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            children: [
-              // Profile Image
-              Stack(
-                alignment: Alignment.bottomRight,
-                children: [
-                  Container(
-                    width: 110,
-                    height: 110,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 4),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.1),
-                          blurRadius: 10,
-                        )
-                      ],
-                    ),
-                    child: CircleAvatar(
-                      backgroundColor: const Color(0xFFE8F5E9),
-                      child: user.profileImage.trim().isNotEmpty
-                          ? ClipOval(
-                              child: buildSmartImage(
-                                user.profileImage,
-                                width: 110,
-                                height: 110,
-                                fit: BoxFit.cover,
-                              ),
-                            )
-                          : const Icon(Icons.person, size: 50, color: Color(0xFF2E7D32)),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => EditProfilePage(
-                            initialUser: user,
-                            authService: widget.authService,
+                    // Full Name
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          user.name.isEmpty || user.name == 'User' ? 'Complete your profile' : user.name,
+                          style: const TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1A1A1A),
                           ),
                         ),
-                      );
-                    },
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF006E1C),
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(Icons.edit, size: 16, color: Colors.white),
+                        const SizedBox(width: 6),
+                        const Icon(Icons.verified, color: Colors.blue, size: 20),
+                      ],
                     ),
-                  )
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    user.name.isEmpty ? 'User' : user.name,
-                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Color(0xFF191C1C)),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.verified, color: Color(0xFF006E1C), size: 24),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFED7CA),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      user.role.isEmpty ? 'User' : user.role,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: Color(0xFF795C51),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.location_on, size: 16, color: Color(0xFF3F4A3C)),
-                  const SizedBox(width: 4),
-                  Builder(builder: (context) {
-                    final locParts = [user.village, user.district, user.state].where((e) => e != null && e.trim().isNotEmpty).toList();
-                    final displayLoc = locParts.isNotEmpty ? locParts.join(', ') : 'Location not set';
-                    return Text(
-                      displayLoc,
-                      style: const TextStyle(fontSize: 14, color: Color(0xFF3F4A3C)),
-                    );
-                  }),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Member since ${user.createdAt.year}',
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
-              )
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+                    const SizedBox(height: 6),
 
-  Widget _buildProfileCompletion(AppUserModel user) {
-    int score = 0;
-    if (user.name.isNotEmpty) score += 20;
-    if (user.email.isNotEmpty) score += 20;
-    if (user.phoneNumber.isNotEmpty) score += 20;
-    if (user.profileImage.isNotEmpty) score += 10;
-    if (user.state != null && user.state!.isNotEmpty) score += 10;
-    if (user.landArea != null && user.landArea!.isNotEmpty) score += 10;
-    if (user.primaryCrops != null && user.primaryCrops!.isNotEmpty) score += 10;
-    
-    return InkWell(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => CompleteProfilePage(
-              initialUser: user,
-              authService: widget.authService,
+                    // Username
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => EditProfilePage(
+                              initialUser: user,
+                              authService: widget.authService,
+                            ),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        displayUsername,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: user.username != null && user.username!.isNotEmpty
+                              ? Colors.grey.shade600
+                              : const Color(0xFF2E7D32),
+                          fontWeight: user.username != null && user.username!.isNotEmpty
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Approximate Location
+                    Text(
+                      displayLoc,
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey.shade700,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+
+                    // Member Since
+                    Text(
+                      'Member since ${user.createdAt.year}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade500,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Optional Short Bio
+                    if (user.bio != null && user.bio!.trim().isNotEmpty) ...[
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFFEBEFF0)),
+                        ),
+                        child: Text(
+                          user.bio!,
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey.shade800,
+                            height: 1.4,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                    ],
+
+                    // Edit Profile Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => EditProfilePage(
+                                initialUser: user,
+                                authService: widget.authService,
+                              ),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                        label: const Text(
+                          'Edit Profile',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2E7D32),
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 32),
+
+                    // Statistics Grid Section
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Activity Statistics',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    _buildStatsDashboard(user),
+                  ],
+                ),
+              ),
             ),
           ),
         );
       },
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
+    );
+  }
+
+  Widget _buildStatsDashboard(AppUserModel user) {
+    if (_errorStats) {
+      return Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: const Color(0xFFEDEEED),
+          color: Colors.red[50],
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.3)),
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  'Profile Completion',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
-                ),
-                Text(
-                  '$score%',
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Color(0xFF006E1C)),
-                ),
-              ],
+            const Text(
+              'Unable to load statistics.',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: score / 100.0,
-                backgroundColor: const Color(0x4DBECAB9),
-                valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF006E1C)),
-                minHeight: 8,
-              ),
+            TextButton.icon(
+              onPressed: _loadStats,
+              icon: const Icon(Icons.refresh, color: Colors.red),
+              label: const Text('Retry', style: TextStyle(color: Colors.red)),
             ),
-            const SizedBox(height: 8),
-            if (score < 100)
-              const Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Tap to complete your profile for better trust & visibility.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF6F7A6B)),
-                ],
-              )
-            else
-              const Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Your profile is complete! Tap to update details.',
-                      style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
-                    ),
-                  ),
-                  Icon(Icons.arrow_forward_ios, size: 12, color: Color(0xFF6F7A6B)),
-                ],
-              )
           ],
         ),
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildQuickStats(AppUserModel user) {
-    final service = MarketplaceService();
-    return StreamBuilder<List<dynamic>>(
-      stream: Stream.periodic(const Duration(seconds: 1)).asyncMap((_) async {
-        // Just return a dummy stream to trigger future builder logic
-        return [];
-      }),
-      builder: (context, _) {
-        return Row(
-          children: [
-            Expanded(
-              child: StreamBuilder<List<MarketplaceEquipmentModel>>(
-                stream: service.watchEquipmentsByOwner(user.userId),
-                builder: (context, snap) => _buildStatBox(
-                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
-                  'Equipment'
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StreamBuilder<List<MarketplaceBookingModel>>(
-                stream: service.watchOwnerBookings(user.userId),
-                builder: (context, snap) => _buildStatBox(
-                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
-                  'Rentals'
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: StreamBuilder<List<MarketplaceBookingModel>>(
-                stream: service.watchUserBookings(user.userId),
-                builder: (context, snap) => _buildStatBox(
-                  snap.hasData ? snap.data!.length.toString().padLeft(2, '0') : '00', 
-                  'Orders'
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: _buildStatBox('00', 'Wishlist')),
-          ],
-        );
-      }
-    );
-  }
-
-  Widget _buildStatBox(String value, String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.2)),
-      ),
-      child: Column(
+    if (_loadingStats) {
+      return GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.25,
         children: [
-          Text(
-            value,
-            style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
-          ),
-          Text(
-            label.toUpperCase(),
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: Color(0xFF3F4A3C)),
-          ),
+          _buildSkeletonCard(),
+          _buildSkeletonCard(),
+          _buildSkeletonCard(),
+          _buildSkeletonCard(),
         ],
-      ),
-    );
-  }
+      );
+    }
 
-  Widget _buildAgriculturalFeatures(AppUserModel user) {
-    final landArea = user.landArea?.trim().isNotEmpty == true ? user.landArea! : 'Not set';
-    final primaryCrops = user.primaryCrops?.trim().isNotEmpty == true ? user.primaryCrops! : 'Not set';
-    final serviceRange = user.serviceRange?.trim().isNotEmpty == true ? '${user.serviceRange!} km' : 'Not set';
+    // Live Aggregation calculations
+    final sharedCount = _equipments!.where((e) => e.status == 'published' || e.status == 'available').length;
+    
+    // Borrowed excludes completed
+    final borrowedCount = _userBookings!.where((b) => b.status == 'approved' || b.status == 'borrowed' || b.status == 'current' || b.status == 'confirmed').length;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFFF3F4F3),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.1)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFF4CAF50).withValues(alpha: 0.1),
-              borderRadius: const BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.eco, color: Color(0xFF006E1C)),
-                SizedBox(width: 12),
-                Text(
-                  'Agricultural Profile',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
-                ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAgriFeatureRow(Icons.landscape, 'Land Area', landArea),
-                    ),
-                    Expanded(
-                      child: _buildAgriFeatureRow(Icons.eco, 'Primary Crops', primaryCrops),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildAgriFeatureRow(Icons.radar, 'Service Radius', serviceRange),
-                    ),
-                    const Expanded(child: SizedBox()),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+    // Completed Exchanges
+    final completedCount = _userBookings!.where((b) => b.status == 'completed').length +
+        _ownerBookings!.where((b) => b.status == 'completed').length;
 
-  Widget _buildAgriFeatureRow(IconData icon, String title, String value) {
-    return Row(
+    final rating = _getAverageRating();
+
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: 16,
+      mainAxisSpacing: 16,
+      childAspectRatio: 1.25,
       children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: const Color(0xFF006E1C)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title, 
-                style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text(
-                value, 
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        )
-      ],
-    );
-  }
-
-  Widget _buildActivityGroup(AppUserModel user, AppLocalizations l10n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: _buildListTile('My Transactions', icon: Icons.receipt_long, onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => const TransactionsPage()),
-        );
-      }),
-    );
-  }
-
-
-  Widget _buildMarketplaceGroup(AppUserModel user) {
-    final service = MarketplaceService();
-    return _buildCollapsibleSection(
-      icon: Icons.storefront,
-      title: 'Marketplace',
-      isExpanded: _marketplaceExpanded,
-      onToggle: () => setState(() => _marketplaceExpanded = !_marketplaceExpanded),
-      children: [
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFBECAB9)),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: StreamBuilder<List<MarketplaceSurplusModel>>(
-                    stream: service.watchSurplusByOwner(user.userId),
-                    builder: (context, snapSurplus) {
-                      return StreamBuilder<List<FarmSurplusExchangeModel>>(
-                        stream: service.watchExchangesByOwner(user.userId),
-                        builder: (context, snapExchanges) {
-                          final c1 = snapSurplus.data?.length ?? 0;
-                          final c2 = snapExchanges.data?.length ?? 0;
-                          return Column(
-                            children: [
-                              Text('${c1 + c2}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                              const Text('My Products', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-                            ],
-                          );
-                        }
-                      );
-                    }
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: const Color(0xFFBECAB9)),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Column(
-                    children: [
-                      Text('0', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                      Text('Saved Items', style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B))),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingsGroup(AppLocalizations l10n) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          _buildListTile('Language Settings', icon: Icons.language, onTap: () {
-            _showLanguageSheet(context);
-          }),
-          const Divider(height: 1, color: Color(0x1ABECAB9)),
-          _buildListTile('Help & Support', icon: Icons.help_outline, onTap: () {
+        TappableCard(
+          onTap: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const MaintenancePage()),
+              MaterialPageRoute(builder: (_) => MyEquipmentsPage(currentUser: user)),
             );
-          }),
-        ],
-      ),
+          },
+          child: _buildStatCard(
+            'Shared Items',
+            sharedCount.toDouble(),
+            Icons.inventory_2_outlined,
+            const Color(0xFF2E7D32),
+            prefix: '📦',
+          ),
+        ),
+        TappableCard(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => MyBookingsPage(currentUser: user)),
+            );
+          },
+          child: _buildStatCard(
+            'Items Borrowed',
+            borrowedCount.toDouble(),
+            Icons.shopping_bag_outlined,
+            const Color(0xFF2196F3),
+            prefix: '📥',
+          ),
+        ),
+        TappableCard(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => MyBookingsPage(currentUser: user)),
+            );
+          },
+          child: _buildStatCard(
+            'Completed Exchanges',
+            completedCount.toDouble(),
+            Icons.swap_horiz_outlined,
+            const Color(0xFFE65100),
+            prefix: '🤝',
+          ),
+        ),
+        TappableCard(
+          onTap: _showReviewsSheet,
+          child: _buildStatCard(
+            'Community Rating',
+            rating,
+            Icons.star_outline_rounded,
+            const Color(0xFFF57F17),
+            prefix: '⭐',
+            isRating: true,
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _buildCollapsibleSection({
-    required IconData icon,
-    required String title,
-    required bool isExpanded,
-    required VoidCallback onToggle,
-    required List<Widget> children,
+  Widget _buildStatCard(
+    String title,
+    double value,
+    IconData icon,
+    Color accentColor, {
+    required String prefix,
+    bool isRating = false,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 5,
-            offset: const Offset(0, 2),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          InkWell(
-            onTap: onToggle,
-            borderRadius: isExpanded 
-                ? const BorderRadius.vertical(top: Radius.circular(16))
-                : BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  Icon(icon, color: const Color(0xFF3F4A3C)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                    ),
-                  ),
-                  Icon(isExpanded ? Icons.expand_less : Icons.expand_more, color: const Color(0xFF6F7A6B)),
-                ],
-              ),
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(prefix, style: const TextStyle(fontSize: 18)),
+              Icon(icon, color: accentColor, size: 20),
+            ],
           ),
-          if (isExpanded)
-            Container(
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Color(0x1ABECAB9))),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AnimatedCountText(
+                value: value,
+                isRating: isRating,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
               ),
-              child: Column(children: children),
-            ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildListTile(String title, {IconData? icon, VoidCallback? onTap}) {
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          children: [
-            if (icon != null) ...[
-              Icon(icon, color: const Color(0xFF3F4A3C)),
-              const SizedBox(width: 12),
-            ],
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(fontSize: 16),
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Color(0xFF6F7A6B)),
-          ],
-        ),
+  Widget _buildSkeletonCard() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
       ),
-    );
-  }
-
-  Widget _buildLogoutButton(AppLocalizations l10n) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showLogoutDialog(context, l10n),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          side: const BorderSide(color: Color(0xFF006E1C)),
-          foregroundColor: const Color(0xFF006E1C),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        icon: const Icon(Icons.logout),
-        label: const Text('Logout', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
-      ),
-    );
-  }
-
-  void _showLanguageSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) {
-        final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const SizedBox(height: 16),
-              const Text(
-                'Select Language',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: const Text('English'),
-                onTap: () {
-                  localeProvider.setLocale(const Locale('en'));
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('தமிழ் (Tamil)'),
-                onTap: () {
-                  localeProvider.setLocale(const Locale('ta'));
-                  Navigator.pop(context);
-                },
-              ),
-              ListTile(
-                title: const Text('हिंदी (Hindi)'),
-                onTap: () {
-                  localeProvider.setLocale(const Locale('hi'));
-                  Navigator.pop(context);
-                },
-              ),
-              const SizedBox(height: 16),
+              Container(width: 24, height: 24, decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle)),
+              Container(width: 24, height: 24, decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle)),
             ],
           ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(width: 48, height: 22, color: Colors.grey[200]),
+              const SizedBox(height: 6),
+              Container(width: 80, height: 11, color: Colors.grey[200]),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TappableCard extends StatefulWidget {
+  final Widget child;
+  final VoidCallback onTap;
+
+  const TappableCard({super.key, required this.child, required this.onTap});
+
+  @override
+  State<TappableCard> createState() => _TappableCardState();
+}
+
+class _TappableCardState extends State<TappableCard> with SingleTickerProviderStateMixin {
+  double _scale = 1.0;
+
+  void _onTapDown(TapDownDetails details) {
+    setState(() => _scale = 0.95);
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    setState(() => _scale = 1.0);
+    widget.onTap();
+  }
+
+  void _onTapCancel() {
+    setState(() => _scale = 1.0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: Transform.scale(
+        scale: _scale,
+        child: widget.child,
+      ),
+    );
+  }
+}
+
+class AnimatedCountText extends StatefulWidget {
+  final double value;
+  final String suffix;
+  final TextStyle style;
+  final bool isRating;
+
+  const AnimatedCountText({
+    super.key,
+    required this.value,
+    this.suffix = '',
+    required this.style,
+    this.isRating = false,
+  });
+
+  @override
+  State<AnimatedCountText> createState() => _AnimatedCountTextState();
+}
+
+class _AnimatedCountTextState extends State<AnimatedCountText> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    _animation = Tween<double>(begin: 0.0, end: widget.value).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+    );
+    _controller.forward();
+  }
+
+  @override
+  void didUpdateWidget(AnimatedCountText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value) {
+      _animation = Tween<double>(begin: oldWidget.value, end: widget.value).animate(
+        CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic),
+      );
+      _controller.reset();
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        final val = _animation.value;
+        String displayStr = val.toInt().toString();
+        if (widget.isRating) {
+          displayStr = widget.value == 0.0 ? 'New Member' : val.toStringAsFixed(1);
+        }
+        return Text(
+          '$displayStr${widget.suffix}',
+          style: widget.style,
         );
       },
-    );
-  }
-
-  void _showLogoutDialog(BuildContext context, AppLocalizations l10n) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(l10n.tr('logout')),
-        content: Text(l10n.tr('logout_confirm')),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(l10n.tr('cancel')),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              widget.authService.signOut();
-            },
-            child: Text(
-              l10n.tr('logout'),
-              style: const TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

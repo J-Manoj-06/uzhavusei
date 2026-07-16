@@ -111,7 +111,7 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                       ),
                       const SizedBox(height: 18),
                       const Text(
-                        'UzhavuSei',
+                        'Borrow',
                         style: TextStyle(
                           fontSize: 34,
                           fontWeight: FontWeight.w800,
@@ -120,9 +120,9 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Empowering farmers through shared machinery',
+                        'Borrow is a community marketplace where people can rent, lend, buy, and sell resources such as books, farming equipment, construction equipment, and more.',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 13,
                           color: Colors.black54,
                           fontWeight: FontWeight.w500,
                         ),
@@ -253,7 +253,7 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Text('New to UzhavuSei?', style: TextStyle(color: Colors.black87, fontSize: 16)),
+                          const Text('New to Borrow?', style: TextStyle(color: Colors.black87, fontSize: 16)),
                           TextButton(
                             onPressed: _submitting
                                 ? null

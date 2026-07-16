@@ -3,14 +3,23 @@ import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
+import 'package:shimmer/shimmer.dart';
 import 'models/marketplace_equipment_model.dart';
 import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
+import 'services/distance_service.dart';
+import 'providers/location_provider.dart';
 import 'widgets/image_loader.dart';
 import 'features/equipment/presentation/booking_payment_page.dart';
 import 'features/equipment/presentation/equipment_details_page.dart' as real_details;
 
+import 'features/explore/presentation/global_search_page.dart';
+import 'features/equipment/presentation/category_marketplace_page.dart';
 import 'features/equipment/presentation/equipment_form_page.dart';
+import 'features/equipment/presentation/books_marketplace_page.dart';
+import 'features/equipment/presentation/farm_marketplace_page.dart';
+import 'features/equipment/presentation/construction_marketplace_page.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -21,6 +30,8 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   String _currentLocation = 'Loading...';
+  double _latitude = 13.0827;
+  double _longitude = 80.2707;
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = true;
   final PageController _pageController = PageController(viewportFraction: 0.85);
@@ -34,21 +45,273 @@ class _HomePageState extends State<HomePage> {
   final List<Map<String, dynamic>> _wishlist = [];
   final MarketplaceService _marketplaceService = MarketplaceService();
 
+  List<MarketplaceEquipmentModel> _rawEquipments = [];
+  List<MarketplaceEquipmentModel> _recommendations = [];
+  bool _isLoadingRecommendations = false;
+  String _currentRadiusLabel = 'Showing items within 5 km';
+  bool _isOffline = false;
+  bool _bypassNearbyFilter = false;
+  LocationProvider? _locationProvider;
+
   @override
   void initState() {
     super.initState();
     _getCurrentLocation();
-    // Auto-scroll the page view
-    _startAutoScroll();
     _loadBackendData();
     _loadMarketplaceData();
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final lp = Provider.of<LocationProvider>(context);
+    if (_locationProvider != lp) {
+      _locationProvider?.removeListener(_onLocationProviderChanged);
+      _locationProvider = lp;
+      _locationProvider?.addListener(_onLocationProviderChanged);
+      // Run once immediately
+      _onLocationProviderChanged();
+    }
+  }
+
+  @override
   void dispose() {
+    _locationProvider?.removeListener(_onLocationProviderChanged);
     _searchController.dispose();
     _pageController.dispose();
     super.dispose();
+  }
+
+  void _onLocationProviderChanged() {
+    final lvl = _locationProvider?.lastVerifiedLocation;
+    if (lvl != null && (lvl.latitude != _latitude || lvl.longitude != _longitude)) {
+      setState(() {
+        _latitude = lvl.latitude;
+        _longitude = lvl.longitude;
+        _currentLocation = '${lvl.latitude.toStringAsFixed(4)}, ${lvl.longitude.toStringAsFixed(4)}';
+      });
+      _saveLocationToFirestore(lvl.latitude, lvl.longitude);
+      _rebuildRecommendations();
+    }
+  }
+
+  void _rebuildRecommendations() {
+    if (_rawEquipments.isEmpty) {
+      setState(() {
+        _recommendations = [];
+        _currentRadiusLabel = 'Showing items from all locations';
+      });
+      return;
+    }
+
+    final userLat = _latitude;
+    final userLng = _longitude;
+
+    final enrichedList = _rawEquipments.map((e) {
+      final distInfo = DistanceService.instance.getDistanceInfo(userLat, userLng, e.latitude, e.longitude);
+      return e.copyWithDistance(distInfo);
+    }).where((e) => e.distanceInfo != null).toList();
+
+    if (_bypassNearbyFilter) {
+      enrichedList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      setState(() {
+        _recommendations = enrichedList.where((e) => e.availability).toList();
+        _currentRadiusLabel = 'Showing items from all locations';
+      });
+      return;
+    }
+
+    final radii = [5000.0, 10000.0, 20000.0, 50000.0, 100000.0, double.infinity];
+    final labels = [
+      'Showing items within 5 km',
+      'Showing items within 10 km',
+      'Showing items within 20 km',
+      'Showing items within 50 km',
+      'Showing items within 100 km',
+      'Showing items from all locations'
+    ];
+
+    List<MarketplaceEquipmentModel> filtered = [];
+    String radiusLabel = labels[0];
+
+    for (int i = 0; i < radii.length; i++) {
+      final radius = radii[i];
+      radiusLabel = labels[i];
+      filtered = enrichedList.where((e) {
+        if (!e.availability) return false;
+        return e.distanceInfo!.meters <= radius;
+      }).toList();
+
+      if (filtered.length >= 20 || radius == double.infinity) {
+        break;
+      }
+    }
+
+    filtered.sort((a, b) {
+      final distA = a.distanceInfo?.meters ?? double.infinity;
+      final distB = b.distanceInfo?.meters ?? double.infinity;
+      final distComp = distA.compareTo(distB);
+      if (distComp != 0) return distComp;
+
+      final timeA = a.createdAt;
+      final timeB = b.createdAt;
+      final timeComp = timeB.compareTo(timeA);
+      if (timeComp != 0) return timeComp;
+
+      final ratingComp = b.rating.compareTo(a.rating);
+      if (ratingComp != 0) return ratingComp;
+
+      return b.bookingsCount.compareTo(a.bookingsCount);
+    });
+
+    setState(() {
+      _recommendations = filtered;
+      _currentRadiusLabel = radiusLabel;
+    });
+  }
+
+  void _showAllResources() {
+    setState(() {
+      _bypassNearbyFilter = true;
+    });
+    _rebuildRecommendations();
+  }
+
+  void _navigateToDetailsModel(MarketplaceEquipmentModel equipment) async {
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please log in to view equipment details.'),
+          backgroundColor: Color(0xFFC62828),
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => real_details.EquipmentDetailsPage(
+          equipment: equipment,
+          userId: user.uid,
+          userName: user.displayName ?? 'User',
+          userEmail: user.email ?? '',
+          userPhone: _formatPhoneNumber(user.phoneNumber ?? '9000000000'),
+        ),
+      ),
+    );
+  }
+
+  String _getCategoryEmoji(String category) {
+    final lower = category.toLowerCase();
+    if (lower.contains('book')) return '📚';
+    if (lower.contains('tractor') || lower.contains('farm') || lower.contains('agricultural')) return '🚜';
+    if (lower.contains('drill') || lower.contains('construction') || lower.contains('mixer')) return '🏗️';
+    if (lower.contains('power') || lower.contains('tool')) return '🧰';
+    if (lower.contains('furniture')) return '🪑';
+    return '🌱';
+  }
+
+  Widget _buildSkeletonRecommendations() {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 16,
+        childAspectRatio: 0.52,
+      ),
+      itemCount: 4,
+      itemBuilder: (context, index) {
+        return Shimmer.fromColors(
+          baseColor: Colors.grey.shade300,
+          highlightColor: Colors.grey.shade100,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFEBEFF0)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AspectRatio(
+                  aspectRatio: 1.6,
+                  child: Container(
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Container(width: 100, height: 12, color: Colors.white),
+                        Container(width: 60, height: 10, color: Colors.white),
+                        Container(width: 80, height: 10, color: Colors.white),
+                        Container(width: 50, height: 10, color: Colors.white),
+                        Container(width: double.infinity, height: 28, color: Colors.white),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+      ),
+      child: Column(
+        children: [
+          const Icon(Icons.location_off_outlined, size: 48, color: Colors.grey),
+          const SizedBox(height: 16),
+          const Text(
+            'No nearby resources found.',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try searching for a specific item or check back later.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade50),
+          ),
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _showAllResources,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Explore All Resources', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _startAutoScroll() {
@@ -71,52 +334,92 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// Syncs HomePage lat/lng from the LocationProvider's Last Verified Location.
+  /// Falls back to a direct Geolocator call only if the provider has no data yet.
   Future<void> _getCurrentLocation() async {
     try {
+      // Prefer the already-resolved location from LocationProvider
+      final locationProvider =
+          context.read<LocationProvider>();
+      final lvl = locationProvider.lastVerifiedLocation;
+
+      if (lvl != null) {
+        if (!mounted) return;
+        setState(() {
+          _latitude = lvl.latitude;
+          _longitude = lvl.longitude;
+          _currentLocation =
+              '${lvl.latitude.toStringAsFixed(4)}, ${lvl.longitude.toStringAsFixed(4)}';
+          _isLoading = false;
+        });
+        _saveLocationToFirestore(lvl.latitude, lvl.longitude);
+        return;
+      }
+
+      // Provider not ready yet – fall back to a direct call (rare, first launch only)
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
           if (!mounted) return;
-          setState(() => _currentLocation = 'Location permissions denied');
+          setState(() {
+            _currentLocation = 'Location permissions denied';
+            _isLoading = false;
+          });
           return;
         }
       }
 
       if (permission == LocationPermission.deniedForever) {
         if (!mounted) return;
-        setState(
-            () => _currentLocation = 'Location permissions permanently denied');
+        setState(() {
+          _currentLocation = 'Location permissions permanently denied';
+          _isLoading = false;
+        });
         return;
       }
 
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
         if (!mounted) return;
-        setState(() => _currentLocation = 'GPS is disabled. Tap to enable.');
+        setState(() {
+          _currentLocation = 'GPS is disabled. Tap to enable.';
+          _isLoading = false;
+        });
         return;
       }
 
-      Position position = await Geolocator.getCurrentPosition();
+      final position = await Geolocator.getCurrentPosition();
       if (!mounted) return;
-      
       setState(() {
-        _currentLocation = '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
+        _latitude = position.latitude;
+        _longitude = position.longitude;
+        _currentLocation =
+            '${position.latitude.toStringAsFixed(4)}, ${position.longitude.toStringAsFixed(4)}';
         _isLoading = false;
       });
-
-      // Save to database
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).update({
-          'latitude': position.latitude,
-          'longitude': position.longitude,
-        }).catchError((_) {}); // Ignore if document doesn't exist yet
-      }
+      _saveLocationToFirestore(position.latitude, position.longitude);
     } catch (e) {
       if (!mounted) return;
-      setState(() => _currentLocation = 'Error getting location');
+      setState(() {
+        _currentLocation = 'Error getting location';
+        _isLoading = false;
+      });
     }
+  }
+
+  /// Persists the user's location to Firestore so other users can discover them.
+  Future<void> _saveLocationToFirestore(double lat, double lng) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .update({'latitude': lat, 'longitude': lng})
+            .catchError((_) {});
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadBackendData() async {
@@ -138,24 +441,35 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadMarketplaceData() async {
+    if (mounted) setState(() => _isLoadingRecommendations = true);
     try {
       final equipments =
           await _marketplaceService.watchEquipments(onlyAvailable: true).first;
-      if (equipments.isEmpty || !mounted) return;
+      if (!mounted) return;
 
       final mapped =
           equipments.map(_marketplaceEquipmentToCard).toList(growable: false);
 
       setState(() {
+        _rawEquipments = equipments;
         _allEquipment = mapped;
         _allNearbyItems = mapped;
         _filteredEquipment = mapped;
         _filteredItems
           ..clear()
           ..addAll(mapped);
+        _isOffline = false;
+        _isLoadingRecommendations = false;
       });
+      _rebuildRecommendations();
     } catch (_) {
-      // Keep existing local/backend data if Firestore is unavailable.
+      if (mounted) {
+        setState(() {
+          _isOffline = true;
+          _isLoadingRecommendations = false;
+        });
+      }
+      _rebuildRecommendations();
     }
   }
 
@@ -168,12 +482,12 @@ class _HomePageState extends State<HomePage> {
 
     return {
       'title': equipment.equipmentName,
-      'price': 'Rs.${equipment.pricePerHour.toStringAsFixed(0)}/hr',
+      'price': 'Free to Borrow',
       'rating': equipment.rating > 0 ? equipment.rating : 4.5,
-      'distance': equipment.location,
+      'distance': 'Near ${equipment.area.isNotEmpty ? equipment.area : (equipment.city.isNotEmpty ? equipment.city : equipment.location)}',
       'imageUrl': imageUrl,
       'description': equipment.description.isEmpty
-          ? 'Well-maintained equipment available for rent.'
+          ? 'Well-maintained equipment available to borrow.'
           : equipment.description,
       'seller': equipment.ownerName,
       'delivery': 'Contact owner',
@@ -398,740 +712,423 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAF8),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
-        title: const Text(
-          'UZHAVUSEI',
-          style: TextStyle(
-            color: Color(0xFF4CAF50),
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.notifications_none, color: Colors.grey),
-            onPressed: () {
-              // TODO: Implement notifications
-            },
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(100),
-          child: Padding(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.location_pin, color: Colors.grey),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () async {
-                          if (_currentLocation == 'GPS is disabled. Tap to enable.') {
-                            await Geolocator.openLocationSettings();
-                            _getCurrentLocation();
-                          }
-                        },
-                        child: Text(
-                          _currentLocation,
-                          style: TextStyle(
-                            color: _currentLocation == 'GPS is disabled. Tap to enable.' 
-                                ? Colors.red 
-                                : Colors.grey,
-                            decoration: _currentLocation == 'GPS is disabled. Tap to enable.' 
-                                ? TextDecoration.underline 
-                                : TextDecoration.none,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
+        surfaceTintColor: Colors.transparent,
+        toolbarHeight: 140,
+        titleSpacing: 0,
+        title: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Row 1: Logo and notifications / profile
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Borrow',
+                    style: TextStyle(
+                      color: Color(0xFF2E7D32),
+                      fontSize: 24,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.8,
                     ),
-                    if (_isLoading)
-                      const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
-                        ),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _searchController,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(Icons.search, color: Colors.grey),
-                    hintText: 'Search equipment, supplies...',
-                    filled: true,
-                    fillColor: Colors.grey[100],
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(24),
-                      borderSide: BorderSide.none,
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
                   ),
-                  onChanged: (value) {
-                    // TODO: Implement search functionality
-                  },
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.notifications_none_rounded, color: Color(0xFF3F4A3C), size: 22),
+                        onPressed: () {},
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                      const SizedBox(width: 12),
+                      const CircleAvatar(
+                        radius: 14,
+                        backgroundColor: Color(0xFFE8F5E9),
+                        child: Icon(Icons.person_outline, size: 16, color: Color(0xFF2E7D32)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              // Row 2: Location selector (stacked vertically to avoid horizontal overflow)
+              Row(
+                children: [
+                  const Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 14),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      _currentLocation.contains(',') ? 'Chennai, India' : _currentLocation,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Color(0xFF3F4A3C),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              // Search Capsule
+              GestureDetector(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const GlobalSearchPage()),
+                  );
+                },
+                child: Container(
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF8FAF8),
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(color: const Color(0xFFEBEFF0), width: 1.5),
+                  ),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 14),
+                      const Icon(Icons.search, color: Colors.grey, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Search books, tractors, tools, equipment...',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                      const Icon(Icons.mic_none_rounded, color: Colors.grey, size: 18),
+                      const SizedBox(width: 14),
+                    ],
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Promotional Banner Carousel
-            SizedBox(
-              height: 180,
-              child: PageView.builder(
-                controller: _pageController,
-                onPageChanged: (int page) {
-                  setState(() {
-                    _currentPage = page;
-                  });
-                },
-                itemCount: 3,
-                itemBuilder: (context, index) {
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
-                    child: _buildPromoBanner(
-                        index == 0
-                            ? 'assets/banner3.jpg'
-                            : index == 1
-                                ? 'assets/banner2.jpg'
-                                : 'assets/banner3.jpg',
-                        index == 0
-                            ? 'Special Offers'
-                            : index == 1
-                                ? 'New Arrivals'
-                                : 'Seasonal Deals'),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Page Indicator
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(
-                3,
-                (index) => Container(
-                  width: 8,
-                  height: 8,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: _currentPage == index
-                        ? const Color(0xFF4CAF50)
-                        : Colors.grey.withValues(alpha: 0.3),
-                  ),
+      body: RefreshIndicator(
+        onRefresh: _handleRefresh,
+        color: const Color(0xFF2E7D32),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 16),
+              
+              const SizedBox(height: 16),
+  
+              // Quick Categories Grid
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Explore Categories',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-
-            // Category Filter
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
+              const SizedBox(height: 12),
+              _buildCategoryGrid(),
+              const SizedBox(height: 24),
+  
+              // Trust Features Chips
+              _buildFeaturesChips(),
+              const SizedBox(height: 24),
+  
+              // 📍 Nearby Recommendations Section
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildCategoryChip('All'),
-                    _buildCategoryChip('Tractors'),
-                    _buildCategoryChip('Sprayers'),
-                    _buildCategoryChip('Harvesters'),
-                    _buildCategoryChip('Fertilizers'),
-                    _buildCategoryChip('Seeds'),
-                    _buildCategoryChip('Tools'),
+                    const Text(
+                      '📍 Nearby Recommendations',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _currentRadiusLabel,
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+                    ),
                   ],
                 ),
               ),
-            ),
-
-            // Sort Dropdown
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  DropdownButton<String>(
-                    value: _selectedSort,
-                    items: [
-                      'Popular',
-                      'Price: Low to High',
-                      'Price: High to Low',
-                      'Rating',
-                      'Distance',
-                    ].map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        _sortEquipment(newValue);
-                      }
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // Featured Equipment Section with enhanced functionality
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Featured Equipment',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => EquipmentListPage(
-                                equipment: _filteredEquipment,
-                                onItemSelected: _navigateToDetails,
-                              ),
-                            ),
-                          );
-                        },
-                        child: const Text(
-                          'See All',
-                          style: TextStyle(color: Color(0xFF4CAF50)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 280,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: _filteredEquipment.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 16),
-                          child: _buildEquipmentCard(
-                            _filteredEquipment[index],
-                            onTap: () =>
-                                _navigateToDetails(_filteredEquipment[index]),
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
+              const SizedBox(height: 12),
+              _buildFreshRecommendationsGrid(),
             const SizedBox(height: 24),
 
-            // Near You Section
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Near You',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          // TODO: Navigate to all nearby items
-                        },
-                        child: const Text(
-                          'See All',
-                          style: TextStyle(color: Color(0xFF4CAF50)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _filteredItems.length,
-                    itemBuilder: (context, index) {
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: _buildNearbyItem(_filteredItems[index]),
-                      );
-                    },
-                  ),
-                ],
+            // Community Picks Section
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Nearby Resources',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
               ),
             ),
+            const SizedBox(height: 12),
+            ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _filteredItems.length,
+              itemBuilder: (context, index) {
+                return _buildNearbyItem(_filteredItems[index]);
+              },
+            ),
+            const SizedBox(height: 80),
           ],
         ),
+      ),
       ),
     );
   }
 
   Widget _buildPromoBanner(String imagePath, String title) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        image: DecorationImage(
-          image: AssetImage(imagePath),
-          fit: BoxFit.cover,
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Colors.black.withValues(alpha: 0.8),
-            ],
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF2E7D32).withValues(alpha: 0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.end,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: const Color(0xFF4CAF50),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Text(
-                'Special Offer',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              'Get up to 30% off on selected items',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 14,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 4),
-            Row(
+        ],
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
+                const Text(
+                  'Lend. Share. Borrow Together.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'Find books, farm equipment, construction tools and more near you.',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 11,
+                    height: 1.25,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 ElevatedButton(
                   onPressed: () {
-                    if (_filteredEquipment.isEmpty) return;
-                    _navigateToDetails(_filteredEquipment[
-                              _currentPage % _filteredEquipment.length]);
+                    if (_filteredEquipment.isNotEmpty) {
+                      _navigateToDetails(_filteredEquipment.first);
+                    }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: Colors.white,
+                    foregroundColor: const Color(0xFF2E7D32),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(10),
                     ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text('View Details'),
-                ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: () {
-                    if (_filteredEquipment.isEmpty) return;
-                    _toggleWishlist(
-                      _filteredEquipment[
-                          _currentPage % _filteredEquipment.length],
-                    );
-                  },
-                  icon: Icon(
-                    _filteredEquipment.isNotEmpty &&
-                            _isInWishlist(_filteredEquipment[
-                                _currentPage % _filteredEquipment.length])
-                        ? Icons.favorite
-                        : Icons.favorite_border,
-                    color: Colors.white,
-                  ),
+                  child: const Text('Explore Now', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 11)),
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 70,
+            height: 90,
+            child: Stack(
+              children: const [
+                Positioned(top: 0, right: 0, child: Text('🚜', style: TextStyle(fontSize: 28))),
+                Positioned(bottom: 10, left: 0, child: Text('📚', style: TextStyle(fontSize: 24))),
+                Positioned(bottom: 0, right: 10, child: Text('🧰', style: TextStyle(fontSize: 20))),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildCategoryChip(String category) {
+  Widget _buildCategoryGrid() {
+    final List<Map<String, String>> catList = [
+      {'emoji': '📚', 'label': 'Books'},
+      {'emoji': '🚜', 'label': 'Farm Equipment'},
+      {'emoji': '🏗️', 'label': 'Construction'},
+    ];
+
     return Padding(
-      padding: const EdgeInsets.only(right: 8),
-      child: FilterChip(
-        label: Text(category),
-        selected: _selectedCategory == category,
-        onSelected: (bool selected) {
-          _filterEquipment(category);
-        },
-        backgroundColor: Colors.grey[200],
-        selectedColor: const Color(0xFF4CAF50).withValues(alpha: 0.2),
-        labelStyle: TextStyle(
-          color: _selectedCategory == category
-              ? const Color(0xFF4CAF50)
-              : Colors.grey[700],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEquipmentCard(Map<String, dynamic> equipment,
-      {VoidCallback? onTap}) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 250,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              spreadRadius: 1,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(16)),
-                  child: buildSmartImage(
-                    equipment['imageUrl'],
-                    height: 150,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: catList.map((cat) {
+          return Expanded(
+            child: GestureDetector(
+              onTap: () {
+                final category = cat['label'] == 'Construction' ? 'Construction Equipment' : cat['label']!;
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, anim, secondaryAnim) => CategoryMarketplacePage(
+                      category: category,
                     ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.star, size: 16, color: Colors.amber),
-                        const SizedBox(width: 4),
-                        Text(
-                          equipment['rating'].toString(),
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
+                    transitionsBuilder: (context, anim, secondaryAnim, child) {
+                      return FadeTransition(opacity: anim, child: child);
+                    },
                   ),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: const Color(0xFFEBEFF0),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          equipment['title'],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.location_pin,
-                                size: 14, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Expanded(
-                              child: Text(
-                                equipment['distance'],
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Flexible(
-                          child: Text(
-                            equipment['price'],
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Color(0xFF4CAF50),
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        ElevatedButton(
-                          onPressed: onTap,
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF4CAF50),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(horizontal: 10),
-                            minimumSize: const Size(88, 34),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: const Text('Rent Now'),
-                        ),
-                      ],
+                    Text(cat['emoji']!, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(height: 6),
+                    Text(
+                      cat['label']!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1A1A1A),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-        ),
+          );
+        }).toList(),
       ),
     );
   }
 
-  Widget _buildNearbyItem(Map<String, dynamic> item) {
-    return GestureDetector(
-      onTap: () => _navigateToDetails(item),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              spreadRadius: 1,
-              blurRadius: 10,
-              offset: const Offset(0, 2),
+  Widget _buildFeaturesChips() {
+    final List<Map<String, String>> features = [
+      {'emoji': '🛡️', 'label': 'Verified Owners'},
+      {'emoji': '💳', 'label': 'Secure Payments'},
+      {'emoji': '📍', 'label': 'GPS Tracking'},
+      {'emoji': '🔧', 'label': 'Equipment Maintenance'},
+      {'emoji': '⭐', 'label': 'Ratings & Reviews'},
+      {'emoji': '⚡', 'label': 'Instant Booking'},
+    ];
+
+    return SizedBox(
+      height: 40,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: features.length,
+        itemBuilder: (context, idx) {
+          final f = features[idx];
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: Chip(
+              label: Text('${f['emoji']!} ${f['label']!}'),
+              backgroundColor: const Color(0xFFF8FAF8),
+              labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF3F4A3C)),
+              side: const BorderSide(color: Color(0xFFEBEFF0)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-          ],
-        ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showAddListingOptions() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => SafeArea(
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Row(
-              children: [
-                ClipRRect(
-                  borderRadius:
-                      const BorderRadius.horizontal(left: Radius.circular(16)),
-                  child: buildSmartImage(
-                    item['imageUrl'],
-                    height: 120,
-                    width: 120,
-                    fit: BoxFit.cover,
-                  ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                item['title'],
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: item['available'] == 'In Stock'
-                                    ? Colors.green.withValues(alpha: 0.1)
-                                    : Colors.orange.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                item['available'],
-                                style: TextStyle(
-                                  color: item['available'] == 'In Stock'
-                                      ? Colors.green
-                                      : Colors.orange,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          item['description'],
-                          style: const TextStyle(
-                            color: Colors.grey,
-                            fontSize: 12,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.store,
-                                size: 14, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              item['seller'],
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          children: [
-                            const Icon(Icons.local_shipping,
-                                size: 14, color: Colors.grey),
-                            const SizedBox(width: 4),
-                            Text(
-                              item['delivery'],
-                              style: const TextStyle(
-                                  color: Colors.grey, fontSize: 12),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item['price'],
-                                  style: const TextStyle(
-                                    color: Color(0xFF4CAF50),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    const Icon(Icons.star,
-                                        size: 14, color: Colors.amber),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      item['rating'].toString(),
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                            ElevatedButton(
-                              onPressed: () => _navigateToDetails(item),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF4CAF50),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              child: const Text('Buy Now'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              width: 44,
+              height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey[100],
-                borderRadius:
-                    const BorderRadius.vertical(bottom: Radius.circular(16)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.location_pin, size: 14, color: Colors.grey),
-                  const SizedBox(width: 4),
-                  Text(
-                    item['distance'],
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                  const Spacer(),
-                  Text(
-                    item['category'],
-                    style: const TextStyle(color: Colors.grey, fontSize: 12),
-                  ),
-                ],
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
               ),
             ),
+            const SizedBox(height: 20),
+            const Text(
+              'Add a Listing',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.share, color: Color(0xFF2E7D32)),
+              title: const Text('Lend Out Resource', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Lend equipment or items to community members.'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openAddEquipmentForm();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.add_box_outlined, color: Color(0xFF2E7D32)),
+              title: const Text('Add Equipment to Share', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Add farming machinery or tools to share.'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openAddEquipmentForm();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.book_outlined, color: Color(0xFF2E7D32)),
+              title: const Text('Upload Book', style: TextStyle(fontWeight: FontWeight.bold)),
+              subtitle: const Text('Share or lend textbooks and guides with others.'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _openAddEquipmentForm();
+              },
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -1145,7 +1142,7 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Added to wishlist'),
-            backgroundColor: Color(0xFF4CAF50),
+            backgroundColor: Color(0xFF2E7D32),
           ),
         );
       }
@@ -1158,7 +1155,7 @@ class _HomePageState extends State<HomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Removed from wishlist'),
-          backgroundColor: Color(0xFF4CAF50),
+          backgroundColor: Color(0xFF2E7D32),
         ),
       );
     });
@@ -1175,107 +1172,576 @@ class _HomePageState extends State<HomePage> {
   bool _isInWishlist(Map<String, dynamic> item) {
     return _wishlist.any((element) => element['title'] == item['title']);
   }
+
+  Widget _buildEquipmentCard(Map<String, dynamic> equipment, {VoidCallback? onTap}) {
+    return Container(
+      width: 200,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            child: SizedBox(
+              height: 110,
+              width: double.infinity,
+              child: buildSmartImage(equipment['imageUrl'], fit: BoxFit.cover),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  equipment['title'],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A1A1A)),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
+                    const SizedBox(width: 2),
+                    Expanded(
+                      child: Text(
+                        equipment['distance'],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, color: Colors.grey),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Borrow for Free',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                    ),
+                    Row(
+                      children: [
+                        const Icon(Icons.star, size: 12, color: Colors.amber),
+                        const SizedBox(width: 2),
+                        Text(
+                          equipment['rating'].toString(),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 30,
+                  child: ElevatedButton(
+                    onPressed: onTap,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: const Text('Borrow Now', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNearbyItem(Map<String, dynamic> item) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.01),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.horizontal(left: Radius.circular(18)),
+            child: SizedBox(
+              width: 100,
+              height: 100,
+              child: buildSmartImage(item['imageUrl'], fit: BoxFit.cover),
+            ),
+          ),
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item['title'],
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A)),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Text(
+                        'Borrow for Free',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2E7D32)),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '• By ${item['seller']}',
+                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
+                      const SizedBox(width: 2),
+                      Expanded(
+                        child: Text(
+                          item['distance'],
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        height: 26,
+                        child: TextButton(
+                          onPressed: () => _navigateToDetails(item),
+                          style: TextButton.styleFrom(
+                            foregroundColor: const Color(0xFF2E7D32),
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              side: const BorderSide(color: Color(0xFF2E7D32)),
+                            ),
+                          ),
+                          child: const Text('View', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendedCard(Map<String, dynamic> item) {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 8,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Large photo with Availability badge overlay
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                child: SizedBox(
+                  height: 140,
+                  width: double.infinity,
+                  child: buildSmartImage(item['imageUrl'], fit: BoxFit.cover),
+                ),
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: item['available'] == 'Unavailable' ? Colors.red : const Color(0xFF2E7D32),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    item['available'] ?? 'Available',
+                    style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item['title'],
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1A1A1A)),
+                ),
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 10,
+                      backgroundColor: const Color(0xFFE8F5E9),
+                      child: Text(
+                        (item['seller'] ?? 'O')[0].toUpperCase(),
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      item['seller'] ?? 'Verified Owner',
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.star, size: 12, color: Colors.amber),
+                    const SizedBox(width: 2),
+                    Text(
+                      item['rating'].toString(),
+                      style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+                const Divider(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Borrow for Free',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                    ),
+                    Text(
+                      item['distance'],
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleRefresh() async {
+    final locationProvider = context.read<LocationProvider>();
+    final lvl = locationProvider.lastVerifiedLocation;
+    if (lvl == null || lvl.isStale) {
+      await locationProvider.refresh();
+    } else {
+      await _loadMarketplaceData();
+    }
+  }
+
+  Widget _buildFreshRecommendationsGrid() {
+    if (_isLoadingRecommendations) {
+      return _buildSkeletonRecommendations();
+    }
+
+    if (_recommendations.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (_isOffline)
+          Container(
+            margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.wifi_off_rounded, size: 16, color: Colors.orange),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Offline results may not include newly added resources.',
+                    style: TextStyle(fontSize: 12, color: Color(0xFF795548)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 16,
+            childAspectRatio: 0.52,
+          ),
+          itemCount: _recommendations.length,
+          itemBuilder: (context, index) {
+            final item = _recommendations[index];
+            final cardMap = _marketplaceEquipmentToCard(item);
+            final isFav = _isInWishlist(cardMap);
+            final distanceStr = item.distanceInfo?.formattedString ?? 'Unknown distance';
+            final imageUrl = item.imageUrls.isNotEmpty ? item.imageUrls.first : 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80';
+            final categoryEmoji = _getCategoryEmoji(item.category);
+            final areaStr = 'Near ${item.area.isNotEmpty ? item.area : (item.city.isNotEmpty ? item.city : 'Nearby')}';
+
+            return Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: const Color(0xFFEBEFF0)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.02),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Top Image block with overlays
+                  AspectRatio(
+                    aspectRatio: 1.6,
+                    child: Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                          child: SizedBox(
+                            width: double.infinity,
+                            height: double.infinity,
+                            child: Image.network(
+                              imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Image.asset(
+                                'assets/logo.jpg',
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // Category Badge top-left
+                        Positioned(
+                          top: 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.65),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(categoryEmoji, style: const TextStyle(fontSize: 10)),
+                                const SizedBox(width: 3),
+                                Text(
+                                  item.category,
+                                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        // Favorite top-right
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() {
+                                _toggleWishlist(cardMap);
+                              });
+                            },
+                            child: CircleAvatar(
+                              radius: 14,
+                              backgroundColor: Colors.white.withValues(alpha: 0.85),
+                              child: Icon(
+                                  isFav ? Icons.favorite : Icons.favorite_border,
+                                  color: isFav ? Colors.red : Colors.black,
+                                  size: 14,
+                                ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.all(10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          // Title (2 lines max)
+                          Text(
+                            item.equipmentName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A),
+                              height: 1.25,
+                            ),
+                          ),
+                          
+                          // Condition & Rating row
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE8F5E9),
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  item.condition,
+                                  style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 9, fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                              const Spacer(),
+                              const Icon(Icons.star, size: 12, color: Colors.amber),
+                              const SizedBox(width: 2),
+                              Text(
+                                item.rating > 0 ? item.rating.toStringAsFixed(1) : '5.0',
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+
+                          // Distance Info
+                          Row(
+                            children: [
+                              const Icon(Icons.near_me_outlined, size: 11, color: Color(0xFF2E7D32)),
+                              const SizedBox(width: 4),
+                              Text(
+                                distanceStr,
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32)),
+                              ),
+                            ],
+                          ),
+                          
+                          // Location / Area
+                          Row(
+                            children: [
+                              const Icon(Icons.location_on_outlined, size: 10, color: Colors.grey),
+                              const SizedBox(width: 2),
+                              Expanded(
+                                child: Text(
+                                  areaStr,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontSize: 9, color: Colors.grey),
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          // Status Dot
+                          Row(
+                            children: [
+                              Container(
+                                width: 6,
+                                height: 6,
+                                decoration: BoxDecoration(
+                                  color: item.availability ? Colors.green : Colors.orange,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                item.availability ? 'Available Now' : 'Currently On Loan',
+                                style: TextStyle(
+                                  fontSize: 9, 
+                                  fontWeight: FontWeight.bold, 
+                                  color: item.availability ? Colors.green : Colors.orange,
+                                ),
+                              ),
+                            ],
+                          ),
+                          
+                          // Actions row
+                          SizedBox(
+                            width: double.infinity,
+                            height: 28,
+                            child: ElevatedButton(
+                              onPressed: () {
+                                _navigateToDetailsModel(item);
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2E7D32),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding: EdgeInsets.zero,
+                              ),
+                              child: const Text('Borrow Now', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 // Sample data
-final List<Map<String, dynamic>> featuredEquipment = [
-  {
-    'title': 'John Deere Tractor',
-    'distance': '2.5 miles away',
-    'price': '₹1500/day',
-    'rating': 4.8,
-    'category': 'Tractors',
-    'imageUrl':
-        'https://public.readdy.ai/ai/img_res/0a80ccb4ec3e9e5231ed97f5d20096d6.jpg',
-  },
-  {
-    'title': 'Boom Sprayer',
-    'distance': '3.8 miles away',
-    'price': '₹800/day',
-    'rating': 4.6,
-    'category': 'Sprayers',
-    'imageUrl':
-        'https://public.readdy.ai/ai/img_res/dc3d6f7aa43f5d901183b2f3da90273f.jpg',
-  },
-  {
-    'title': 'Rotavator',
-    'distance': '1.2 miles away',
-    'price': '₹450/day',
-    'rating': 4.5,
-    'category': 'Tools',
-    'imageUrl':
-        'https://public.readdy.ai/ai/img_res/04c92b8dcfb87c037c057289448d7e13.jpg',
-  },
-  {
-    'title': 'Organic Fertilizer',
-    'distance': '0.8 miles away',
-    'price': '₹250/bag',
-    'rating': 4.7,
-    'category': 'Fertilizers',
-    'imageUrl':
-        'https://public.readdy.ai/ai/img_res/1d9f6d09d32dd75629830b0f5835565b.jpg',
-  },
-  {
-    'title': 'Paddy Seeds',
-    'distance': '1.5 miles away',
-    'price': '₹180/kg',
-    'rating': 4.4,
-    'category': 'Seeds',
-    'imageUrl': 'assets/paddy.jpg',
-  },
-];
+final List<Map<String, dynamic>> featuredEquipment = [];
 
-final List<Map<String, dynamic>> nearbyItems = [
-  {
-    'title': 'Organic Fertilizer',
-    'distance': '0.8 miles away',
-    'price': '₹250/bag',
-    'rating': 4.7,
-    'category': 'Fertilizers',
-    'description': 'Premium organic fertilizer for better crop yield',
-    'seller': 'Green Farms',
-    'available': 'In Stock',
-    'delivery': 'Free Delivery',
-    'imageUrl':
-        'https://public.readdy.ai/ai/img_res/1d9f6d09d32dd75629830b0f5835565b.jpg',
-  },
-  {
-    'title': 'Seeds - Paddy',
-    'distance': '1.5 miles away',
-    'price': '₹180/kg',
-    'rating': 4.4,
-    'category': 'Seeds',
-    'description': 'High-quality paddy seeds with 95% germination rate',
-    'seller': 'Agri Seeds Co.',
-    'available': 'Limited Stock',
-    'delivery': 'Free Delivery',
-    'imageUrl': 'assets/paddy.jpg',
-  },
-  {
-    'title': 'Tractor Spare Parts',
-    'distance': '2.1 miles away',
-    'price': '₹1200/piece',
-    'rating': 4.6,
-    'category': 'Spare Parts',
-    'description': 'Genuine tractor spare parts with warranty',
-    'seller': 'Farm Equipment Hub',
-    'available': 'In Stock',
-    'delivery': 'Same Day Delivery',
-    'imageUrl': 'assets/parts.jpg',
-  },
-  {
-    'title': 'Drip Irrigation Kit',
-    'distance': '1.8 miles away',
-    'price': '₹3500/kit',
-    'rating': 4.8,
-    'category': 'Irrigation',
-    'description': 'Complete drip irrigation system for 1 acre',
-    'seller': 'Water Tech Solutions',
-    'available': 'In Stock',
-    'delivery': 'Free Installation',
-    'imageUrl': 'assets/drip.jpg',
-  },
-];
+final List<Map<String, dynamic>> nearbyItems = [];
 
 // New Equipment List Page
 class EquipmentListPage extends StatelessWidget {
@@ -1353,9 +1819,9 @@ class EquipmentListPage extends StatelessWidget {
                                   ],
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  equipment[index]['price'],
-                                  style: const TextStyle(
+                                const Text(
+                                  'Borrow for Free',
+                                  style: TextStyle(
                                     color: Color(0xFF4CAF50),
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
@@ -1391,7 +1857,7 @@ class EquipmentListPage extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF4CAF50),
                             ),
-                            child: const Text('Rent Now'),
+                            child: const Text('Borrow Now'),
                           ),
                         ],
                       ),

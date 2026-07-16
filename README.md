@@ -1,6 +1,6 @@
-# UzhavuSei
+# Borrow
 
-Production-oriented Flutter marketplace app for farm equipment rental.
+Borrow is a community marketplace where people can rent, lend, buy, and sell resources such as books, farming equipment, construction equipment, and more.
 
 ## Prerequisites
 

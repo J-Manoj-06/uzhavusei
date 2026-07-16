@@ -848,7 +848,7 @@ class _CalendarState extends State<Calendar> {
 
     try {
       final profile = context.read<UserProfileProvider>().userData;
-      final name = (profile['name'] ?? 'UzhavuSei User').toString();
+      final name = (profile['name'] ?? 'Borrow User').toString();
       final email = (profile['email'] ?? 'user@example.com').toString();
       final rawPhone = (profile['phone'] ??
               profile['phoneNumber'] ??

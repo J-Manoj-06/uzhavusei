@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../../../models/marketplace_equipment_model.dart';
 import '../../../../../widgets/image_loader.dart';
 import 'unified_listing.dart';
 import 'listing_analytics_sheet.dart';
@@ -90,7 +89,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
             ),
             const SizedBox(height: 16),
             const Text(
-              'uzhavusei.app/listing/' + 'id-928374',
+              'borrow.app/listing/' + 'id-928374',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue),
             ),
           ],

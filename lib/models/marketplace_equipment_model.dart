@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../utils/localized_text.dart';
+import '../services/distance_service.dart';
 
 class MarketplaceEquipmentModel {
   const MarketplaceEquipmentModel({
@@ -23,8 +24,15 @@ class MarketplaceEquipmentModel {
     required this.createdAt,
     required this.ownerName,
     required this.machineSpecs,
+    this.area = '',
+    this.city = '',
+    this.state = '',
+    this.country = '',
+    this.locationCapturedAt,
+    this.locationAccuracy,
     this.videoUrl = '',
     this.updatedAt,
+    this.distanceInfo,
     this.availabilityFrom,
     this.availabilityTo,
     this.condition = 'New',
@@ -53,6 +61,12 @@ class MarketplaceEquipmentModel {
   final String location;
   final double latitude;
   final double longitude;
+  final String area;
+  final String city;
+  final String state;
+  final String country;
+  final DateTime? locationCapturedAt;
+  final double? locationAccuracy;
   final List<String> imageUrls;
   final bool availability;
   final double rating;
@@ -75,6 +89,8 @@ class MarketplaceEquipmentModel {
   final int views;
   final List<String> savedBy;
   final int bookingsCount;
+
+  final DistanceInfo? distanceInfo;
 
   String titleForLanguage(String languageCode) =>
       getLocalizedText(titleLocalized, languageCode);
@@ -155,6 +171,12 @@ class MarketplaceEquipmentModel {
       location: (data['location'] ?? 'Unknown').toString(),
       latitude: _toDouble(data['latitude']),
       longitude: _toDouble(data['longitude']),
+      area: (data['area'] ?? '').toString(),
+      city: (data['city'] ?? '').toString(),
+      state: (data['state'] ?? '').toString(),
+      country: (data['country'] ?? '').toString(),
+      locationCapturedAt: _toDateOrNull(data['locationCapturedAt']),
+      locationAccuracy: data['locationAccuracy'] != null ? _toDouble(data['locationAccuracy']) : null,
       imageUrls: _toStringList(data['images'] ?? data['imageUrls']),
       availability: availability,
       rating: _toDouble(data['rating']),
@@ -209,6 +231,12 @@ class MarketplaceEquipmentModel {
       'location': location,
       'latitude': latitude,
       'longitude': longitude,
+      'area': area,
+      'city': city,
+      'state': state,
+      'country': country,
+      'locationCapturedAt': locationCapturedAt != null ? Timestamp.fromDate(locationCapturedAt!) : null,
+      'locationAccuracy': locationAccuracy,
       'imageUrls': imageUrls,
       'availability': {
         'from': availabilityStart.toIso8601String(),
@@ -231,6 +259,52 @@ class MarketplaceEquipmentModel {
       'savedBy': savedBy,
       'bookingsCount': bookingsCount,
     };
+  }
+
+  MarketplaceEquipmentModel copyWithDistance(DistanceInfo? info) {
+    return MarketplaceEquipmentModel(
+      equipmentId: equipmentId,
+      ownerId: ownerId,
+      equipmentName: equipmentName,
+      category: category,
+      description: description,
+      titleLocalized: titleLocalized,
+      categoryLocalized: categoryLocalized,
+      descriptionLocalized: descriptionLocalized,
+      pricePerHour: pricePerHour,
+      pricePerDay: pricePerDay,
+      location: location,
+      latitude: latitude,
+      longitude: longitude,
+      imageUrls: imageUrls,
+      availability: availability,
+      rating: rating,
+      createdAt: createdAt,
+      ownerName: ownerName,
+      machineSpecs: machineSpecs,
+      videoUrl: videoUrl,
+      updatedAt: updatedAt,
+      availabilityFrom: availabilityFrom,
+      availabilityTo: availabilityTo,
+      condition: condition,
+      documents: documents,
+      imagePublicIds: imagePublicIds,
+      minRentalDuration: minRentalDuration,
+      minRentalDurationType: minRentalDurationType,
+      priceType: priceType,
+      status: status,
+      tags: tags,
+      views: views,
+      savedBy: savedBy,
+      bookingsCount: bookingsCount,
+      area: area,
+      city: city,
+      state: state,
+      country: country,
+      locationCapturedAt: locationCapturedAt,
+      locationAccuracy: locationAccuracy,
+      distanceInfo: info,
+    );
   }
 }
 

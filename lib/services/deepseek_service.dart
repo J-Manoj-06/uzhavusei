@@ -17,7 +17,7 @@ class DeepSeekService {
         {
           'role': 'system',
           'content':
-              'You are a friendly agriculture marketplace assistant for farmers. '
+              'You are a friendly community marketplace assistant for Borrow. Borrow is a community marketplace where people can rent, lend, buy, and sell resources such as books, farming equipment, construction equipment, and more. '
                   'Give short, practical answers. '
                   'Reply in the same language as user input. '
                   'If user language is unclear, reply in this language code: $languageCode.'

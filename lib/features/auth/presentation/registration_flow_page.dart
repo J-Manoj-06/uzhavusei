@@ -410,7 +410,7 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
         children: [
           const Text("Verify Your\nMobile Number", style: TextStyle(color: Colors.black, fontSize: 32, fontWeight: FontWeight.bold, height: 1.2)),
           const SizedBox(height: 8),
-          const Text("Let's secure your UzhavuSei account", style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w500)),
+          const Text("Let's secure your Borrow account", style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w500)),
           const SizedBox(height: 40),
           _buildGlassCard(
             child: Column(
@@ -763,11 +763,11 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
                 child: Icon(Icons.check_circle, color: _primaryGreen, size: 100),
               ),
               const SizedBox(height: 32),
-              const Text("Welcome to\nUzhavuSei", textAlign: TextAlign.center, style: TextStyle(color: Colors.black, fontSize: 40, fontWeight: FontWeight.bold, height: 1.1)),
+              const Text("Welcome to\nBorrow", textAlign: TextAlign.center, style: TextStyle(color: Colors.black, fontSize: 40, fontWeight: FontWeight.bold, height: 1.1)),
               const SizedBox(height: 16),
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 32),
-                child: Text("You are now ready to rent equipment, connect with farmers, and grow your agricultural business.", textAlign: TextAlign.center, style: TextStyle(color: Colors.black54, fontSize: 18, height: 1.4, fontWeight: FontWeight.w500)),
+                child: Text("You are now ready to rent, lend, buy, and sell resources, connect with your community, and make better use of shared resources.", textAlign: TextAlign.center, style: TextStyle(color: Colors.black54, fontSize: 15, height: 1.4, fontWeight: FontWeight.w500)),
               ),
               const SizedBox(height: 48),
               SizedBox(

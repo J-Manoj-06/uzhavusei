@@ -201,7 +201,7 @@ class _ChatbotPageState extends State<ChatbotPage>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'UzhavuSei AI',
+                'Borrow AI',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
               ),
               Row(
@@ -440,7 +440,7 @@ class _ChatbotPageState extends State<ChatbotPage>
       case 'hi':
         return 'कुछ भी पूछें...';
       default:
-        return 'Ask anything...';
+        return 'Ask Borrow AI anything...';
     }
   }
 }

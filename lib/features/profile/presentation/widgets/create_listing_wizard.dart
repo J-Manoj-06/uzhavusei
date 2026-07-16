@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../../../models/marketplace_equipment_model.dart';
 import '../../../../../services/marketplace_service.dart';
+import '../../../../../services/location_service.dart';
 
 class CreateListingWizard extends StatefulWidget {
   const CreateListingWizard({
@@ -23,7 +24,7 @@ class CreateListingWizard extends StatefulWidget {
 class _CreateListingWizardState extends State<CreateListingWizard> {
   final MarketplaceService _service = MarketplaceService();
   int _currentStep = 0;
-  final int _totalSteps = 7;
+  final int _totalSteps = 6;
 
   // Step 1: Category
   String _selectedCategory = 'Farm Equipment';
@@ -52,12 +53,7 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
   final TextEditingController _specsCtrl = TextEditingController();
   String _duplicateFeedback = '';
 
-  // Step 4: Pricing
-  final TextEditingController _rentalPriceCtrl = TextEditingController();
-  final TextEditingController _salePriceCtrl = TextEditingController();
-  final TextEditingController _depositCtrl = TextEditingController();
-  bool _isNegotiable = false;
-  String _aiPriceSuggestion = '';
+
 
   // Step 5: Availability
   DateTimeRange? _selectedDateRange;
@@ -71,6 +67,15 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
   double _lng = 80.2707;
   bool _gpsSelected = false;
 
+  String _detectedArea = '';
+  String _detectedCity = '';
+  String _detectedState = '';
+  String _detectedCountry = '';
+  double _locationAccuracy = 0;
+  DateTime? _locationCapturedAt;
+  bool _detectingLocation = false;
+  String? _locationError;
+
   bool _isSubmitting = false;
 
   @override
@@ -81,9 +86,6 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
     _modelCtrl.dispose();
     _yearCtrl.dispose();
     _specsCtrl.dispose();
-    _rentalPriceCtrl.dispose();
-    _salePriceCtrl.dispose();
-    _depositCtrl.dispose();
     _minPeriodCtrl.dispose();
     _maxPeriodCtrl.dispose();
     _addressCtrl.dispose();
@@ -93,13 +95,56 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
   // --- Step Helpers ---
   void _nextStep() {
     if (_currentStep < _totalSteps - 1) {
-      setState(() => _currentStep++);
+      setState(() {
+        _currentStep++;
+        if (_currentStep == 4) {
+          _detectLocation();
+        }
+      });
     }
   }
 
   void _prevStep() {
     if (_currentStep > 0) {
       setState(() => _currentStep--);
+    }
+  }
+
+  Future<void> _detectLocation() async {
+    setState(() {
+      _detectingLocation = true;
+      _locationError = null;
+    });
+
+    final result = await LocationService.instance.getCurrentLocation();
+
+    if (!mounted) return;
+
+    if (result is LocationSuccess) {
+      final loc = result.location;
+      setState(() {
+        _lat = loc.latitude;
+        _lng = loc.longitude;
+        _detectedArea = loc.area ?? '';
+        _detectedCity = loc.city ?? '';
+        _detectedState = loc.state ?? '';
+        _detectedCountry = loc.country ?? '';
+        _locationAccuracy = loc.accuracy ?? 0.0;
+        _locationCapturedAt = loc.timestamp;
+        _addressCtrl.text = [
+          if (_detectedArea.isNotEmpty) _detectedArea,
+          if (_detectedCity.isNotEmpty) _detectedCity,
+          if (_detectedState.isNotEmpty) _detectedState,
+        ].join(', ');
+        _gpsSelected = true;
+        _detectingLocation = false;
+      });
+    } else if (result is LocationFailure) {
+      setState(() {
+        _locationError = result.reason;
+        _detectingLocation = false;
+        _gpsSelected = false;
+      });
     }
   }
 
@@ -123,9 +168,9 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
     }
     setState(() {
       _descriptionCtrl.text = 'This premium ${_brandCtrl.text.isNotEmpty ? _brandCtrl.text : ''} ${_titleCtrl.text.trim()} is available in ${_selectedCondition.toLowerCase()} condition. '
-          'Perfect for both short-term rentals and long-term community sharing. '
+          'Perfect for community sharing and borrowing. '
           'It is well-maintained, reliable, and available immediately. '
-          'Fulfill your community resource needs with this quality ${_selectedCategory.toLowerCase()}!';
+          'Borrow this quality ${_selectedCategory.toLowerCase()} from a neighbor!';
     });
   }
 
@@ -141,19 +186,7 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
     });
   }
 
-  void _getAIPriceSuggestion() {
-    double baseVal = 100;
-    if (_selectedCategory == 'Farm Equipment') baseVal = 1500;
-    if (_selectedCategory == 'Construction Equipment') baseVal = 2500;
-    if (_selectedCategory == 'Books') baseVal = 80;
 
-    setState(() {
-      _aiPriceSuggestion = '💡 AI Price Suggestion:\n'
-          '• Recommended Rental: ₹$baseVal - ₹${baseVal * 1.3}/day\n'
-          '• Recommended Sale: ₹${baseVal * 10} - ₹${baseVal * 15}\n'
-          'Based on category demand and condition (${_selectedCondition}).';
-    });
-  }
 
   Future<void> _pickImage(ImageSource source) async {
     try {
@@ -204,14 +237,30 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
 
     setState(() => _isSubmitting = true);
 
+    // ── Location verification gate ────────────────────────────
+    final locationResult =
+        await LocationService.instance.getCurrentLocation();
+
+    if (locationResult is LocationFailure) {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+      await _showLocationRequiredDialog(locationResult);
+      return;
+    }
+
+    // Location verified – use real coordinates
+    final verifiedLocation =
+        (locationResult as LocationSuccess).location;
+
+    // ─────────────────────────────────────────────────────────
+
     try {
-      final rentPrice = double.tryParse(_rentalPriceCtrl.text) ?? 200.0;
       final title = _titleCtrl.text.trim();
       final description = _descriptionCtrl.text.trim();
       final brand = _brandCtrl.text.trim();
       final model = _modelCtrl.text.trim();
       final condition = _selectedCondition;
-      
+
       // We will generate a mock image URL or use a placeholder if none is chosen
       final List<String> imageUrls = _selectedImages.isNotEmpty
           ? ['https://images.unsplash.com/photo-1589829545856-d10d557cf95f?auto=format&fit=crop&w=400&q=80']
@@ -227,11 +276,17 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
         titleLocalized: {'en': title, 'ta': title, 'hi': title},
         categoryLocalized: {'en': _selectedCategory, 'ta': _selectedCategory, 'hi': _selectedCategory},
         descriptionLocalized: {'en': description, 'ta': description, 'hi': description},
-        pricePerHour: rentPrice / 8,
-        pricePerDay: rentPrice,
+        pricePerHour: 0.0,
+        pricePerDay: 0.0,
         location: _addressCtrl.text.isNotEmpty ? _addressCtrl.text : 'Chennai, India',
-        latitude: _lat,
-        longitude: _lng,
+        latitude: verifiedLocation.latitude,
+        longitude: verifiedLocation.longitude,
+        area: _detectedArea.isNotEmpty ? _detectedArea : verifiedLocation.area ?? '',
+        city: _detectedCity.isNotEmpty ? _detectedCity : verifiedLocation.city ?? '',
+        state: _detectedState.isNotEmpty ? _detectedState : verifiedLocation.state ?? '',
+        country: _detectedCountry.isNotEmpty ? _detectedCountry : verifiedLocation.country ?? '',
+        locationAccuracy: _locationAccuracy > 0 ? _locationAccuracy : verifiedLocation.accuracy,
+        locationCapturedAt: _locationCapturedAt ?? verifiedLocation.timestamp,
         imageUrls: imageUrls,
         availability: true,
         rating: 5.0,
@@ -270,6 +325,87 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
       }
     }
   }
+
+  /// Shows a blocking dialog when location verification fails.
+  /// Gives the user options to enable location, retry, or cancel.
+  Future<void> _showLocationRequiredDialog(LocationFailure failure) async {
+    final isPermanent = failure.isPermanent;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: const Icon(Icons.location_off_rounded,
+            size: 48, color: Color(0xFFF57C00)),
+        title: const Text(
+          'Location Required',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Borrow needs your current location before publishing this listing so nearby people can discover it.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFFF3E0),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                failure.reason,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: 13, color: Color(0xFF795548)),
+              ),
+            ),
+          ],
+        ),
+        actionsAlignment: MainAxisAlignment.center,
+        actions: [
+          // Cancel – blocks publish
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel',
+                style: TextStyle(color: Colors.grey)),
+          ),
+
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              if (isPermanent) {
+                await LocationService.instance.openAppPermissionSettings();
+              } else if (failure.reason.contains('disabled') || failure.reason.contains('services')) {
+                await LocationService.instance.openLocationSettings();
+              } else {
+                await _submitListing();
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2E7D32),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Text(isPermanent || failure.reason.contains('disabled') || failure.reason.contains('services') ? 'Enable Location' : 'Retry'),
+          ),
+          if (isPermanent || failure.reason.contains('disabled') || failure.reason.contains('services'))
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(dialogContext);
+                await _submitListing();
+              },
+              child: const Text('Retry', style: TextStyle(color: Color(0xFF2E7D32))),
+            ),
+        ],
+      ),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -324,12 +460,10 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
       case 2:
         return _buildStepDetails();
       case 3:
-        return _buildStepPricing();
-      case 4:
         return _buildStepAvailability();
-      case 5:
+      case 4:
         return _buildStepLocation();
-      case 6:
+      case 5:
         return _buildStepPreview();
       default:
         return const SizedBox.shrink();
@@ -711,105 +845,7 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
     );
   }
 
-  // --- STEP 4: Pricing ---
-  Widget _buildStepPricing() {
-    return Column(
-      key: const ValueKey('step_pr'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Pricing Details',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Configure your daily rental fee, purchase option, and security deposits.',
-          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _rentalPriceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Rental Price per Day (₹) *',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  floatingLabelBehavior: FloatingLabelBehavior.always,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _salePriceCtrl,
-                keyboardType: TextInputType.number,
-                decoration: InputDecoration(
-                  labelText: 'Optional Sale Price (₹)',
-                  prefixText: '₹ ',
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  floatingLabelBehavior: FloatingLabelBehavior.always,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        TextField(
-          controller: _depositCtrl,
-          keyboardType: TextInputType.number,
-          decoration: InputDecoration(
-            labelText: 'Security Deposit (₹)',
-            prefixText: '₹ ',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            floatingLabelBehavior: FloatingLabelBehavior.always,
-          ),
-        ),
-        const SizedBox(height: 20),
-        SwitchListTile(
-          title: const Text('Price is Negotiable', style: TextStyle(fontWeight: FontWeight.bold)),
-          subtitle: const Text('Allow interested buyers/renters to make custom offers.'),
-          value: _isNegotiable,
-          activeColor: const Color(0xFF2E7D32),
-          onChanged: (val) => setState(() => _isNegotiable = val),
-        ),
-        const SizedBox(height: 24),
-        // AI Suggested Pricing button
-        Center(
-          child: ElevatedButton.icon(
-            onPressed: _getAIPriceSuggestion,
-            icon: const Icon(Icons.auto_awesome),
-            label: const Text('Get AI Price Suggestions'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFE8F5E9),
-              foregroundColor: const Color(0xFF2E7D32),
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            ),
-          ),
-        ),
-        if (_aiPriceSuggestion.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: const Color(0xFFFFF3E0),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.orange.shade200),
-            ),
-            child: Text(
-              _aiPriceSuggestion,
-              style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.w600, height: 1.5),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
+
 
   // --- STEP 5: Availability ---
   Widget _buildStepAvailability() {
@@ -870,7 +906,7 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
                 controller: _minPeriodCtrl,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Min Rental Period (Days)',
+                  labelText: 'Min Borrow Period (Days)',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
@@ -882,7 +918,7 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
                 controller: _maxPeriodCtrl,
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  labelText: 'Max Rental Period (Days)',
+                  labelText: 'Max Borrow Period (Days)',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   floatingLabelBehavior: FloatingLabelBehavior.always,
                 ),
@@ -929,100 +965,156 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
           'Listing Location',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
         ),
+        const SizedBox(height: 8),
+        Text(
+          'We will automatically detect your location to recommend it to nearby borrowers.',
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+        ),
         const SizedBox(height: 24),
-        // Fetch GPS coordinates button
-        InkWell(
-          onTap: () {
-            setState(() {
-              _gpsSelected = true;
-              _lat = 13.0827;
-              _lng = 80.2707;
-              _addressCtrl.text = 'Chennai Metro Center, India';
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('GPS coordinates loaded!')),
-            );
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-            decoration: BoxDecoration(
-              color: _gpsSelected ? const Color(0xFFE8F5E9) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _gpsSelected ? const Color(0xFF2E7D32) : const Color(0xFFEBEFF0),
-                width: 1.5,
+        if (_detectingLocation)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Column(
+                children: [
+                  CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                  SizedBox(height: 16),
+                  Text(
+                    'Detecting location automatically...',
+                    style: TextStyle(color: Color(0xFF6F7A6B), fontWeight: FontWeight.w500),
+                  ),
+                ],
               ),
             ),
-            child: Row(
+          )
+        else if (_locationError != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF3E0),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(Icons.gps_fixed, color: Color(0xFF2E7D32)),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Load GPS Location',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _gpsSelected ? 'Coordinates: $_lat, $_lng' : 'Use your device\'s current location',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-                      ),
-                    ],
+                const Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      'Location Detection Failed',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _locationError!,
+                  style: const TextStyle(fontSize: 13, color: Color(0xFF795548)),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _detectLocation,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Try Again'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF2E7D32),
+                      foregroundColor: Colors.white,
+                    ),
                   ),
                 ),
-                if (_gpsSelected) const Icon(Icons.check, color: Color(0xFF2E7D32)),
               ],
             ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        // Manual address input
-        TextField(
-          controller: _addressCtrl,
-          decoration: InputDecoration(
-            labelText: 'Manual Address / Nearby Landmark',
-            hintText: 'e.g. 15th Cross Street, Chennai, India',
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-            floatingLabelBehavior: FloatingLabelBehavior.always,
-          ),
-        ),
-        const SizedBox(height: 24),
-        // Mock Map container
-        Container(
-          width: double.infinity,
-          height: 150,
-          decoration: BoxDecoration(
-            color: Colors.blue.shade100,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.blue.shade200),
-          ),
-          alignment: Alignment.center,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              const Icon(Icons.map, size: 50, color: Colors.blueAccent),
-              const Positioned(
-                child: Icon(Icons.location_pin, color: Colors.red, size: 36),
-              ),
-              Positioned(
-                bottom: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Text('Interactive Map Preview', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+          )
+        else if (_gpsSelected)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFEBEFF0)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.02),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 24),
+                    SizedBox(width: 8),
+                    Text(
+                      '📍 Current Location',
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF2E7D32)),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (_detectedArea.isNotEmpty)
+                  Text(
+                    _detectedArea,
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (_detectedCity.isNotEmpty) _detectedCity,
+                    if (_detectedState.isNotEmpty) _detectedState,
+                  ].join(', '),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Detected automatically',
+                  style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B), fontStyle: FontStyle.italic),
+                ),
+                const SizedBox(height: 20),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Accuracy: ${_locationAccuracy.toStringAsFixed(0)} m',
+                      style: const TextStyle(fontSize: 11, color: Color(0xFF6F7A6B)),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _detectLocation,
+                      icon: const Icon(Icons.my_location, size: 14),
+                      label: const Text('Refresh Location', style: TextStyle(fontSize: 12)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFF2E7D32)),
+                        foregroundColor: const Color(0xFF2E7D32),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          )
+        else
+          Center(
+            child: ElevatedButton.icon(
+              onPressed: _detectLocation,
+              icon: const Icon(Icons.location_on),
+              label: const Text('Detect Current Location'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2E7D32),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
               ),
-            ],
+            ),
           ),
-        ),
       ],
     );
   }
@@ -1094,18 +1186,13 @@ class _CreateListingWizardState extends State<CreateListingWizard> {
                       style: TextStyle(fontSize: 13, color: Colors.grey.shade600, height: 1.4),
                     ),
                     const SizedBox(height: 16),
-                    Row(
+                    const Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Price: ₹${_rentalPriceCtrl.text.isNotEmpty ? _rentalPriceCtrl.text : '200'}/day',
-                          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                          'Free to Borrow',
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
                         ),
-                        if (_salePriceCtrl.text.isNotEmpty)
-                          Text(
-                            'Buy: ₹${_salePriceCtrl.text}',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
-                          ),
                       ],
                     ),
                     const Divider(height: 24),

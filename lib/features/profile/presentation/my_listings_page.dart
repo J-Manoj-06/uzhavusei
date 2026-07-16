@@ -7,6 +7,7 @@ import '../../../../../services/marketplace_service.dart';
 import 'widgets/unified_listing.dart';
 import 'widgets/equipment_listing_card.dart';
 import 'widgets/create_listing_wizard.dart';
+import '../../../localization/app_localizations.dart';
 
 class MyListingsPage extends StatefulWidget {
   const MyListingsPage({
@@ -30,35 +31,32 @@ class _MyListingsPageState extends State<MyListingsPage> {
   List<MarketplaceEquipmentModel> _equipments = [];
   List<FarmSurplusExchangeModel> _exchanges = [];
   double _potentialEarnings = 0;
+  int _completedExchangesCount = 0;
+  int _borrowRequestsCount = 0;
   bool _loading = true;
 
   // Filters State
   String _selectedCategory = 'All';
   String _selectedStatus = 'All';
   String _searchQuery = '';
-  String _sortBy = 'Newest'; // Newest, Price Low-High, Price High-Low
+  String _sortBy = 'Newest';
 
   final List<String> _categories = [
     'All',
-    '📚 Books',
-    '🚜 Farm Equipment',
-    '🏗️ Construction Equipment',
-    '🔌 Electronics',
-    '🎸 Musical Instruments',
-    '🛠️ Tools'
+    'Books',
+    'Farm Equipment',
+    'Construction Equipment',
+    'Electronics',
+    'Musical Instruments',
+    'Tools'
   ];
 
   final List<String> _statuses = [
     'All',
     'Available',
-    'Booked',
-    'Rented',
-    'Sold',
-    'Expired',
-    'Draft',
-    'Hidden',
+    'Borrowed',
     'Completed',
-    'Cancelled'
+    'Hidden'
   ];
 
   @override
@@ -86,14 +84,24 @@ class _MyListingsPageState extends State<MyListingsPage> {
 
     _bookingsSub = _service.watchOwnerBookings(widget.currentUser.userId).listen((bookings) {
       if (!mounted) return;
+      int completed = 0;
+      int pendingOrApproved = 0;
       double earnings = 0;
       for (var b in bookings) {
+        if (b.status == 'completed') {
+          completed++;
+        }
+        if (b.status == 'pending' || b.status == 'approved') {
+          pendingOrApproved++;
+        }
         if (b.status == 'confirmed' || b.status == 'completed' || b.status == 'pending') {
           earnings += b.totalPrice;
         }
       }
       setState(() {
         _potentialEarnings = earnings;
+        _completedExchangesCount = completed;
+        _borrowRequestsCount = pendingOrApproved;
       });
     });
   }
@@ -160,72 +168,61 @@ class _MyListingsPageState extends State<MyListingsPage> {
       ));
     }
 
-    // Dynamic sorting
-    if (_sortBy == 'Price Low-High') {
+    // Sort listings
+    if (_sortBy == 'Newest') {
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } else if (_sortBy == 'Price Low-High') {
       list.sort((a, b) => a.price.compareTo(b.price));
     } else if (_sortBy == 'Price High-Low') {
       list.sort((a, b) => b.price.compareTo(a.price));
-    } else {
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
     }
 
     return list;
   }
 
-  // --- Filter logics ---
   bool _matchesCategory(UnifiedListing item, String filter) {
     if (filter == 'All') return true;
-    final cat = item.category.toLowerCase();
-    
-    if (filter.contains('Books')) {
-      return cat == 'books' || cat == 'book';
-    }
-    if (filter.contains('Farm Equipment')) {
-      final isLegacyFarm = ['tractor', 'harvester', 'sprayer', 'seeder', 'rotavator', 'pump set', 'cultivator', 'seeds', 'fertilizers', 'pesticides'].contains(cat);
-      return cat.contains('farm') || cat.contains('agri') || isLegacyFarm || item.isExchange;
-    }
-    if (filter.contains('Construction')) {
-      return cat.contains('construction') || cat.contains('excavator') || cat.contains('crane') || cat.contains('cement') || cat == 'construction equipment';
-    }
-    final cleanFilter = filter.replaceAll(RegExp(r'[^\w\s]'), '').trim().toLowerCase();
-    return cat.contains(cleanFilter);
+    final f = filter.toLowerCase();
+    final c = item.category.toLowerCase();
+    if (f.contains('book')) return c.contains('book');
+    if (f.contains('farm') || f.contains('agri')) return c.contains('farm') || c.contains('agri');
+    if (f.contains('construction') || f.contains('tool')) return c.contains('construction') || c.contains('tool');
+    if (f.contains('electron')) return c.contains('electron');
+    if (f.contains('music')) return c.contains('music');
+    return c == f;
   }
 
   bool _matchesStatus(UnifiedListing item, String filter) {
     if (filter == 'All') return true;
-    final status = item.status.toLowerCase();
     final f = filter.toLowerCase();
-    if (f == 'available') return status == 'available' || status == 'published';
-    if (f == 'paused') return status == 'hidden';
-    return status == f;
+    final s = item.status.toLowerCase();
+    if (f == 'available') return s == 'published' || s == 'available';
+    if (f == 'borrowed') return s == 'booked' || s == 'rented';
+    return s == f;
   }
 
-  // --- Custom Action Handlers ---
   void _openCreateListingWizard() {
-    showGeneralDialog(
-      context: context,
-      barrierDismissible: false,
-      pageBuilder: (context, anim1, anim2) => CreateListingWizard(
-        ownerId: widget.currentUser.userId,
-        ownerName: widget.currentUser.name,
-        onPublished: () {
-          setState(() {});
-        },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CreateListingWizard(
+          ownerId: widget.currentUser.userId,
+          ownerName: widget.currentUser.name,
+          onPublished: () {},
+        ),
       ),
     );
   }
 
   Future<void> _editListing(UnifiedListing item) async {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('✏️ Editing "${item.title}"...')),
+      SnackBar(content: Text('Editing listing: ${item.title}')),
     );
   }
 
   Future<void> _pauseResumeListing(UnifiedListing item) async {
-    final isPaused = item.status.toLowerCase() == 'hidden';
-    final newStatus = isPaused ? 'published' : 'hidden';
-
     try {
+      final newStatus = item.status == 'published' ? 'hidden' : 'published';
       if (item.isEquipment) {
         await _service.updateEquipment(equipmentId: item.id, updates: {'status': newStatus});
       } else if (item.isExchange) {
@@ -233,16 +230,13 @@ class _MyListingsPageState extends State<MyListingsPage> {
       }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(isPaused ? '▶️ Resumed listing successfully!' : '⏸ Paused listing successfully!'),
-            backgroundColor: const Color(0xFF2E7D32),
-          ),
+          SnackBar(content: Text('Listing is now ${newStatus == 'published' ? 'Available' : 'Hidden'}')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update: $e'), backgroundColor: Colors.red),
+          SnackBar(content: Text('Failed to update listing: $e'), backgroundColor: Colors.red),
         );
       }
     }
@@ -410,15 +404,16 @@ class _MyListingsPageState extends State<MyListingsPage> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Sort & Filter Options', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        title: const Text('Sort Options', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              title: const Text('Sort by Newest'),
+              title: const Text('Sort by Newest', style: TextStyle(fontSize: 14)),
               leading: Radio<String>(
                 value: 'Newest',
                 groupValue: _sortBy,
+                activeColor: const Color(0xFF2E7D32),
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -428,10 +423,11 @@ class _MyListingsPageState extends State<MyListingsPage> {
               ),
             ),
             ListTile(
-              title: const Text('Price: Low to High'),
+              title: const Text('Price: Low to High', style: TextStyle(fontSize: 14)),
               leading: Radio<String>(
                 value: 'Price Low-High',
                 groupValue: _sortBy,
+                activeColor: const Color(0xFF2E7D32),
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -441,10 +437,11 @@ class _MyListingsPageState extends State<MyListingsPage> {
               ),
             ),
             ListTile(
-              title: const Text('Price: High to Low'),
+              title: const Text('Price: High to Low', style: TextStyle(fontSize: 14)),
               leading: Radio<String>(
                 value: 'Price High-Low',
                 groupValue: _sortBy,
+                activeColor: const Color(0xFF2E7D32),
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -463,24 +460,18 @@ class _MyListingsPageState extends State<MyListingsPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
+        backgroundColor: Color(0xFFF8FAF8),
         body: Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
       );
     }
 
     final listings = _getUnifiedListings();
-    
-    // Stats calculation
+
+    // Stats calculations
     final totalCount = listings.length;
     final activeCount = listings.where((item) => item.status == 'published' || item.status == 'available').length;
-    final rentalCount = listings.where((item) => item.status == 'booked' || item.status == 'rented').length;
-    final totalViews = listings.fold<int>(0, (sum, item) => sum + item.views);
-    final wishlistCount = listings.fold<int>(0, (sum, item) => sum + item.savedBy.length);
-    final ratedItems = listings.where((item) => item.rating > 0).toList();
-    final avgRating = ratedItems.isNotEmpty 
-        ? ratedItems.map((e) => e.rating).reduce((a, b) => a + b) / ratedItems.length 
-        : 4.8;
 
-    // Apply Filter & Search
+    // Apply Filters
     final filteredListings = listings.where((item) {
       final matchesCategory = _matchesCategory(item, _selectedCategory);
       final matchesStatus = _matchesStatus(item, _selectedStatus);
@@ -496,173 +487,156 @@ class _MyListingsPageState extends State<MyListingsPage> {
         backgroundColor: Colors.white,
         elevation: 0,
         surfaceTintColor: Colors.transparent,
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'My Listings',
-              style: TextStyle(
-                color: Color(0xFF1A1A1A),
-                fontSize: 20,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.4,
+        toolbarHeight: 90,
+        title: const Padding(
+          padding: EdgeInsets.only(top: 10, bottom: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'My Listings',
+                style: TextStyle(
+                  color: Color(0xFF1A1A1A),
+                  fontSize: 30, // 30sp Page Title
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
-            Text(
-              'Manage all your rentals and marketplace listings.',
-              style: TextStyle(
-                color: Color(0xFF6F7A6B),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
+              SizedBox(height: 4),
+              Text(
+                'Manage all your shared resources.',
+                style: TextStyle(
+                  color: Color(0xFF6F7A6B),
+                  fontSize: 14, // 14sp Caption
+                  fontWeight: FontWeight.normal,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
-          _circularActionButton(icon: Icons.search, onPressed: _showSearchDialog, tooltip: 'Search'),
+          IconButton(
+            icon: const Icon(Icons.search, size: 28, color: Color(0xFF1A1A1A)),
+            onPressed: _showSearchDialog,
+            tooltip: 'Search',
+          ),
           const SizedBox(width: 8),
-          _circularActionButton(icon: Icons.tune, onPressed: _showFilterDialog, tooltip: 'Filter'),
+          IconButton(
+            icon: const Icon(Icons.tune, size: 28, color: Color(0xFF1A1A1A)),
+            onPressed: _showFilterDialog,
+            tooltip: 'Sort Options',
+          ),
           const SizedBox(width: 16),
         ],
       ),
-      body: Column(
-        children: [
-          // Expanded M3 Statistics Section
-          _buildStatsDashboard(
-            totalCount: totalCount,
-            activeCount: activeCount,
-            rentalCount: rentalCount,
-            earnings: _potentialEarnings,
-            views: totalViews,
-            wishlist: wishlistCount,
-            rating: avgRating,
-          ),
-          
-          // Category chips selector
-          _buildCategoryFilters(),
-
-          // Status Filter Chips
-          _buildStatusFilters(),
-
-          // Main list or Empty State
-          Expanded(
-            child: filteredListings.isEmpty
+      body: SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 2x2 statistics dashboard
+            _build2x2StatsDashboard(totalCount, activeCount),
+            
+            const SizedBox(height: 24),
+  
+            // Category filters
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Categories',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey.shade800),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildCategoryFiltersList(),
+  
+            const SizedBox(height: 24),
+  
+            // Status filters
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Filter by Status',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey.shade800),
+              ),
+            ),
+            const SizedBox(height: 10),
+            _buildStatusFiltersList(),
+  
+            const SizedBox(height: 24),
+  
+            // Header title list count
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Text(
+                'Shared Resources (${filteredListings.length})',
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+              ),
+            ),
+            const SizedBox(height: 12),
+  
+            filteredListings.isEmpty
                 ? _buildPremiumEmptyState()
                 : ListView.builder(
-                    padding: const EdgeInsets.only(top: 8, bottom: 88),
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    padding: const EdgeInsets.only(top: 8, bottom: 88, left: 16, right: 16),
                     itemCount: filteredListings.length,
                     itemBuilder: (context, index) {
                       final item = filteredListings[index];
-                      return EquipmentListingCard(
-                        listing: item,
-                        onTap: () {}, // Detail routing is handled inside card or defaults
-                        onEdit: () => _editListing(item),
-                        onDelete: () => _confirmDelete(item),
-                        onPauseResume: () => _pauseResumeListing(item),
-                        onDuplicate: () => _duplicateListing(item),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 16),
+                        child: EquipmentListingCard(
+                          listing: item,
+                          onTap: () {},
+                          onEdit: () => _editListing(item),
+                          onDelete: () => _confirmDelete(item),
+                          onPauseResume: () => _pauseResumeListing(item),
+                          onDuplicate: () => _duplicateListing(item),
+                        ),
                       );
                     },
                   ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _openCreateListingWizard,
-        backgroundColor: const Color(0xFF2E7D32),
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.add),
-        label: const Text('Add Listing', style: TextStyle(fontWeight: FontWeight.bold)),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      ),
-    );
-  }
-
-  Widget _circularActionButton({
-    required IconData icon,
-    required VoidCallback onPressed,
-    required String tooltip,
-  }) {
-    return Container(
-      width: 38,
-      height: 38,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          customBorder: const CircleBorder(),
-          onTap: onPressed,
-          child: Tooltip(
-            message: tooltip,
-            child: Icon(icon, color: const Color(0xFF3F4A3C), size: 20),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatsDashboard({
-    required int totalCount,
-    required int activeCount,
-    required int rentalCount,
-    required double earnings,
-    required int views,
-    required int wishlist,
-    required double rating,
-  }) {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: SizedBox(
-        height: 80,
-        child: ListView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          children: [
-            _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, const Color(0xFF2E7D32)),
-            const SizedBox(width: 10),
-            _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, const Color(0xFF4CAF50)),
-            const SizedBox(width: 10),
-            _buildStatCard('Current Rentals', '$rentalCount', Icons.calendar_month_outlined, const Color(0xFF2196F3)),
-            const SizedBox(width: 10),
-            _buildStatCard('Total Earnings', '₹${earnings.toStringAsFixed(0)}', Icons.payments_outlined, const Color(0xFFE65100)),
-            const SizedBox(width: 10),
-            _buildStatCard('Total Views', '$views', Icons.visibility_outlined, const Color(0xFF00838F)),
-            const SizedBox(width: 10),
-            _buildStatCard('Wishlist Count', '$wishlist', Icons.favorite_border, const Color(0xFFD81B60)),
-            const SizedBox(width: 10),
-            _buildStatCard('Avg Rating', '${rating.toStringAsFixed(1)} ⭐', Icons.star_border, const Color(0xFFF57F17)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color color) {
+  Widget _build2x2StatsDashboard(int totalCount, int activeCount) {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 1.5,
+        children: [
+          _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, const Color(0xFF2E7D32)),
+          _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, const Color(0xFF4CAF50)),
+          _buildStatCard('Borrow Requests', '$_borrowRequestsCount', Icons.question_answer_outlined, const Color(0xFF2196F3)),
+          _buildStatCard('Completed Exchanges', '$_completedExchangesCount', Icons.handshake_outlined, const Color(0xFFE65100)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatCard(String label, String value, IconData icon, Color accentColor) {
     return Container(
-      width: 130,
-      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFEBEFF0)),
+        border: Border.all(color: const Color(0xFFE5E7EB)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.01),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -670,29 +644,28 @@ class _MyListingsPageState extends State<MyListingsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 16),
+              Icon(icon, color: accentColor, size: 24),
               Text(
-                label.split(' ')[0],
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.grey.shade400),
+                value,
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
               ),
             ],
           ),
           Text(
-            value,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A)),
+            label,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCategoryFilters() {
-    return Container(
+  Widget _buildCategoryFiltersList() {
+    return SizedBox(
       height: 48,
-      color: Colors.white,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _categories.length,
         itemBuilder: (context, index) {
           final cat = _categories[index];
@@ -706,14 +679,14 @@ class _MyListingsPageState extends State<MyListingsPage> {
                 if (selected) setState(() => _selectedCategory = cat);
               },
               selectedColor: const Color(0xFF2E7D32),
+              backgroundColor: Colors.white,
               labelStyle: TextStyle(
                 color: isSelected ? Colors.white : const Color(0xFF1A1A1A),
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 12,
               ),
-              backgroundColor: const Color(0xFFF8FAF8),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: isSelected ? Colors.transparent : const Color(0xFFEBEFF0)),
+              side: BorderSide(color: isSelected ? Colors.transparent : const Color(0xFFE5E7EB)),
             ),
           );
         },
@@ -721,34 +694,36 @@ class _MyListingsPageState extends State<MyListingsPage> {
     );
   }
 
-  Widget _buildStatusFilters() {
-    return Container(
-      height: 44,
-      color: Colors.white,
+  Widget _buildStatusFiltersList() {
+    return SizedBox(
+      height: 48,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         itemCount: _statuses.length,
         itemBuilder: (context, index) {
           final stat = _statuses[index];
           final isSelected = stat == _selectedStatus;
           return Padding(
-            padding: const EdgeInsets.only(right: 6),
+            padding: const EdgeInsets.only(right: 8),
             child: ChoiceChip(
-              label: Text(stat),
+              label: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(stat),
+              ),
               selected: isSelected,
               onSelected: (selected) {
                 if (selected) setState(() => _selectedStatus = stat);
               },
-              selectedColor: const Color(0xFFE8F5E9),
-              labelStyle: TextStyle(
-                color: isSelected ? const Color(0xFF2E7D32) : Colors.grey.shade600,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 11,
-              ),
+              selectedColor: const Color(0xFF2E7D32),
               backgroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              side: BorderSide(color: isSelected ? const Color(0xFF2E7D32) : const Color(0xFFEBEFF0)),
+              labelStyle: TextStyle(
+                color: isSelected ? Colors.white : const Color(0xFF1A1A1A),
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                fontSize: 12,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              side: BorderSide(color: isSelected ? Colors.transparent : const Color(0xFFE5E7EB)),
             ),
           );
         },
@@ -763,24 +738,23 @@ class _MyListingsPageState extends State<MyListingsPage> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Premium Illustration collage
             SizedBox(
-              height: 180,
-              width: 280,
+              height: 140,
+              width: 220,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
                   Container(
-                    width: 140,
-                    height: 140,
+                    width: 100,
+                    height: 100,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9).withValues(alpha: 0.5),
+                      color: const Color(0xFFE8F5E9).withValues(alpha: 0.4),
                       shape: BoxShape.circle,
                     ),
                   ),
                   Container(
-                    width: 100,
-                    height: 100,
+                    width: 70,
+                    height: 70,
                     decoration: const BoxDecoration(
                       color: Color(0xFFE8F5E9),
                       shape: BoxShape.circle,
@@ -788,39 +762,39 @@ class _MyListingsPageState extends State<MyListingsPage> {
                   ),
                   Positioned(
                     top: 15,
-                    left: 45,
-                    child: _emojiBubble('📚', 44, Colors.blue.shade50),
+                    left: 30,
+                    child: _emojiBubble('📚', 34, Colors.blue.shade50),
                   ),
                   Positioned(
                     top: 15,
-                    right: 45,
-                    child: _emojiBubble('🚜', 48, Colors.green.shade50),
+                    right: 30,
+                    child: _emojiBubble('🚜', 36, Colors.green.shade50),
                   ),
                   Positioned(
                     bottom: 15,
-                    left: 55,
-                    child: _emojiBubble('🪖', 44, Colors.orange.shade50),
+                    left: 40,
+                    child: _emojiBubble('🪖', 34, Colors.orange.shade50),
                   ),
                   Positioned(
                     bottom: 15,
-                    right: 55,
-                    child: _emojiBubble('🧰', 44, Colors.red.shade50),
+                    right: 40,
+                    child: _emojiBubble('🧰', 34, Colors.red.shade50),
                   ),
                   Container(
-                    width: 54,
-                    height: 54,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       color: const Color(0xFF2E7D32),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
                           color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
-                          blurRadius: 12,
+                          blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.storefront_outlined, color: Colors.white, size: 28),
+                    child: const Icon(Icons.storefront_outlined, color: Colors.white, size: 22),
                   ),
                 ],
               ),
@@ -830,13 +804,13 @@ class _MyListingsPageState extends State<MyListingsPage> {
               'No Listings Yet',
               style: TextStyle(
                 fontSize: 22,
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.bold,
                 color: Color(0xFF1A1A1A),
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'List your unused items and start earning from your community.',
+              'Start sharing your unused resources with your community.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey.shade600,
@@ -845,7 +819,6 @@ class _MyListingsPageState extends State<MyListingsPage> {
               ),
             ),
             const SizedBox(height: 32),
-            // Actions
             ElevatedButton.icon(
               onPressed: _openCreateListingWizard,
               icon: const Icon(Icons.add, color: Colors.white),
@@ -855,19 +828,17 @@ class _MyListingsPageState extends State<MyListingsPage> {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                elevation: 4,
+                elevation: 2,
               ),
             ),
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Exploring marketplace...')),
-                );
+                Navigator.pop(context); // Goes back to Explore or closes sheet
               },
               child: const Text(
-                'Explore Marketplace',
-                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.w700),
+                'Browse Marketplace',
+                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -886,7 +857,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 6,
+            blurRadius: 4,
             offset: const Offset(0, 2),
           ),
         ],

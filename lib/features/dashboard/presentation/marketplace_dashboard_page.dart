@@ -32,7 +32,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     final languageCode = context.watch<LocaleProvider>().languageCode;
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Marketplace'),
+        title: const Text('Community Listings'),
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
         actions: [
@@ -47,8 +47,8 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
         onPressed: _openAddEquipmentForm,
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
-        icon: const Icon(Icons.add_business_rounded),
-        label: const Text('Add Equipment'),
+        icon: const Icon(Icons.volunteer_activism_rounded),
+        label: const Text('Share an Item'),
       ),
       body: StreamBuilder<List<MarketplaceEquipmentModel>>(
         stream: _service.watchEquipments(
@@ -168,12 +168,9 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
               .contains(query) ||
           item.location.toLowerCase().contains(query);
 
-      final matchPrice = item.pricePerDay >= _filter.minPrice &&
-          item.pricePerDay <= _filter.maxPrice;
-
       final matchRating = item.rating >= _filter.minRating;
 
-      return matchSearch && matchPrice && matchRating;
+      return matchSearch && matchRating;
     }).toList(growable: false);
   }
 
@@ -272,11 +269,19 @@ class _EquipmentCard extends StatelessWidget {
                     style: TextStyle(color: Colors.grey.shade700, fontSize: 12),
                   ),
                   const SizedBox(height: 4),
-                  Text(
-                    '₹${equipment.pricePerHour.toStringAsFixed(0)}/hr',
-                    style: const TextStyle(
-                      color: Color(0xFF2E7D32),
-                      fontWeight: FontWeight.w700,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: equipment.availability ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      equipment.availability ? 'Available' : 'On Loan',
+                      style: TextStyle(
+                        color: equipment.availability ? const Color(0xFF2E7D32) : Colors.orange.shade800,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -314,15 +319,11 @@ class _EquipmentCard extends StatelessWidget {
 class MarketplaceFilter {
   const MarketplaceFilter({
     this.category = 'All',
-    this.minPrice = 0,
-    this.maxPrice = 100000,
     this.minRating = 0,
     this.onlyAvailable = true,
   });
 
   final String category;
-  final double minPrice;
-  final double maxPrice;
   final double minRating;
   final bool onlyAvailable;
 }
@@ -347,7 +348,6 @@ class _FilterSheetState extends State<_FilterSheet> {
   ];
 
   late String _category;
-  late RangeValues _price;
   late double _rating;
   late bool _onlyAvailable;
 
@@ -355,7 +355,6 @@ class _FilterSheetState extends State<_FilterSheet> {
   void initState() {
     super.initState();
     _category = widget.initial.category;
-    _price = RangeValues(widget.initial.minPrice, widget.initial.maxPrice);
     _rating = widget.initial.minRating;
     _onlyAvailable = widget.initial.onlyAvailable;
   }
@@ -384,24 +383,6 @@ class _FilterSheetState extends State<_FilterSheet> {
                 if (value == null) return;
                 setState(() {
                   _category = value;
-                });
-              },
-            ),
-            const SizedBox(height: 10),
-            Text(
-                'Price range: ₹${_price.start.toStringAsFixed(0)} - ₹${_price.end.toStringAsFixed(0)}'),
-            RangeSlider(
-              values: _price,
-              min: 0,
-              max: 100000,
-              divisions: 100,
-              labels: RangeLabels(
-                _price.start.toStringAsFixed(0),
-                _price.end.toStringAsFixed(0),
-              ),
-              onChanged: (v) {
-                setState(() {
-                  _price = v;
                 });
               },
             ),
@@ -438,8 +419,6 @@ class _FilterSheetState extends State<_FilterSheet> {
                     context,
                     MarketplaceFilter(
                       category: _category,
-                      minPrice: _price.start,
-                      maxPrice: _price.end,
                       minRating: _rating,
                       onlyAvailable: _onlyAvailable,
                     ),

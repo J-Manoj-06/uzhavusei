@@ -33,7 +33,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> {
           children: [
             const SizedBox(height: 8),
             const Text(
-              'How would you like to use UzhavuSei?',
+              'How would you like to use Borrow?',
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),

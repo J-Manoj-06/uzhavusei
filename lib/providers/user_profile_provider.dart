@@ -12,7 +12,7 @@ class UserProfileProvider extends ChangeNotifier {
     'equipmentCount': '5 machines',
     'rating': '4.8',
     'totalRentals': '89',
-    'totalEarnings': '₹2,45,000',
+    'itemsShared': '12',
     'verificationStatus': 'Verified',
     'joinDate': '2023-01-15',
     'farmDetails': {
@@ -28,26 +28,22 @@ class UserProfileProvider extends ChangeNotifier {
     'documents': [
       {'type': 'Aadhar Card', 'status': 'Verified'},
       {'type': 'Land Documents', 'status': 'Verified'},
-      {'type': 'Bank Details', 'status': 'Verified'},
     ],
-    'paymentMethods': [
-      {'type': 'UPI', 'default': true},
-      {'type': 'Bank Transfer', 'default': false},
-    ],
+    'paymentMethods': [],
     'notifications': [
       {
-        'title': 'Payment Received',
-        'message': '₹4,500 received for John Deere Tractor rental',
+        'title': 'Borrow Request Accepted',
+        'message': 'Suresh accepted your request for John Deere Tractor',
         'time': '2 hours ago',
         'read': false,
-        'type': 'payment',
+        'type': 'borrow',
       },
       {
-        'title': 'New Rental Request',
-        'message': 'Suresh requested your Mahindra Harvester',
+        'title': 'New Borrow Request',
+        'message': 'Suresh requested to borrow your Mahindra Harvester',
         'time': '1 day ago',
         'read': true,
-        'type': 'rental',
+        'type': 'borrow',
       },
       {
         'title': 'Rating Updated',
@@ -59,31 +55,28 @@ class UserProfileProvider extends ChangeNotifier {
     ],
     'recentActivity': [
       {
-        'type': 'rental',
-        'title': 'Tractor Rented',
-        'description': 'John Deere 5050D rented to Ramesh',
+        'type': 'borrow',
+        'title': 'Tractor Shared',
+        'description': 'John Deere 5050D lent to Ramesh',
         'date': '2024-03-15',
-        'amount': '₹2,500',
       },
       {
         'type': 'maintenance',
         'title': 'Maintenance Completed',
         'description': 'Regular service completed for Mahindra Harvester',
         'date': '2024-03-14',
-        'amount': '₹1,200',
       },
       {
-        'type': 'payment',
-        'title': 'Payment Received',
-        'description': 'Received payment for tractor rental',
+        'type': 'borrow',
+        'title': 'Item Returned',
+        'description': 'Ramesh returned your John Deere 5050D',
         'date': '2024-03-13',
-        'amount': '₹3,000',
       },
     ],
     'achievements': [
       {
-        'title': 'First Rental',
-        'description': 'Completed your first equipment rental',
+        'title': 'First Share',
+        'description': 'Completed your first equipment lending',
         'icon': Icons.star,
         'unlocked': true,
       },

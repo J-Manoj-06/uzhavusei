@@ -5,6 +5,7 @@ import '../../../../../services/marketplace_service.dart';
 import '../../../equipment/presentation/equipment_details_page.dart';
 import '../../../equipment/presentation/equipment_form_page.dart';
 import 'equipment_listing_card.dart';
+import 'unified_listing.dart';
 
 class EquipmentTabView extends StatefulWidget {
   const EquipmentTabView({super.key, required this.currentUser});
@@ -95,11 +96,34 @@ class _EquipmentTabViewState extends State<EquipmentTabView> {
                 itemCount: items.length,
                 itemBuilder: (context, index) {
                   final item = items[index];
+                  final unified = UnifiedListing(
+                    id: item.equipmentId,
+                    ownerId: item.ownerId,
+                    ownerName: item.ownerName,
+                    title: item.equipmentName,
+                    category: item.category,
+                    description: item.description,
+                    price: item.pricePerDay,
+                    condition: item.condition,
+                    location: item.location,
+                    latitude: item.latitude,
+                    longitude: item.longitude,
+                    imageUrls: item.imageUrls,
+                    status: item.status,
+                    views: item.views,
+                    savedBy: item.savedBy,
+                    bookingsCount: item.bookingsCount,
+                    createdAt: item.createdAt,
+                    rating: item.rating,
+                    originalEquipment: item,
+                  );
                   return EquipmentListingCard(
-                    equipment: item,
+                    listing: unified,
                     onTap: () => _viewDetails(item),
                     onEdit: () => _editEquipment(item),
                     onDelete: () => _confirmDelete(item),
+                    onPauseResume: () {},
+                    onDuplicate: () {},
                   );
                 },
               );

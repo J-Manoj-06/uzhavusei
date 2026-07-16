@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'config.dart';
 import 'services/api_client.dart';
+import 'services/logger_service.dart';
 
 class ChatMessage {
   final String text;
@@ -52,7 +53,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
         apiKey: Config.apiKey,
       );
     } catch (e) {
-      print('Error initializing Gemini model: $e');
+      LoggerService.error('Error initializing Gemini model', e);
     }
   }
 
@@ -130,7 +131,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
             ),
           );
         });
-        print('Error sending message: $e');
+        LoggerService.error('Error sending message', e);
       }
     }
   }

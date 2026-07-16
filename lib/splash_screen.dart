@@ -93,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
       Icons.location_on,
       Icons.handshake,
       Icons.grass,
-      Icons.payment,
+      Icons.volunteer_activism,
     ];
 
     return Scaffold(
@@ -115,7 +115,7 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const SizedBox(height: 20),
                     const Text(
-                      'UzhavuSei',
+                      'Borrow',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 56,
@@ -125,10 +125,10 @@ class _SplashScreenState extends State<SplashScreen>
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'Connecting Farmers, Sharing Resources',
+                      'Borrow is a community platform that helps people share useful resources with one another. Instead of letting books and equipment remain unused, members can lend and borrow them within their local community, encouraging collaboration, sustainability, and resource sharing.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: 14,
                         fontWeight: FontWeight.w400,
                         color: Color(0xFF555555),
                       ),
