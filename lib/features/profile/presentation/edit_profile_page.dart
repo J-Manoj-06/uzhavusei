@@ -48,6 +48,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
 
     final locationParts = [widget.initialUser.village, widget.initialUser.district, widget.initialUser.state]
         .where((e) => e != null && e.trim().isNotEmpty)
+        .map((e) => e!)
         .toList();
     _locationController.text = locationParts.isNotEmpty ? locationParts.first : '';
 

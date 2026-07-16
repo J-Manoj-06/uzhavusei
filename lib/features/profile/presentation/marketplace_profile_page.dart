@@ -12,6 +12,13 @@ import '../../../services/marketplace_service.dart';
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../models/marketplace_booking_model.dart';
 import '../../../services/logger_service.dart';
+import 'verification_center_page.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'borrow_history_page.dart';
+import 'saved_items_page.dart';
+import 'settings_page.dart';
+import '../data/profile_service.dart';
+import 'dart:io';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -28,29 +35,45 @@ class MarketplaceProfilePage extends StatefulWidget {
 }
 
 class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
-  final MarketplaceService _service = MarketplaceService();
-
-  StreamSubscription? _equipmentSub;
-  StreamSubscription? _userBookingsSub;
-  StreamSubscription? _ownerBookingsSub;
+  StreamSubscription? _profileSub;
 
   List<MarketplaceEquipmentModel>? _equipments;
   List<MarketplaceBookingModel>? _userBookings;
   List<MarketplaceBookingModel>? _ownerBookings;
+  List<MarketplaceEquipmentModel>? _savedEquipments;
+  AppUserModel? _liveUser;
 
   bool _loadingStats = true;
   bool _errorStats = false;
+  bool _isOffline = false;
 
   @override
   void initState() {
     super.initState();
+    _checkOffline();
     _loadStats();
   }
 
+  void _checkOffline() async {
+    try {
+      final result = await InternetAddress.lookup('example.com').timeout(const Duration(seconds: 3));
+      final offline = result.isEmpty || result[0].rawAddress.isEmpty;
+      if (mounted && _isOffline != offline) {
+        setState(() {
+          _isOffline = offline;
+        });
+      }
+    } catch (_) {
+      if (mounted && !_isOffline) {
+        setState(() {
+          _isOffline = true;
+        });
+      }
+    }
+  }
+
   void _cancelSubscriptions() {
-    _equipmentSub?.cancel();
-    _userBookingsSub?.cancel();
-    _ownerBookingsSub?.cancel();
+    _profileSub?.cancel();
   }
 
   void _loadStats() {
@@ -60,60 +83,36 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
     });
 
     _cancelSubscriptions();
+    _checkOffline();
 
     try {
       final user = widget.currentUser;
 
-      _equipmentSub = _service.watchEquipmentsByOwner(user.userId).listen(
-        (equipments) {
+      _profileSub = ProfileService.instance.watchProfileData(user.userId).listen(
+        (data) {
           if (!mounted) return;
           setState(() {
-            _equipments = equipments;
-            _checkLoaded();
+            _liveUser = data.user;
+            _equipments = data.equipments;
+            _userBookings = data.userBookings;
+            _ownerBookings = data.ownerBookings;
+            _savedEquipments = data.savedEquipments;
+            _loadingStats = false;
+            _isOffline = false; // Successfully fetched Firestore live streams
           });
         },
         onError: (err) {
-          LoggerService.error('Error loading equipments', err);
-          setState(() => _errorStats = true);
-        },
-      );
-
-      _userBookingsSub = _service.watchUserBookings(user.userId).listen(
-        (bookings) {
-          if (!mounted) return;
+          LoggerService.error('Error loading centralized profile data', err);
           setState(() {
-            _userBookings = bookings;
-            _checkLoaded();
+            _errorStats = true;
+            _loadingStats = false;
           });
-        },
-        onError: (err) {
-          LoggerService.error('Error loading user bookings', err);
-          setState(() => _errorStats = true);
-        },
-      );
-
-      _ownerBookingsSub = _service.watchOwnerBookings(user.userId).listen(
-        (bookings) {
-          if (!mounted) return;
-          setState(() {
-            _ownerBookings = bookings;
-            _checkLoaded();
-          });
-        },
-        onError: (err) {
-          LoggerService.error('Error loading owner bookings', err);
-          setState(() => _errorStats = true);
         },
       );
     } catch (e) {
-      LoggerService.error('Error setting up streams', e);
-      setState(() => _errorStats = true);
-    }
-  }
-
-  void _checkLoaded() {
-    if (_equipments != null && _userBookings != null && _ownerBookings != null) {
+      LoggerService.error('Error setting up combined profile streams', e);
       setState(() {
+        _errorStats = true;
         _loadingStats = false;
       });
     }
@@ -188,208 +187,657 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<AppUserModel?>(
-      stream: widget.authService.watchCurrentUserProfile(),
-      builder: (context, snapshot) {
-        final user = snapshot.data ?? widget.currentUser;
-
-        // Formatted location
-        final locationParts = [user.village, user.district, user.state]
-            .where((e) => e != null && e.trim().isNotEmpty)
-            .toList();
-        final displayLoc = locationParts.isNotEmpty ? '📍 ${locationParts.first}' : '📍 Location not set';
-
-        // Username
-        final displayUsername = user.username != null && user.username!.trim().isNotEmpty
-            ? '@${user.username!.trim().replaceAll('@', '')}'
-            : 'Add username';
-
-        return Scaffold(
-          backgroundColor: const Color(0xFFF8FAF8),
-          appBar: AppBar(
-            backgroundColor: Colors.white,
-            elevation: 0.5,
-            title: const Text(
-              'Profile',
-              style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 18),
-            ),
+  Widget _buildFadeIn({required Widget child, int delayMs = 0}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 400 + delayMs),
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, 15 * (1 - value)),
+            child: child,
           ),
-          body: RefreshIndicator(
-            onRefresh: () async {
-              _loadStats();
-              await Future.delayed(const Duration(milliseconds: 500));
+        );
+      },
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = _liveUser ?? widget.currentUser;
+
+    // Formatted location
+    final locationParts = [user.village, user.district, user.state]
+        .where((e) => e != null && e.trim().isNotEmpty)
+        .toList();
+    final displayLoc = locationParts.isNotEmpty ? '📍 ${locationParts.first}' : '📍 Location not set';
+
+    // Username
+    final displayUsername = user.username != null && user.username!.trim().isNotEmpty
+        ? '@${user.username!.trim().replaceAll('@', '')}'
+        : 'Add username';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF8FAF8),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0.5,
+        title: const Text(
+          'Profile',
+          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold, fontSize: 30),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_outlined, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SettingsPage(
+                    currentUser: user,
+                    authService: widget.authService,
+                  ),
+                ),
+              );
             },
-            color: const Color(0xFF2E7D32),
-            child: SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 16),
-                    
-                    // Large Profile Photo
-                    Center(
-                      child: CircleAvatar(
-                        radius: 60,
-                        backgroundColor: const Color(0xFFE8F5E9),
-                        child: user.profileImage.trim().isNotEmpty
-                            ? ClipOval(
-                                child: buildSmartImage(
-                                  user.profileImage,
-                                  width: 120,
-                                  height: 120,
-                                  fit: BoxFit.cover,
+          ),
+          const SizedBox(width: 16),
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_isOffline)
+            Container(
+              color: Colors.amber.shade800,
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                  SizedBox(width: 8),
+                  Text(
+                    'Offline Mode • Showing Cached Data',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: () async {
+                _loadStats();
+                await Future.delayed(const Duration(milliseconds: 600));
+              },
+              color: const Color(0xFF2E7D32),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: _errorStats
+                      ? _buildErrorView()
+                      : _loadingStats
+                          ? _buildFullPageSkeleton()
+                          : Column(
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const SizedBox(height: 16),
+                                
+                                // Large Profile Photo
+                                _buildFadeIn(
+                                  delayMs: 0,
+                                  child: Center(
+                                    child: CircleAvatar(
+                                      radius: 60,
+                                      backgroundColor: const Color(0xFFE8F5E9),
+                                      child: user.profileImage.trim().isNotEmpty
+                                          ? ClipOval(
+                                              child: buildSmartImage(
+                                                user.profileImage,
+                                                width: 120,
+                                                height: 120,
+                                                fit: BoxFit.cover,
+                                              ),
+                                            )
+                                          : const Icon(Icons.person, size: 60, color: Color(0xFF2E7D32)),
+                                    ),
+                                  ),
                                 ),
-                              )
-                            : const Icon(Icons.person, size: 60, color: Color(0xFF2E7D32)),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
+                                const SizedBox(height: 20),
 
-                    // Full Name
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          user.name.isEmpty || user.name == 'User' ? 'Complete your profile' : user.name,
-                          style: const TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.verified, color: Colors.blue, size: 20),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
+                                // Full Name
+                                _buildFadeIn(
+                                  delayMs: 50,
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        user.name.isEmpty || user.name == 'User' ? 'Complete your profile' : user.name,
+                                        style: const TextStyle(
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1A1A1A),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 6),
+                                      if (_getVerificationCount(user) == 3)
+                                        const Icon(Icons.verified, color: Colors.blue, size: 20),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
 
-                    // Username
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => EditProfilePage(
-                              initialUser: user,
-                              authService: widget.authService,
+                                // Username
+                                _buildFadeIn(
+                                  delayMs: 100,
+                                  child: GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => EditProfilePage(
+                                            initialUser: user,
+                                            authService: widget.authService,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    child: Text(
+                                      displayUsername,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        color: user.username != null && user.username!.isNotEmpty
+                                            ? Colors.grey.shade600
+                                            : const Color(0xFF2E7D32),
+                                        fontWeight: user.username != null && user.username!.isNotEmpty
+                                            ? FontWeight.normal
+                                            : FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                // Approximate Location
+                                _buildFadeIn(
+                                  delayMs: 120,
+                                  child: Text(
+                                    displayLoc,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      color: Colors.grey.shade700,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+
+                                // Member Since
+                                _buildFadeIn(
+                                  delayMs: 140,
+                                  child: Text(
+                                    'Member since ${user.createdAt.year}',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey.shade500,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 24),
+
+                                // Optional Short Bio
+                                if (user.bio != null && user.bio!.trim().isNotEmpty) ...[
+                                  _buildFadeIn(
+                                    delayMs: 160,
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: const Color(0xFFEBEFF0)),
+                                      ),
+                                      child: Text(
+                                        user.bio!,
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.grey.shade800,
+                                          height: 1.4,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 24),
+                                ],
+
+                                // Edit Profile Button
+                                _buildFadeIn(
+                                  delayMs: 180,
+                                  child: SizedBox(
+                                    width: double.infinity,
+                                    height: 52,
+                                    child: ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) => EditProfilePage(
+                                              initialUser: user,
+                                              authService: widget.authService,
+                                            ),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
+                                      label: const Text(
+                                        'Edit Profile',
+                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                      ),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color(0xFF2E7D32),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                        elevation: 0,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Verification Center Access Card
+                                _buildFadeIn(
+                                  delayMs: 200,
+                                  child: _buildVerificationSection(user),
+                                ),
+
+                                const SizedBox(height: 32),
+
+                                // Statistics Grid Section
+                                _buildFadeIn(
+                                  delayMs: 220,
+                                  child: const Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Activity Statistics',
+                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildFadeIn(
+                                  delayMs: 240,
+                                  child: _buildStatsDashboard(user),
+                                ),
+
+                                const SizedBox(height: 32),
+
+                                // Activity Section Header
+                                _buildFadeIn(
+                                  delayMs: 260,
+                                  child: const Align(
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(
+                                      'Activity',
+                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+
+                                _buildFadeIn(
+                                  delayMs: 280,
+                                  child: _buildActivityTiles(user),
+                                ),
+                              ],
                             ),
-                          ),
-                        );
-                      },
-                      child: Text(
-                        displayUsername,
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: user.username != null && user.username!.isNotEmpty
-                              ? Colors.grey.shade600
-                              : const Color(0xFF2E7D32),
-                          fontWeight: user.username != null && user.username!.isNotEmpty
-                              ? FontWeight.normal
-                              : FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-
-                    // Approximate Location
-                    Text(
-                      displayLoc,
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade700,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-
-                    // Member Since
-                    Text(
-                      'Member since ${user.createdAt.year}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade500,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Optional Short Bio
-                    if (user.bio != null && user.bio!.trim().isNotEmpty) ...[
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: const Color(0xFFEBEFF0)),
-                        ),
-                        child: Text(
-                          user.bio!,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey.shade800,
-                            height: 1.4,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 24),
-                    ],
-
-                    // Edit Profile Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 52,
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => EditProfilePage(
-                                initialUser: user,
-                                authService: widget.authService,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.edit_outlined, color: Colors.white, size: 20),
-                        label: const Text(
-                          'Edit Profile',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E7D32),
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                          elevation: 0,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 32),
-
-                    // Statistics Grid Section
-                    const Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'Activity Statistics',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    _buildStatsDashboard(user),
-                  ],
                 ),
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorView() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 48.0),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline_rounded, size: 64, color: Colors.red),
+            const SizedBox(height: 16),
+            const Text(
+              'Unable to load profile',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF1A1A1A)),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'We had trouble fetching your latest profile information. Please verify your connection and try again.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton.icon(
+                onPressed: _loadStats,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E7D32),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFullPageSkeleton() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        const SizedBox(height: 16),
+        Container(
+          width: 120,
+          height: 120,
+          decoration: BoxDecoration(color: Colors.grey[200], shape: BoxShape.circle),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          width: 160,
+          height: 24,
+          decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(8)),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          width: 100,
+          height: 16,
+          decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(6)),
+        ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          height: 52,
+          decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
+        ),
+        const SizedBox(height: 24),
+        Container(
+          width: double.infinity,
+          height: 72,
+          decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(16)),
+        ),
+        const SizedBox(height: 32),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: 120,
+            height: 20,
+            decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 16,
+          mainAxisSpacing: 16,
+          childAspectRatio: 1.1,
+          children: [
+            _buildSkeletonCard(),
+            _buildSkeletonCard(),
+            _buildSkeletonCard(),
+            _buildSkeletonCard(),
+          ],
+        ),
+        const SizedBox(height: 32),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Container(
+            width: 80,
+            height: 20,
+            decoration: BoxDecoration(color: Colors.grey[200], borderRadius: BorderRadius.circular(6)),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEBEFF0)),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: [
+              _buildActivitySkeletonTile(),
+              _buildActivitySkeletonTile(),
+              _buildActivitySkeletonTile(),
+              _buildActivitySkeletonTile(),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityTiles(AppUserModel user) {
+    if (_loadingStats) {
+      return Column(
+        children: [
+          _buildActivitySkeletonTile(),
+          _buildActivitySkeletonTile(),
+          _buildActivitySkeletonTile(),
+          _buildActivitySkeletonTile(),
+        ],
+      );
+    }
+
+    final sharedCount = _equipments!.where((e) => e.status == 'published' || e.status == 'available').length;
+    final pendingCount = _userBookings!.where((b) => b.status == 'pending').length;
+    final completedCount = _userBookings!.where((b) => b.status == 'completed').length +
+        _ownerBookings!.where((b) => b.status == 'completed').length;
+    final savedCount = _savedEquipments!.length;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          _buildActivityTile(
+            icon: '📦',
+            title: 'My Shared Items',
+            subtitle: '$sharedCount Active',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => MyEquipmentsPage(currentUser: user)),
+              );
+            },
+          ),
+          const Divider(height: 1, color: Color(0xFFEBEFF0)),
+          _buildActivityTile(
+            icon: '📥',
+            title: 'My Borrow Requests',
+            subtitle: '$pendingCount Pending',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => MyBookingsPage(currentUser: user)),
+              );
+            },
+            badgeCount: pendingCount,
+          ),
+          const Divider(height: 1, color: Color(0xFFEBEFF0)),
+          _buildActivityTile(
+            icon: '📜',
+            title: 'Borrow History',
+            subtitle: '$completedCount Exchanges',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => BorrowHistoryPage(currentUser: user)),
+              );
+            },
+          ),
+          const Divider(height: 1, color: Color(0xFFEBEFF0)),
+          _buildActivityTile(
+            icon: '❤️',
+            title: 'Saved Items',
+            subtitle: '$savedCount Items',
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => SavedItemsPage(currentUser: user)),
+              );
+            },
+            badgeCount: savedCount,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActivityTile({
+    required String icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    int badgeCount = 0,
+  }) {
+    return Material(
+      color: Colors.white,
+      child: ListTile(
+        leading: Text(icon, style: const TextStyle(fontSize: 22)),
+        title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+        subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (badgeCount > 0) ...[
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: const Color(0xFFC62828), borderRadius: BorderRadius.circular(12)),
+                child: Text(
+                  '$badgeCount',
+                  style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  Widget _buildActivitySkeletonTile() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(width: 32, height: 32, decoration: BoxDecoration(color: Colors.grey[100], shape: BoxShape.circle)),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(width: 120, height: 14, color: Colors.grey[100]),
+                const SizedBox(height: 6),
+                Container(width: 60, height: 10, color: Colors.grey[100]),
+              ],
+            ),
+          ),
+          Container(width: 16, height: 16, color: Colors.grey[100]),
+        ],
+      ),
+    );
+  }
+
+  int _getVerificationCount(AppUserModel user) {
+    int count = 0;
+    if (user.phoneVerified) count++;
+    if ((FirebaseAuth.instance.currentUser?.emailVerified ?? false) || user.emailVerified) count++;
+    if (user.latitude != null && user.longitude != null && user.latitude != 0.0 && user.longitude != 0.0) count++;
+    return count;
+  }
+
+  Widget _buildVerificationSection(AppUserModel user) {
+    final count = _getVerificationCount(user);
+    final allVerified = count == 3;
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => VerificationCenterPage(
+              currentUser: user,
+              authService: widget.authService,
+            ),
+          ),
         );
       },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFEBEFF0)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(
+              allVerified ? Icons.verified : Icons.verified_user_outlined,
+              color: allVerified ? const Color(0xFF2E7D32) : Colors.amber,
+              size: 24,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Profile Verification', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text(
+                    allVerified
+                        ? "🎉 You're fully verified. Your Borrow profile is ready."
+                        : '$count / 3 Verified. Complete verification to build trust.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
     );
   }
 
@@ -425,7 +873,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1.25,
+        childAspectRatio: 1.1,
         children: [
           _buildSkeletonCard(),
           _buildSkeletonCard(),
@@ -453,7 +901,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 16,
       mainAxisSpacing: 16,
-      childAspectRatio: 1.25,
+      childAspectRatio: 1.1,
       children: [
         TappableCard(
           onTap: () {
@@ -536,7 +984,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,

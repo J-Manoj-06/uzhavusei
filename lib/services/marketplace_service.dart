@@ -118,6 +118,16 @@ class MarketplaceService {
     });
   }
 
+  Stream<List<MarketplaceEquipmentModel>> watchSavedEquipments(String userId) {
+    return _firestore
+        .collection(_equipmentCollection)
+        .where('savedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map(MarketplaceEquipmentModel.fromDoc)
+            .toList());
+  }
+
   // ── Surplus Operations ──────────────────────────────────────────
 
   Stream<List<MarketplaceSurplusModel>> watchSurplus({
