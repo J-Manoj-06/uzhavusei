@@ -448,11 +448,16 @@ class _HomePageState extends State<HomePage> {
           await _marketplaceService.watchEquipments(onlyAvailable: true).first;
       if (!mounted) return;
 
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final filteredListings = currentUser != null
+          ? equipments.where((e) => e.ownerId != currentUser.uid).toList()
+          : equipments;
+
       final mapped =
-          equipments.map(_marketplaceEquipmentToCard).toList(growable: false);
+          filteredListings.map(_marketplaceEquipmentToCard).toList(growable: false);
 
       setState(() {
-        _rawEquipments = equipments;
+        _rawEquipments = filteredListings;
         _allEquipment = mapped;
         _allNearbyItems = mapped;
         _filteredEquipment = mapped;

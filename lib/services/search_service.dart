@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../models/marketplace_equipment_model.dart';
 import '../models/search_result_model.dart';
 import 'distance_service.dart';
@@ -70,9 +71,15 @@ class SearchService {
 
     final List<SearchResultModel> results = [];
     final lowerQuery = query.trim().toLowerCase();
+    final currentUser = FirebaseAuth.instance.currentUser;
 
     for (final doc in snapshot.docs) {
       final item = MarketplaceEquipmentModel.fromDoc(doc);
+
+      // Self-listing exclusion filter
+      if (currentUser != null && item.ownerId == currentUser.uid) {
+        continue;
+      }
 
       // Filters
       if (category != null && category != 'All' && item.category.toLowerCase() != category.toLowerCase()) {

@@ -13,6 +13,9 @@ import '../../../services/deep_link_handler.dart';
 import '../../../widgets/image_loader.dart';
 import '../../profile/presentation/public_profile_page.dart';
 import '../../../services/logger_service.dart';
+import 'create_listing_flow.dart';
+import '../../../models/app_user_model.dart';
+import '../../profile/presentation/my_listings_page.dart';
 
 class EquipmentDetailsPage extends StatefulWidget {
   const EquipmentDetailsPage({
@@ -994,7 +997,85 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     );
   }
 
+  Future<void> _handleEditListing() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+    );
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+      if (!mounted) return;
+      Navigator.pop(context); // pop loading
+      if (doc.exists) {
+        final appUser = AppUserModel.fromDoc(doc);
+        final equip = widget.equipment;
+        Widget page;
+        if (equip.category.toLowerCase().contains('book')) {
+          page = BookListingFormPage(
+            currentUser: appUser,
+            existing: equip,
+          );
+        } else if (equip.category.toLowerCase().contains('construction')) {
+          page = ConstructionEquipmentFormPage(
+            currentUser: appUser,
+            existing: equip,
+          );
+        } else {
+          page = FarmEquipmentFormPage(
+            currentUser: appUser,
+            existing: equip,
+          );
+        }
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => page),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // pop loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleManageListing() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+    );
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+      if (!mounted) return;
+      Navigator.pop(context); // pop loading
+      if (doc.exists) {
+        final appUser = AppUserModel.fromDoc(doc);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MyListingsPage(
+              currentUser: appUser,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // pop loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildBottomActionBar(MarketplaceEquipmentModel item) {
+    final bool isSelfOwned = item.ownerId == widget.userId;
+
     return Positioned(
       left: 0,
       right: 0,
@@ -1018,60 +1099,96 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.availability ? '🟢 Available' : '🔴 On Loan',
+                  isSelfOwned
+                      ? '⭐ Your Asset'
+                      : (item.availability ? '🟢 Available' : '🔴 On Loan'),
                   style: TextStyle(
-                    color: item.availability ? const Color(0xFF2E7D32) : Colors.red.shade700,
+                    color: isSelfOwned
+                        ? const Color(0xFF2E7D32)
+                        : (item.availability ? const Color(0xFF2E7D32) : Colors.red.shade700),
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const Text(
-                  'Free to borrow',
-                  style: TextStyle(color: Color(0xFF6F7A6B), fontSize: 12),
+                Text(
+                  isSelfOwned ? 'Manage or edit listing' : 'Free to borrow',
+                  style: const TextStyle(color: Color(0xFF6F7A6B), fontSize: 12),
                 ),
               ],
             ),
             const SizedBox(width: 16),
             Expanded(
-              child: Container(
-                height: 56,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: LinearGradient(
-                    colors: item.availability
-                        ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
-                        : [Colors.grey.shade400, Colors.grey.shade600],
-                    begin: Alignment.centerLeft,
-                    end: Alignment.centerRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: item.availability
-                          ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
-                          : Colors.grey.withValues(alpha: 0.2),
-                      blurRadius: 16,
-                      offset: const Offset(0, 8),
+              child: isSelfOwned
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _handleEditListing,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2E7D32),
+                              side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              minimumSize: const Size(0, 56),
+                            ),
+                            icon: const Icon(Icons.edit_outlined, size: 20),
+                            label: const Text('Edit Listing', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _handleManageListing,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2E7D32),
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                              minimumSize: const Size(0, 56),
+                            ),
+                            icon: const Icon(Icons.settings_outlined, size: 20),
+                            label: const Text('Manage', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      height: 56,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(16),
+                        gradient: LinearGradient(
+                          colors: item.availability
+                              ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
+                              : [Colors.grey.shade400, Colors.grey.shade600],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: item.availability
+                                ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
+                                : Colors.grey.withValues(alpha: 0.2),
+                            blurRadius: 16,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: ElevatedButton.icon(
+                        onPressed: item.availability ? () => _showBorrowRequestDialog(item) : null,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        ),
+                        icon: const Icon(Icons.handshake_rounded, color: Colors.white, size: 20),
+                        label: Text(
+                          item.availability ? 'Request to Borrow' : 'Currently On Loan',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     ),
-                  ],
-                ),
-                child: ElevatedButton.icon(
-                  onPressed: item.availability ? () => _showBorrowRequestDialog(item) : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.transparent,
-                    shadowColor: Colors.transparent,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                  ),
-                  icon: const Icon(Icons.handshake_rounded, color: Colors.white, size: 20),
-                  label: Text(
-                    item.availability ? 'Request to Borrow' : 'Currently On Loan',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
             ),
           ],
         ),

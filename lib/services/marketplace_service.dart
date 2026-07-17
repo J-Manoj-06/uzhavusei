@@ -106,6 +106,11 @@ class MarketplaceService {
       if (!doc.exists) return;
       
       final data = doc.data()!;
+      final ownerId = (data['owner_user_id'] ?? data['ownerId'] ?? '').toString();
+      if (ownerId == userId) {
+        throw Exception("You cannot favorite/save your own listing.");
+      }
+      
       final savedBy = List<String>.from(data['savedBy'] ?? []);
       
       if (savedBy.contains(userId)) {
@@ -337,6 +342,9 @@ class MarketplaceService {
     required double totalPrice,
     required String paymentId,
   }) async {
+    if (ownerId == userId) {
+      throw Exception("You cannot borrow your own listing.");
+    }
     final doc = _firestore.collection('bookings').doc();
     await doc.set({
       'bookingId': doc.id,

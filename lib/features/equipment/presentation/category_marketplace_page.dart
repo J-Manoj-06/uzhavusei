@@ -249,8 +249,13 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
       final equipments = await _marketplaceService.watchEquipments(onlyAvailable: false).first;
       if (!mounted) return;
 
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final filteredListings = currentUser != null
+          ? equipments.where((e) => e.ownerId != currentUser.uid).toList()
+          : equipments;
+
       setState(() {
-        _rawListings = equipments;
+        _rawListings = filteredListings;
         _isOffline = false;
         _isLoading = false;
       });

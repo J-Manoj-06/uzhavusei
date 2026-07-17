@@ -103,6 +103,13 @@ class FirestoreBookingRepository {
     required String userId,
     required String paymentId,
   }) async {
+    final equipDoc = await _firestore.collection('equipment').doc(draft.machineryId).get();
+    if (equipDoc.exists) {
+      final ownerId = (equipDoc.data()?['owner_user_id'] ?? equipDoc.data()?['ownerId'] ?? '').toString();
+      if (ownerId == userId) {
+        throw Exception("You cannot borrow your own listing.");
+      }
+    }
     final doc = _firestore.collection('bookings').doc();
     await doc.set({
       'bookingId': doc.id,
