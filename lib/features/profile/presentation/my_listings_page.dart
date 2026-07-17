@@ -850,16 +850,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
                 elevation: 2,
               ),
             ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Goes back to Explore or closes sheet
-              },
-              child: const Text(
-                'Browse Marketplace',
-                style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold),
-              ),
-            ),
+
           ],
         ),
       ),

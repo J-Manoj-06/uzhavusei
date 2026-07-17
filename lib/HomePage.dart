@@ -1311,13 +1311,15 @@ class _HomePageState extends State<HomePage> {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A)),
                   ),
                   const SizedBox(height: 4),
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       const Text(
                         'Borrow for Free',
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2E7D32)),
                       ),
-                      const SizedBox(width: 8),
                       Text(
                         '• By ${item['seller']}',
                         style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
@@ -1434,9 +1436,13 @@ class _HomePageState extends State<HomePage> {
                       ),
                     ),
                     const SizedBox(width: 6),
-                    Text(
-                      item['seller'] ?? 'Verified Owner',
-                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                    Expanded(
+                      child: Text(
+                        item['seller'] ?? 'Verified Owner',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                      ),
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.star, size: 12, color: Colors.amber),
