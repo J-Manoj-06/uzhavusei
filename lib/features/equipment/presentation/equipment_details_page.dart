@@ -16,6 +16,7 @@ import '../../../services/logger_service.dart';
 import 'create_listing_flow.dart';
 import '../../../models/app_user_model.dart';
 import '../../profile/presentation/my_listings_page.dart';
+import '../../profile/presentation/my_bookings_page.dart';
 
 class EquipmentDetailsPage extends StatefulWidget {
   const EquipmentDetailsPage({
@@ -50,8 +51,10 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
   @override
   void initState() {
     super.initState();
-    // Increment views when the page is opened
-    _service.incrementEquipmentViews(widget.equipment.equipmentId);
+    // Increment views when the page is opened only if the viewer is not the owner
+    if (widget.equipment.ownerId != widget.userId) {
+      _service.incrementEquipmentViews(widget.equipment.equipmentId, userId: widget.userId);
+    }
   }
 
   Future<void> _launchYouTubeSearch(String query) async {
@@ -259,13 +262,15 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                       size: 20,
                       onTap: () => _shareListing(item),
                     ),
-                    const SizedBox(width: 8),
-                    _buildGlassButton(
-                      icon: isSaved ? Icons.favorite : Icons.favorite_border,
-                      color: isSaved ? Colors.red : Colors.black87,
-                      size: 22,
-                      onTap: () => _toggleSave(item),
-                    ),
+                    if (item.ownerId != widget.userId) ...[
+                      const SizedBox(width: 8),
+                      _buildGlassButton(
+                        icon: isSaved ? Icons.favorite : Icons.favorite_border,
+                        color: isSaved ? Colors.red : Colors.black87,
+                        size: 22,
+                        onTap: () => _toggleSave(item),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -1073,6 +1078,37 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     }
   }
 
+  Future<void> _handleViewRequests() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+    );
+    try {
+      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+      if (!mounted) return;
+      Navigator.pop(context); // pop loading
+      if (doc.exists) {
+        final appUser = AppUserModel.fromDoc(doc);
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MyBookingsPage(
+              currentUser: appUser,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // pop loading
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading profile: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildBottomActionBar(MarketplaceEquipmentModel item) {
     final bool isSelfOwned = item.ownerId == widget.userId;
 
@@ -1119,33 +1155,53 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
             const SizedBox(width: 16),
             Expanded(
               child: isSelfOwned
-                  ? Row(
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: _handleEditListing,
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFF2E7D32),
-                              side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              minimumSize: const Size(0, 56),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _handleEditListing,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2E7D32),
+                                  side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  minimumSize: const Size(0, 48),
+                                ),
+                                icon: const Icon(Icons.edit_outlined, size: 18),
+                                label: const Text('Edit Listing', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
                             ),
-                            icon: const Icon(Icons.edit_outlined, size: 20),
-                            label: const Text('Edit Listing', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                          ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _handleManageListing,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: const Color(0xFF2E7D32),
+                                  side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  minimumSize: const Size(0, 48),
+                                ),
+                                icon: const Icon(Icons.settings_outlined, size: 18),
+                                label: const Text('Manage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
+                        const SizedBox(height: 8),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
                           child: ElevatedButton.icon(
-                            onPressed: _handleManageListing,
+                            onPressed: _handleViewRequests,
                             style: ElevatedButton.styleFrom(
                               backgroundColor: const Color(0xFF2E7D32),
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                              minimumSize: const Size(0, 56),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
-                            icon: const Icon(Icons.settings_outlined, size: 20),
-                            label: const Text('Manage', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                            icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                            label: const Text('View Requests', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                           ),
                         ),
                       ],

@@ -91,7 +91,55 @@ class MarketplaceService {
     });
   }
 
-  Future<void> incrementEquipmentViews(String equipmentId) async {
+  void validateNotOwner({required String ownerId, required String userId, required String action}) {
+    if (ownerId == userId) {
+      if (action.toLowerCase() == 'borrow') {
+        throw Exception("You already own this listing. Manage it from My Listings.");
+      } else {
+        throw Exception("This action isn't available for your own listing.");
+      }
+    }
+  }
+
+  Future<void> submitRating({required String userId, required String equipmentId, required double rating}) async {
+    final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
+    if (doc.exists) {
+      final ownerId = (doc.data()?['owner_user_id'] ?? doc.data()?['ownerId'] ?? '').toString();
+      validateNotOwner(ownerId: ownerId, userId: userId, action: 'rate');
+    }
+  }
+
+  Future<void> submitReview({required String userId, required String equipmentId, required String reviewText}) async {
+    final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
+    if (doc.exists) {
+      final ownerId = (doc.data()?['owner_user_id'] ?? doc.data()?['ownerId'] ?? '').toString();
+      validateNotOwner(ownerId: ownerId, userId: userId, action: 'review');
+    }
+  }
+
+  Future<void> createChatRoom({required String userId, required String ownerId}) async {
+    validateNotOwner(ownerId: ownerId, userId: userId, action: 'chat');
+  }
+
+  Future<void> reportListing({required String userId, required String equipmentId}) async {
+    final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
+    if (doc.exists) {
+      final ownerId = (doc.data()?['owner_user_id'] ?? doc.data()?['ownerId'] ?? '').toString();
+      validateNotOwner(ownerId: ownerId, userId: userId, action: 'report');
+    }
+  }
+
+  Future<void> incrementEquipmentViews(String equipmentId, {String? userId}) async {
+    if (userId != null) {
+      final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
+      if (doc.exists) {
+        final data = doc.data()!;
+        final ownerId = (data['owner_user_id'] ?? data['ownerId'] ?? '').toString();
+        if (ownerId == userId) {
+          return;
+        }
+      }
+    }
     final docRef = _firestore.collection(_equipmentCollection).doc(equipmentId);
     await docRef.update({
       'views': FieldValue.increment(1),
@@ -107,9 +155,7 @@ class MarketplaceService {
       
       final data = doc.data()!;
       final ownerId = (data['owner_user_id'] ?? data['ownerId'] ?? '').toString();
-      if (ownerId == userId) {
-        throw Exception("You cannot favorite/save your own listing.");
-      }
+      validateNotOwner(ownerId: ownerId, userId: userId, action: 'favorite');
       
       final savedBy = List<String>.from(data['savedBy'] ?? []);
       
@@ -342,9 +388,7 @@ class MarketplaceService {
     required double totalPrice,
     required String paymentId,
   }) async {
-    if (ownerId == userId) {
-      throw Exception("You cannot borrow your own listing.");
-    }
+    validateNotOwner(ownerId: ownerId, userId: userId, action: 'borrow');
     final doc = _firestore.collection('bookings').doc();
     await doc.set({
       'bookingId': doc.id,

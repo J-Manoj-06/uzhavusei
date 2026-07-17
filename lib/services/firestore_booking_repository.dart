@@ -107,7 +107,7 @@ class FirestoreBookingRepository {
     if (equipDoc.exists) {
       final ownerId = (equipDoc.data()?['owner_user_id'] ?? equipDoc.data()?['ownerId'] ?? '').toString();
       if (ownerId == userId) {
-        throw Exception("You cannot borrow your own listing.");
+        throw Exception("You already own this listing. Manage it from My Listings.");
       }
     }
     final doc = _firestore.collection('bookings').doc();
