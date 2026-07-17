@@ -1,7 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../widgets/image_loader.dart';
+import '../../../equipment/presentation/widgets/borrow_image_picker.dart';
+import '../../../../../services/cloudinary_service.dart';
 import 'unified_listing.dart';
 import 'listing_analytics_sheet.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class EquipmentListingCard extends StatefulWidget {
   const EquipmentListingCard({
@@ -46,7 +50,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Row(
           children: [
-            Icon(Icons.qr_code_2, color: Color(0xFF2E7D32)),
+            Icon(Icons.qr_code_2, color: AppColors.primary),
             SizedBox(width: 8),
             Text('Scan & Share QR Code', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ],
@@ -57,7 +61,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
             Text(
               'Share this listing of "${widget.listing.title}" with friends or community groups.',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
             ),
             const SizedBox(height: 20),
             // Mock QR Code widget
@@ -97,7 +101,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Color(0xFF2E7D32))),
+            child: const Text('Close', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -123,7 +127,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -133,7 +137,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
               );
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
@@ -167,7 +171,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Row(
           children: [
-            Icon(Icons.calendar_month, color: Color(0xFF2E7D32)),
+            Icon(Icons.calendar_month, color: AppColors.primary),
             SizedBox(width: 8),
             Text('Rental Calendar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ],
@@ -196,10 +200,10 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                 final isBooked = [5, 6, 7, 18, 19].contains(day);
                 return Container(
                   decoration: BoxDecoration(
-                    color: isBooked ? Colors.red.shade100 : Colors.green.shade50,
+                    color: isBooked ? Colors.red.shade100 : AppColors.success,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: isBooked ? Colors.red.shade300 : Colors.green.shade300,
+                      color: isBooked ? Colors.red.shade300 : AppColors.success,
                     ),
                   ),
                   alignment: Alignment.center,
@@ -208,7 +212,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: isBooked ? Colors.red.shade900 : const Color(0xFF2E7D32),
+                      color: isBooked ? Colors.red.shade900 : AppColors.primary,
                     ),
                   ),
                 );
@@ -219,7 +223,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close', style: TextStyle(color: Color(0xFF2E7D32))),
+            child: const Text('Close', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -238,7 +242,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
     final cleanStatus = widget.listing.status.toLowerCase();
 
     if (cleanStatus == 'published' || cleanStatus == 'available') {
-      badgeColor = const Color(0xFF2E7D32);
+      badgeColor = AppColors.primary;
       badgeText = 'Available';
       badgeIcon = Icons.check_circle_outline;
     } else if (cleanStatus == 'booked') {
@@ -266,7 +270,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
       badgeText = 'Paused';
       badgeIcon = Icons.pause_circle_outline;
     } else {
-      badgeColor = const Color(0xFF2E7D32);
+      badgeColor = AppColors.primary;
       badgeText = 'Available';
       badgeIcon = Icons.check_circle_outline;
     }
@@ -282,14 +286,15 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Upper Layout: Large Image + Badge Overlay
+          // ──────────────────────────────────────────────────────────────────
+          // SECTION 1: Image, Category Badge, Status Badge
+          // ──────────────────────────────────────────────────────────────────
           Stack(
             children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-                child: SizedBox(
-                  height: 180,
-                  width: double.infinity,
+              AspectRatio(
+                aspectRatio: 16 / 9,
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
                   child: buildSmartImage(image, fit: BoxFit.cover),
                 ),
               ),
@@ -304,6 +309,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(_getCategoryEmoji(widget.listing.category)),
                       const SizedBox(width: 4),
@@ -329,6 +335,7 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                     ],
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(badgeIcon, size: 12, color: Colors.white),
                       const SizedBox(width: 4),
@@ -351,9 +358,10 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(Icons.verified, color: Colors.blue, size: 12),
-                      SizedBox(width: 4),
+                      const SizedBox(width: 4),
                       Text('Verified', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue)),
                     ],
                   ),
@@ -361,13 +369,15 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
               ),
             ],
           ),
-          
+
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title & Condition / Rating
+                // ──────────────────────────────────────────────────────────────
+                // SECTION 2: Title, Location, Posted Date, Rating
+                // ──────────────────────────────────────────────────────────────
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -379,37 +389,46 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
+                          color: AppColors.textPrimary,
                           letterSpacing: -0.2,
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.star, color: Colors.amber, size: 16),
                         const SizedBox(width: 4),
                         Text(
                           widget.listing.rating.toStringAsFixed(1),
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                       ],
                     ),
                   ],
                 ),
                 const SizedBox(height: 6),
-                // Location & Posted Date
                 Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Icon(Icons.location_on_outlined, size: 14, color: Color(0xFF6F7A6B)),
-                    const SizedBox(width: 4),
                     Expanded(
-                      child: Text(
-                        widget.listing.location,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.location_on_outlined, size: 14, color: AppColors.textSecondary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              widget.listing.location,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Text(
                       'Posted: $postedDateFormatted',
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
@@ -417,170 +436,127 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                
-                // Prices, Condition
+
+                // Price display
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Price Row
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '₹${widget.listing.price.toStringAsFixed(0)}/day',
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: Color(0xFF2E7D32),
-                          ),
-                        ),
-                        if (hasSaleOption)
-                          Text(
-                            'Buy: ₹${widget.listing.salePrice!.toStringAsFixed(0)}',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade800),
-                          ),
-                      ],
-                    ),
-                    // Condition badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: Text(
-                        'Condition: ${widget.listing.condition}',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+                    Text(
+                      '₹${widget.listing.price.toStringAsFixed(0)}/day',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.primary,
                       ),
                     ),
+                    if (hasSaleOption)
+                      Text(
+                        'Buy: ₹${widget.listing.salePrice!.toStringAsFixed(0)}',
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade800),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // ──────────────────────────────────────────────────────────────
+                // SECTION 3: Status Information Chips (Wrap layout to avoid overflow)
+                // ──────────────────────────────────────────────────────────────
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _buildMaterialChip(widget.listing.condition, Icons.handyman_outlined, Colors.grey.shade700),
+                    _buildMaterialChip('Qty $_inventoryCount', Icons.shopping_bag_outlined, Colors.blue.shade700, onTap: () {
+                      _showQuantityEditDialog();
+                    }),
+                    _buildMaterialChip(_isAutoRenew ? 'Auto-Renew' : 'Manual', Icons.autorenew_rounded, _isAutoRenew ? AppColors.primary : Colors.grey.shade600, onTap: () {
+                      setState(() => _isAutoRenew = !_isAutoRenew);
+                    }),
+                    if (_isInstantBook)
+                      _buildMaterialChip('Instant Book', Icons.bolt, Colors.amber.shade900, onTap: () {
+                        setState(() => _isInstantBook = !_isInstantBook);
+                      }),
                   ],
                 ),
                 const Divider(height: 24),
 
-                // Features: Inventory / AutoRenew / InstantBook / Calendar
+                // ──────────────────────────────────────────────────────────────
+                // SECTION 4: Statistics (3 Equal Cards Row)
+                // ──────────────────────────────────────────────────────────────
                 Row(
                   children: [
-                    // Inventory Counter
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, size: 18),
-                      onPressed: () {
-                        if (_inventoryCount > 1) {
-                          setState(() => _inventoryCount--);
-                        }
-                      },
-                    ),
-                    Text('Qty: $_inventoryCount', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline, size: 18),
-                      onPressed: () {
-                        setState(() => _inventoryCount++);
-                      },
-                    ),
-                    const Spacer(),
-                    // Auto-Renew switch
-                    Tooltip(
-                      message: 'Auto-Renew listing when expired',
-                      child: TextButton.icon(
-                        icon: Icon(
-                          _isAutoRenew ? Icons.autorenew : Icons.autorenew,
-                          size: 16,
-                          color: _isAutoRenew ? const Color(0xFF2E7D32) : Colors.grey,
-                        ),
-                        label: Text(
-                          _isAutoRenew ? 'Auto-Renew' : 'Manual',
-                          style: TextStyle(fontSize: 11, color: _isAutoRenew ? const Color(0xFF2E7D32) : Colors.grey),
-                        ),
-                        onPressed: () => setState(() => _isAutoRenew = !_isAutoRenew),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    // Instant Book indicator
-                    Tooltip(
-                      message: 'Instant booking toggle',
-                      child: IconButton(
-                        icon: Icon(
-                          _isInstantBook ? Icons.bolt : Icons.offline_bolt_outlined,
-                          size: 20,
-                          color: _isInstantBook ? Colors.amber : Colors.grey,
-                        ),
-                        onPressed: () => setState(() => _isInstantBook = !_isInstantBook),
-                      ),
-                    ),
-                    // Calendar trigger
-                    IconButton(
-                      icon: const Icon(Icons.calendar_month, color: Color(0xFF2E7D32), size: 20),
-                      onPressed: _showRentalCalendar,
-                      tooltip: 'View Rental Calendar',
-                    ),
+                    Expanded(child: _buildMetricCard('Views', '${widget.listing.views}', Icons.visibility_outlined, Colors.blue)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildMetricCard('Saves', '${widget.listing.savedBy.length}', Icons.favorite_border, Colors.pink)),
+                    const SizedBox(width: 8),
+                    Expanded(child: _buildMetricCard('Requests', '${widget.listing.bookingsCount}', Icons.calendar_month_outlined, AppColors.primary)),
                   ],
                 ),
-                
-                const Divider(height: 16),
-                
-                // Analytics indicators row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: [
-                    _buildQuickMetric(Icons.visibility_outlined, '${widget.listing.views}', 'Views'),
-                    _buildQuickMetric(Icons.favorite_border, '${widget.listing.savedBy.length}', 'Saves'),
-                    _buildQuickMetric(Icons.calendar_month_outlined, '${widget.listing.bookingsCount}', 'Bookings'),
-                  ],
-                ),
-                const Divider(height: 16),
+                const Divider(height: 24),
 
-                // QUICK ACTIONS (Edit, Share, Boost, Pause, Duplicate, Analytics, Delete)
+                // ──────────────────────────────────────────────────────────────
+                // SECTION 5: Owner Actions
+                // ──────────────────────────────────────────────────────────────
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Edit
-                    _circleQuickButton(
-                      icon: Icons.edit_outlined,
-                      tooltip: 'Edit',
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showManageListingBottomSheet(cleanStatus),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          minimumSize: const Size(0, 48),
+                        ),
+                        icon: const Icon(Icons.settings_outlined, size: 18),
+                        label: const Text('Manage Listing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
                       onPressed: widget.onEdit,
-                      color: Colors.blue,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.primary),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        minimumSize: const Size(48, 48),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Icon(Icons.edit_outlined, size: 20),
                     ),
-                    // Share
-                    _circleQuickButton(
-                      icon: Icons.share_outlined,
-                      tooltip: 'Share QR',
-                      onPressed: _showShareQrDialog,
-                      color: Colors.green,
-                    ),
-                    // Boost
-                    _circleQuickButton(
-                      icon: Icons.rocket_launch_outlined,
-                      tooltip: 'Boost',
-                      onPressed: _showBoostDialog,
-                      color: Colors.orange,
-                    ),
-                    // Pause/Resume
-                    _circleQuickButton(
-                      icon: cleanStatus == 'hidden' ? Icons.play_arrow_outlined : Icons.pause_outlined,
-                      tooltip: cleanStatus == 'hidden' ? 'Resume' : 'Pause',
-                      onPressed: widget.onPauseResume,
-                      color: Colors.indigo,
-                    ),
-                    // Duplicate
-                    _circleQuickButton(
-                      icon: Icons.copy_outlined,
-                      tooltip: 'Duplicate',
-                      onPressed: widget.onDuplicate,
-                      color: Colors.purple,
-                    ),
-                    // View Analytics
-                    _circleQuickButton(
-                      icon: Icons.bar_chart_outlined,
-                      tooltip: 'Analytics',
-                      onPressed: _showAnalyticsSheet,
-                      color: Colors.teal,
-                    ),
-                    // Delete
-                    _circleQuickButton(
-                      icon: Icons.delete_outline_rounded,
-                      tooltip: 'Delete',
+                    const SizedBox(width: 8),
+                    OutlinedButton(
                       onPressed: widget.onDelete,
-                      color: Colors.red,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.red,
+                        side: BorderSide(color: Colors.red.shade200),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        minimumSize: const Size(48, 48),
+                        padding: EdgeInsets.zero,
+                      ),
+                      child: const Icon(Icons.delete_outline_rounded, size: 20),
+                    ),
+                    const SizedBox(width: 8),
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert_rounded, color: Colors.black87),
+                      onSelected: (val) {
+                        if (val == 'share') _showShareQrDialog();
+                        if (val == 'boost') _showBoostDialog();
+                        if (val == 'calendar') _showRentalCalendar();
+                        if (val == 'analytics') _showAnalyticsSheet();
+                        if (val == 'pause') widget.onPauseResume();
+                        if (val == 'images') _showManageImagesSheet();
+                        if (val == 'duplicate') widget.onDuplicate();
+                      },
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(value: 'share', child: Row(children: [Icon(Icons.qr_code_2, size: 18), SizedBox(width: 8), Text('Share QR')])),
+                        const PopupMenuItem(value: 'boost', child: Row(children: [Icon(Icons.rocket_launch_outlined, size: 18), SizedBox(width: 8), Text('Boost listing')])),
+                        const PopupMenuItem(value: 'calendar', child: Row(children: [Icon(Icons.calendar_month_outlined, size: 18), SizedBox(width: 8), Text('Calendar')])),
+                        const PopupMenuItem(value: 'analytics', child: Row(children: [Icon(Icons.bar_chart_outlined, size: 18), SizedBox(width: 8), Text('Analytics')])),
+                        const PopupMenuItem(value: 'images', child: Row(children: [Icon(Icons.image_outlined, size: 18), SizedBox(width: 8), Text('Manage Images')])),
+                        PopupMenuItem(value: 'pause', child: Row(children: [Icon(cleanStatus == 'hidden' ? Icons.play_arrow_outlined : Icons.pause_outlined, size: 18), const SizedBox(width: 8), Text(cleanStatus == 'hidden' ? 'Resume' : 'Pause')])),
+                        const PopupMenuItem(value: 'duplicate', child: Row(children: [Icon(Icons.copy_outlined, size: 18), SizedBox(width: 8), Text('Duplicate')])),
+                      ],
                     ),
                   ],
                 ),
@@ -592,39 +568,293 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
     );
   }
 
-  Widget _buildQuickMetric(IconData icon, String value, String label) {
-    return Row(
-      children: [
-        Icon(icon, size: 14, color: const Color(0xFF6F7A6B)),
-        const SizedBox(width: 4),
-        Text(
-          '$value $label',
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF3F4A3C)),
+  Widget _buildMaterialChip(String label, IconData icon, Color color, {VoidCallback? onTap}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withValues(alpha: 0.15)),
         ),
-      ],
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
-  Widget _circleQuickButton({
-    required IconData icon,
-    required String tooltip,
-    required VoidCallback onPressed,
-    required Color color,
-  }) {
-    return Tooltip(
-      message: tooltip,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.08),
-          shape: BoxShape.circle,
+  Widget _buildMetricCard(String label, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9F9F8),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFBECAB9).withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(height: 4),
+          Text(value, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+          const SizedBox(height: 2),
+          Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  void _showQuantityEditDialog() {
+    final ctrl = TextEditingController(text: '$_inventoryCount');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Update Quantity', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: TextField(
+          controller: ctrl,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Available quantity'),
         ),
-        child: IconButton(
-          icon: Icon(icon, color: color, size: 18),
-          onPressed: onPressed,
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () {
+              final val = int.tryParse(ctrl.text.trim()) ?? 1;
+              setState(() => _inventoryCount = val);
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showManageListingBottomSheet(String cleanStatus) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 44,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Manage Listing',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.edit_outlined, color: Colors.blue),
+              title: const Text('Edit Listing details'),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onEdit();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.calendar_month_outlined, color: AppColors.primary),
+              title: const Text('View Rental Calendar'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showRentalCalendar();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.bar_chart_outlined, color: Colors.teal),
+              title: const Text('View Performance Analytics'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showAnalyticsSheet();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.image_outlined, color: AppColors.success),
+              title: const Text('Manage listing photos'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showManageImagesSheet();
+              },
+            ),
+            ListTile(
+              leading: Icon(
+                cleanStatus == 'hidden' ? Icons.play_arrow_outlined : Icons.pause_circle_outline,
+                color: Colors.indigo,
+              ),
+              title: Text(cleanStatus == 'hidden' ? 'Resume Listing' : 'Pause Listing'),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onPauseResume();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.rocket_launch_outlined, color: Colors.orange),
+              title: const Text('Boost Visibility'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showBoostDialog();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.qr_code_2, color: AppColors.success),
+              title: const Text('Share QR Code'),
+              onTap: () {
+                Navigator.pop(ctx);
+                _showShareQrDialog();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.copy_outlined, color: Colors.purple),
+              title: const Text('Duplicate Listing'),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onDuplicate();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+              title: const Text('Delete Listing', style: TextStyle(color: Colors.red)),
+              onTap: () {
+                Navigator.pop(ctx);
+                widget.onDelete();
+              },
+            ),
+            const SizedBox(height: 12),
+          ],
         ),
       ),
+    );
+  }
+
+  void _showManageImagesSheet() {
+    List<BorrowImageItem> currentImages = widget.listing.imageUrls.map((url) => BorrowImageItem(remoteUrl: url)).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Manage Photos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text('The first image is the cover photo. Reorder or delete images below.', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  const SizedBox(height: 16),
+
+                  // Image picker container
+                  Expanded(
+                    child: BorrowImagePicker(
+                      initialImages: currentImages,
+                      onImagesChanged: (updated) {
+                        currentImages = updated;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx); // pop sheet
+                        
+                        // Show loading popup
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                        );
+
+                        try {
+                          final List<String> finalUrls = [];
+                          final CloudinaryService cloudinary = CloudinaryService();
+
+                          for (var img in currentImages) {
+                            if (img.isLocal) {
+                              final secureUrl = await cloudinary.uploadImage(img.localFile!);
+                              finalUrls.add(secureUrl);
+                            } else {
+                              finalUrls.add(img.remoteUrl!);
+                            }
+                          }
+
+                          await FirebaseFirestore.instance.collection('equipment').doc(widget.listing.id).update({
+                            'imageUrls': finalUrls,
+                          });
+
+                          if (context.mounted) {
+                            Navigator.pop(context); // pop loader
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Listing photos updated successfully.')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context); // pop loader
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error updating photos: $e')),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Save Images', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }

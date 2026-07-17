@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
 
 /// Reactive wrapper around [LocationService].
@@ -18,6 +20,7 @@ class LocationProvider extends ChangeNotifier {
   LocationPermissionStatus _permissionStatus = LocationPermissionStatus.unknown;
   bool _isLoading = false;
   String? _errorMessage;
+  StreamSubscription<Position>? _positionSubscription;
 
   /// Creates the provider and automatically begins location initialisation.
   LocationProvider() {
@@ -56,6 +59,7 @@ class LocationProvider extends ChangeNotifier {
 
     // Step 3: Refresh if needed
     if (_permissionStatus == LocationPermissionStatus.granted) {
+      startListeningToLocationChanges();
       final needsRefresh = await _service.shouldRefresh();
       if (needsRefresh) {
         await _fetchFreshLocation();
@@ -99,7 +103,49 @@ class LocationProvider extends ChangeNotifier {
     _errorMessage = _permissionStatus == LocationPermissionStatus.granted
         ? null
         : _describePermissionStatus(_permissionStatus);
+    if (_permissionStatus == LocationPermissionStatus.granted) {
+      startListeningToLocationChanges();
+    } else {
+      _positionSubscription?.cancel();
+    }
     notifyListeners();
+  }
+
+  /// Rechecks permission and automatically requests a fresh position if granted.
+  Future<void> recheckAndRefresh() async {
+    _permissionStatus = await _service.checkPermissionStatus();
+    if (_permissionStatus == LocationPermissionStatus.granted) {
+      startListeningToLocationChanges();
+      await _fetchFreshLocation();
+    } else {
+      _errorMessage = _describePermissionStatus(_permissionStatus);
+      _positionSubscription?.cancel();
+      notifyListeners();
+    }
+  }
+
+  /// Starts listening to Geolocator position changes (triggers on > 100 meters move).
+  void startListeningToLocationChanges() {
+    _positionSubscription?.cancel();
+    _positionSubscription = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.medium,
+        distanceFilter: 100,
+      ),
+    ).listen((Position position) async {
+      _lastVerifiedLocation = await _service.cachePosition(position);
+      _errorMessage = null;
+      notifyListeners();
+      debugPrint('[LocationProvider] Live location update: $_lastVerifiedLocation');
+    }, onError: (e) {
+      debugPrint('[LocationProvider] Live location stream error: $e');
+    });
+  }
+
+  @override
+  void dispose() {
+    _positionSubscription?.cancel();
+    super.dispose();
   }
 
   /// Returns a human-readable description of when the LVL was last updated.
@@ -113,6 +159,7 @@ class LocationProvider extends ChangeNotifier {
     if (result is LocationSuccess) {
       _lastVerifiedLocation = result.location;
       _errorMessage = null;
+      startListeningToLocationChanges();
       debugPrint('[LocationProvider] Location updated: ${result.location}');
     } else if (result is LocationFailure) {
       _errorMessage = result.reason;
@@ -133,7 +180,7 @@ class LocationProvider extends ChangeNotifier {
       case LocationPermissionStatus.permanentlyDenied:
         return 'Location permanently denied. Open settings to enable.';
       case LocationPermissionStatus.serviceDisabled:
-        return 'GPS is turned off. Please enable location services.';
+        return 'GPS is disabled. Tap to enable.';
       default:
         return 'Location unavailable.';
     }

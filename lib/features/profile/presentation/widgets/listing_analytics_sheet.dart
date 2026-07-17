@@ -1,4 +1,5 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class ListingAnalyticsSheet extends StatelessWidget {
   const ListingAnalyticsSheet({
@@ -53,7 +54,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
             // Header
             Row(
               children: [
-                const Icon(Icons.bar_chart_rounded, color: Color(0xFF2E7D32), size: 28),
+                const Icon(Icons.bar_chart_rounded, color: AppColors.primary, size: 28),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -66,7 +67,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w800,
-                          color: Color(0xFF1A1A1A),
+                          color: AppColors.textPrimary,
                         ),
                       ),
                       Text(
@@ -92,7 +93,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
                 _buildMetricCard('Number of Clicks', '$clicks', Icons.touch_app_outlined, Colors.teal),
                 _buildMetricCard('Interested Users', '$interestedUsers', Icons.people_outline, Colors.orange),
                 _buildMetricCard('Bookings', '$bookingsCount', Icons.calendar_month_outlined, Colors.purple),
-                _buildMetricCard('Revenue Generated', '₹${revenue.toStringAsFixed(0)}', Icons.monetization_on_outlined, Colors.green),
+                _buildMetricCard('Revenue Generated', '₹${revenue.toStringAsFixed(0)}', Icons.monetization_on_outlined, AppColors.success),
                 _buildMetricCard('Rental Days', '$rentalDays days', Icons.schedule_outlined, Colors.indigo),
               ],
             ),
@@ -101,7 +102,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: const Color(0xFFF8FAF8),
+                color: AppColors.background,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(color: const Color(0xFFEBEFF0)),
               ),
@@ -110,7 +111,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.flash_on, color: Color(0xFF2E7D32), size: 20),
+                      const Icon(Icons.flash_on, color: AppColors.primary, size: 20),
                       const SizedBox(width: 8),
                       Text(
                         'Avg. Host Response Rate',
@@ -120,7 +121,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
                   ),
                   Text(
                     responseRate,
-                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFF2E7D32)),
+                    style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: AppColors.primary),
                   ),
                 ],
               ),
@@ -167,7 +168,7 @@ class ListingAnalyticsSheet extends StatelessWidget {
             style: const TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w800,
-              color: Color(0xFF1A1A1A),
+              color: AppColors.textPrimary,
             ),
           ),
         ],

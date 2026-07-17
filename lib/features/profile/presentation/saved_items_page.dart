@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../models/app_user_model.dart';
@@ -6,6 +6,7 @@ import '../../../models/marketplace_equipment_model.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class SavedItemsPage extends StatefulWidget {
   const SavedItemsPage({
@@ -27,7 +28,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Saved Items', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
         backgroundColor: Colors.white,
@@ -128,7 +129,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                               ),
                               title: Text(
                                 item.equipmentName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1A1A1A)),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
                               ),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 4.0),
@@ -155,7 +156,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.share_outlined, size: 20, color: Color(0xFF2E7D32)),
+                                    icon: const Icon(Icons.share_outlined, size: 20, color: AppColors.primary),
                                     onPressed: () {
                                       // ignore: deprecated_member_use
                                       Share.share('Check out this shared item on Borrow: ${item.equipmentName}');
@@ -198,7 +199,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
       onSelected: (sel) {
         if (sel) setState(() => _categoryFilter = value);
       },
-      selectedColor: const Color(0xFF2E7D32),
+      selectedColor: AppColors.primary,
       backgroundColor: const Color(0xFFF1F3F4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide.none),
       showCheckmark: false,
@@ -216,7 +217,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
             const SizedBox(height: 16),
             const Text(
               'No saved resources.',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -230,7 +231,7 @@ class _SavedItemsPageState extends State<SavedItemsPage> {
                 Navigator.pop(context); // back to profile / home
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

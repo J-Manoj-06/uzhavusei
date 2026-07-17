@@ -6,6 +6,7 @@ import '../../../models/app_user_model.dart';
 import '../../../models/marketplace_booking_model.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class BorrowHistoryPage extends StatefulWidget {
   const BorrowHistoryPage({
@@ -27,7 +28,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Borrow History', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
         backgroundColor: Colors.white,
@@ -130,8 +131,8 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
                                   child: Container(
                                     width: 72,
                                     height: 72,
-                                    color: const Color(0xFFE8F5E9),
-                                    child: const Icon(Icons.swap_horiz_outlined, size: 36, color: Color(0xFF2E7D32)),
+                                    color: AppColors.primaryContainer,
+                                    child: const Icon(Icons.swap_horiz_outlined, size: 36, color: AppColors.primary),
                                   ),
                                 ),
                                 const SizedBox(width: 16),
@@ -141,7 +142,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
                                     children: [
                                       Text(
                                         item.equipmentName,
-                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1A1A1A)),
+                                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
                                       ),
                                       const SizedBox(height: 4),
                                       Text(
@@ -159,12 +160,12 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                                             decoration: BoxDecoration(
-                                              color: Colors.green[50],
+                                              color: AppColors.successContainer,
                                               borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: const Text(
                                               'Returned',
-                                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primary),
                                             ),
                                           ),
                                           const Spacer(),
@@ -197,7 +198,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
       onSelected: (sel) {
         if (sel) setState(() => _dateFilter = value);
       },
-      selectedColor: const Color(0xFF2E7D32),
+      selectedColor: AppColors.primary,
       backgroundColor: const Color(0xFFF1F3F4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide.none),
       showCheckmark: false,
@@ -215,7 +216,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
             const SizedBox(height: 16),
             const Text(
               'No completed exchanges.',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -229,7 +230,7 @@ class _BorrowHistoryPageState extends State<BorrowHistoryPage> {
                 Navigator.pop(context); // back to profile / home
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

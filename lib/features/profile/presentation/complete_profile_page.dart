@@ -1,8 +1,9 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class CompleteProfilePage extends StatefulWidget {
   const CompleteProfilePage({
@@ -280,7 +281,7 @@ class _CompleteProfilePageState extends State<CompleteProfilePage> {
       validator: validator,
       decoration: InputDecoration(
         labelText: label,
-        prefixIcon: Icon(icon, color: const Color(0xFF6F7A6B)),
+        prefixIcon: Icon(icon, color: AppColors.textSecondary),
         filled: true,
         fillColor: const Color(0xFFF9F9F8),
         border: OutlineInputBorder(

@@ -310,6 +310,18 @@ class LocationService {
     return cached.isStale;
   }
 
+  /// Caches a fresh GPS position.
+  Future<VerifiedLocation> cachePosition(Position position) async {
+    final location = VerifiedLocation(
+      latitude: position.latitude,
+      longitude: position.longitude,
+      timestamp: DateTime.now(),
+      accuracy: position.accuracy,
+    );
+    await _writeCache(location);
+    return location;
+  }
+
   // ── Cache helpers ─────────────────────────────────────────
 
   /// Persists a [VerifiedLocation] to SharedPreferences.

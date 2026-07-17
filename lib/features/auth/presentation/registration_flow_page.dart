@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pinput/pinput.dart';
 import 'dart:ui';
 import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class RegistrationFlowPage extends StatefulWidget {
   const RegistrationFlowPage({super.key, required this.authService});
@@ -20,9 +21,9 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
   bool _submitting = false;
 
   // -- Colors
-  final Color _primaryGreen = const Color(0xFF4CAF50);
-  final Color _darkGreen = const Color(0xFF2E7D32);
-  final Color _lightGreen = const Color(0xFFE8F5E9);
+  final Color _primaryGreen = AppColors.primary;
+  final Color _darkGreen = AppColors.primary;
+  final Color _lightGreen = AppColors.primaryContainer;
   
   // -- Step 1: Phone
   final _phoneController = TextEditingController(text: '+91 ');

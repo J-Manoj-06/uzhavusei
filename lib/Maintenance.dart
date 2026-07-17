@@ -3,6 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 import 'config.dart';
 import 'services/api_client.dart';
 import 'services/logger_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class ChatMessage {
   final String text;
@@ -159,7 +160,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
           'Maintenance & Support',
           style: TextStyle(color: Colors.white),
         ),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -207,21 +208,21 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                       onPressed: () {},
                       child: const Text(
                         'Low',
-                        style: TextStyle(color: Color(0xFF4CAF50)),
+                        style: TextStyle(color: AppColors.primary),
                       ),
                     ),
                     ElevatedButton(
                       onPressed: () {},
                       child: const Text(
                         'Medium',
-                        style: TextStyle(color: Color(0xFF4CAF50)),
+                        style: TextStyle(color: AppColors.primary),
                       ),
                     ),
                     ElevatedButton(
                       onPressed: () {},
                       child: const Text(
                         'High',
-                        style: TextStyle(color: Color(0xFF4CAF50)),
+                        style: TextStyle(color: AppColors.primary),
                       ),
                     ),
                   ],
@@ -241,7 +242,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                   },
                   child: const Text(
                     'Submit Date',
-                    style: TextStyle(color: Color(0xFF4CAF50)),
+                    style: TextStyle(color: AppColors.primary),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -268,7 +269,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: AppColors.primary,
                   ),
                   child: const Text(
                     'Submit Request',
@@ -319,7 +320,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
                 ElevatedButton(
                   onPressed: _sendMessage,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF4CAF50),
+                    backgroundColor: AppColors.primary,
                   ),
                   child: const Text(
                     'Send Message',
@@ -334,7 +335,7 @@ class _MaintenanceSupportPageState extends State<MaintenancePage> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'maintenance_fab',
         onPressed: _toggleChat,
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         child: const Icon(Icons.message, color: Colors.white),
       ),
       bottomSheet: _isChatActive
@@ -435,7 +436,7 @@ class ChatWindow extends StatelessWidget {
             children: [
               const Row(
                 children: [
-                  CircleAvatar(radius: 8, backgroundColor: Colors.green),
+                  CircleAvatar(radius: 8, backgroundColor: AppColors.success),
                   SizedBox(width: 8),
                   Text(
                     'Support Chat',
@@ -485,7 +486,7 @@ class ChatWindow extends StatelessWidget {
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
                       color:
-                          message.isUser ? Colors.green[100] : Colors.grey[200],
+                          message.isUser ? AppColors.primaryContainer : Colors.grey[200],
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(message.text),

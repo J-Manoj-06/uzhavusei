@@ -1,8 +1,9 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../../models/marketplace_equipment_model.dart';
 import '../../../../../models/farm_surplus_exchange_model.dart';
 import '../../../../../services/marketplace_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class ListingsAnalyticsSection extends StatefulWidget {
   const ListingsAnalyticsSection({super.key, required this.userId});
@@ -85,8 +86,8 @@ class _ListingsAnalyticsSectionState extends State<ListingsAnalyticsSection> {
             value: '$totalListings',
             subtitle: 'Listings',
             icon: Icons.inventory_2,
-            gradient: const LinearGradient(colors: [Color(0xFFE8F5E9), Color(0xFFC8E6C9)]),
-            iconColor: const Color(0xFF2E7D32),
+            gradient: const LinearGradient(colors: [AppColors.primaryContainer, AppColors.primaryContainer]),
+            iconColor: AppColors.primary,
           ),
           const SizedBox(width: 12),
           _buildAnalyticsCard(

@@ -19,6 +19,7 @@ import 'saved_items_page.dart';
 import 'settings_page.dart';
 import '../data/profile_service.dart';
 import 'dart:io';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -135,7 +136,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Ratings & Reviews', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A))),
+              const Text('Ratings & Reviews', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
               const SizedBox(height: 12),
               Row(
                 children: [
@@ -153,7 +154,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
               const Divider(),
               const SizedBox(height: 10),
               ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.green[50], child: const Text('A')),
+                leading: CircleAvatar(backgroundColor: AppColors.successContainer, child: const Text('A')),
                 title: const Text('Anitha R.'),
                 subtitle: const Text('Very helpful lender, the shared resource was in excellent condition.'),
                 trailing: const Row(
@@ -220,7 +221,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
         : 'Add username';
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
@@ -271,7 +272,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                 _loadStats();
                 await Future.delayed(const Duration(milliseconds: 600));
               },
-              color: const Color(0xFF2E7D32),
+              color: AppColors.primary,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 child: Padding(
@@ -291,7 +292,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                   child: Center(
                                     child: CircleAvatar(
                                       radius: 60,
-                                      backgroundColor: const Color(0xFFE8F5E9),
+                                      backgroundColor: AppColors.primaryContainer,
                                       child: user.profileImage.trim().isNotEmpty
                                           ? ClipOval(
                                               child: buildSmartImage(
@@ -301,7 +302,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                                 fit: BoxFit.cover,
                                               ),
                                             )
-                                          : const Icon(Icons.person, size: 60, color: Color(0xFF2E7D32)),
+                                          : const Icon(Icons.person, size: 60, color: AppColors.primary),
                                     ),
                                   ),
                                 ),
@@ -318,7 +319,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                         style: const TextStyle(
                                           fontSize: 22,
                                           fontWeight: FontWeight.bold,
-                                          color: Color(0xFF1A1A1A),
+                                          color: AppColors.textPrimary,
                                         ),
                                       ),
                                       const SizedBox(width: 6),
@@ -350,7 +351,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                         fontSize: 16,
                                         color: user.username != null && user.username!.isNotEmpty
                                             ? Colors.grey.shade600
-                                            : const Color(0xFF2E7D32),
+                                            : AppColors.primary,
                                         fontWeight: user.username != null && user.username!.isNotEmpty
                                             ? FontWeight.normal
                                             : FontWeight.bold,
@@ -438,7 +439,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                         style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                                       ),
                                       style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFF2E7D32),
+                                        backgroundColor: AppColors.primary,
                                         foregroundColor: Colors.white,
                                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                                         elevation: 0,
@@ -464,7 +465,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                     alignment: Alignment.centerLeft,
                                     child: Text(
                                       'Activity Statistics',
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                     ),
                                   ),
                                 ),
@@ -484,7 +485,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                     alignment: Alignment.centerLeft,
                                     child: Text(
                                       'Activity',
-                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                     ),
                                   ),
                                 ),
@@ -516,7 +517,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
             const SizedBox(height: 16),
             const Text(
               'Unable to load profile',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Color(0xFF1A1A1A)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -532,7 +533,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                 icon: const Icon(Icons.refresh),
                 label: const Text('Try Again', style: TextStyle(fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -724,7 +725,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
       color: Colors.white,
       child: ListTile(
         leading: Text(icon, style: const TextStyle(fontSize: 22)),
-        title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+        title: Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
         subtitle: Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -815,7 +816,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
           children: [
             Icon(
               allVerified ? Icons.verified : Icons.verified_user_outlined,
-              color: allVerified ? const Color(0xFF2E7D32) : Colors.amber,
+              color: allVerified ? AppColors.primary : Colors.amber,
               size: 24,
             ),
             const SizedBox(width: 12),
@@ -914,7 +915,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
             'Shared Items',
             sharedCount.toDouble(),
             Icons.inventory_2_outlined,
-            const Color(0xFF2E7D32),
+            AppColors.primary,
             prefix: '📦',
           ),
         ),
@@ -1002,7 +1003,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
               AnimatedCountText(
                 value: value,
                 isRating: isRating,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
               const SizedBox(height: 2),
               Text(

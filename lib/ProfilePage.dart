@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:provider/provider.dart';
 import 'providers/user_profile_provider.dart';
 import 'services/auth_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 void main() {
   runApp(const ProfileApp());
@@ -103,7 +104,7 @@ class _ProfilePageState extends State<ProfilePage> {
         return Scaffold(
           appBar: AppBar(
             title: const Text('Profile'),
-            backgroundColor: Colors.green,
+            backgroundColor: AppColors.success,
             foregroundColor: Colors.white,
             actions: [
               IconButton(
@@ -194,7 +195,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       child: Container(
                         padding: const EdgeInsets.all(4),
                         decoration: BoxDecoration(
-                          color: Colors.green,
+                          color: AppColors.success,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: const Icon(
@@ -276,7 +277,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ElevatedButton(
                     onPressed: _saveProfile,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.success,
                     ),
                     child: provider.isLoading
                         ? const SizedBox(
@@ -293,7 +294,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ElevatedButton(
                     onPressed: () => provider.toggleEditMode(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.success,
                     ),
                     child: const Text('Edit Profile'),
                   ),
@@ -400,7 +401,7 @@ class _ProfilePageState extends State<ProfilePage> {
         Icon(
           icon,
           size: 32,
-          color: Colors.green,
+          color: AppColors.success,
         ),
         const SizedBox(height: 8),
         Text(
@@ -463,7 +464,7 @@ class _ProfilePageState extends State<ProfilePage> {
             LinearProgressIndicator(
               value: 0.75,
               backgroundColor: Colors.grey[200],
-              valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.success),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -510,21 +511,21 @@ class _ProfilePageState extends State<ProfilePage> {
                     height: 40,
                     decoration: BoxDecoration(
                       color: achievement['unlocked']
-                          ? Colors.green.withValues(alpha: 0.1)
+                          ? AppColors.success.withValues(alpha: 0.1)
                           : Colors.grey.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
                       achievement['icon'],
                       color:
-                          achievement['unlocked'] ? Colors.green : Colors.grey,
+                          achievement['unlocked'] ? AppColors.success : Colors.grey,
                     ),
                   ),
                   title: Text(achievement['title']),
                   subtitle: Text(achievement['description']),
                   trailing: Icon(
                     achievement['unlocked'] ? Icons.check_circle : Icons.lock,
-                    color: achievement['unlocked'] ? Colors.green : Colors.grey,
+                    color: achievement['unlocked'] ? AppColors.success : Colors.grey,
                   ),
                 );
               },
@@ -656,7 +657,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     activity['amount'],
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
-                      color: Colors.green,
+                      color: AppColors.success,
                     ),
                   ),
                 );
@@ -675,7 +676,7 @@ class _ProfilePageState extends State<ProfilePage> {
       case 'maintenance':
         return Colors.orange;
       case 'payment':
-        return Colors.green;
+        return AppColors.success;
       default:
         return Colors.grey;
     }
@@ -896,14 +897,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: document['status'] == 'Verified'
-                                ? Colors.green.withValues(alpha: 0.1)
+                                ? AppColors.success.withValues(alpha: 0.1)
                                 : Colors.orange.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             Icons.description,
                             color: document['status'] == 'Verified'
-                                ? Colors.green
+                                ? AppColors.success
                                 : Colors.orange,
                           ),
                         ),
@@ -985,14 +986,14 @@ class _ProfilePageState extends State<ProfilePage> {
                           height: 40,
                           decoration: BoxDecoration(
                             color: method['default']
-                                ? Colors.green.withValues(alpha: 0.1)
+                                ? AppColors.success.withValues(alpha: 0.1)
                                 : Colors.grey.withValues(alpha: 0.1),
                             shape: BoxShape.circle,
                           ),
                           child: Icon(
                             _getPaymentMethodIcon(method['type']),
                             color:
-                                method['default'] ? Colors.green : Colors.grey,
+                                method['default'] ? AppColors.success : Colors.grey,
                           ),
                         ),
                         title: Text(method['type']),
@@ -1628,7 +1629,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('English'),
             trailing: provider.selectedLanguage == 'English'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('English');
@@ -1638,7 +1639,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('हिंदी'),
             trailing: provider.selectedLanguage == 'हिंदी'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('हिंदी');
@@ -1648,7 +1649,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('தமிழ்'),
             trailing: provider.selectedLanguage == 'தமிழ்'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('தமிழ்');
@@ -1658,7 +1659,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('বাংলা'),
             trailing: provider.selectedLanguage == 'বাংলা'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('বাংলা');
@@ -1668,7 +1669,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('తెలుగు'),
             trailing: provider.selectedLanguage == 'తెలుగు'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('తెలుగు');
@@ -1678,7 +1679,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('मराठी'),
             trailing: provider.selectedLanguage == 'मराठी'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('मराठी');
@@ -1688,7 +1689,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ListTile(
             title: const Text('ગુજરાતી'),
             trailing: provider.selectedLanguage == 'ગુજરાતી'
-                ? const Icon(Icons.check, color: Colors.green)
+                ? const Icon(Icons.check, color: AppColors.success)
                 : null,
             onTap: () {
               provider.updateLanguage('ગુજરાતી');
@@ -1959,13 +1960,13 @@ class NotificationCenter extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: notification['read']
                         ? Colors.grey[200]
-                        : Colors.green.withValues(alpha: 0.1),
+                        : AppColors.success.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
                     Icons.notifications,
                     color:
-                        notification['read'] ? Colors.grey[400] : Colors.green,
+                        notification['read'] ? Colors.grey[400] : AppColors.success,
                   ),
                 ),
                 title: Text(notification['title']),

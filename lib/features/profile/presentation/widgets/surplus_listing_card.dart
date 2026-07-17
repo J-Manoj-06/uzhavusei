@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../../../../models/farm_surplus_exchange_model.dart';
 import '../../../../../widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class SurplusListingCard extends StatelessWidget {
   const SurplusListingCard({
@@ -42,7 +43,7 @@ class SurplusListingCard extends StatelessWidget {
       badgeText = 'Exchange Only';
       badgeIcon = Icons.compare_arrows;
     } else {
-      badgeColor = const Color(0xFF4CAF50);
+      badgeColor = AppColors.primary;
       badgeText = 'Surplus Resource';
       badgeIcon = Icons.eco;
     }
@@ -102,7 +103,7 @@ class SurplusListingCard extends StatelessWidget {
                               ),
                             ),
                             PopupMenuButton<String>(
-                              icon: const Icon(Icons.more_vert, color: Color(0xFF6F7A6B)),
+                              icon: const Icon(Icons.more_vert, color: AppColors.textSecondary),
                               onSelected: (value) {
                                 if (value == 'edit') onEdit();
                                 if (value == 'delete') onDelete();
@@ -127,7 +128,7 @@ class SurplusListingCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: Color(0xFF1A1A1A),
+                            color: AppColors.textPrimary,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -137,20 +138,20 @@ class SurplusListingCard extends StatelessWidget {
                           '${surplus.category} • ${surplus.quantity} ${surplus.unitType}',
                           style: const TextStyle(
                             fontSize: 12,
-                            color: Color(0xFF6F7A6B),
+                            color: AppColors.textSecondary,
                           ),
                         ),
                         const SizedBox(height: 8),
                         Row(
                           children: [
-                            const Icon(Icons.location_on, size: 14, color: Color(0xFF6F7A6B)),
+                            const Icon(Icons.location_on, size: 14, color: AppColors.textSecondary),
                             const SizedBox(width: 4),
                             Expanded(
                               child: Text(
                                 surplus.location,
                                 style: const TextStyle(
                                   fontSize: 12,
-                                  color: Color(0xFF6F7A6B),
+                                  color: AppColors.textSecondary,
                                 ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
@@ -210,7 +211,7 @@ class SurplusListingCard extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(icon, size: 14, color: const Color(0xFF6F7A6B)),
+            Icon(icon, size: 14, color: AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               value,
@@ -227,7 +228,7 @@ class SurplusListingCard extends StatelessWidget {
           label,
           style: const TextStyle(
             fontSize: 10,
-            color: Color(0xFF6F7A6B),
+            color: AppColors.textSecondary,
           ),
         ),
       ],

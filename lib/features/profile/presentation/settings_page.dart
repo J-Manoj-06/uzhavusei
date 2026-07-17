@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +11,7 @@ import 'edit_profile_page.dart';
 import 'verification_center_page.dart';
 import '../../auth/presentation/login_register_page.dart';
 import '../../../Maintenance.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({
@@ -82,7 +83,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('System Default'),
               value: 'System',
               groupValue: _currentTheme,
-              activeColor: const Color(0xFF2E7D32),
+              activeColor: AppColors.primary,
               onChanged: (val) {
                 if (val != null) {
                   _savePreference('theme_preference', val);
@@ -94,7 +95,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Light'),
               value: 'Light',
               groupValue: _currentTheme,
-              activeColor: const Color(0xFF2E7D32),
+              activeColor: AppColors.primary,
               onChanged: (val) {
                 if (val != null) {
                   _savePreference('theme_preference', val);
@@ -106,7 +107,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Dark'),
               value: 'Dark',
               groupValue: _currentTheme,
-              activeColor: const Color(0xFF2E7D32),
+              activeColor: AppColors.primary,
               onChanged: (val) {
                 if (val != null) {
                   _savePreference('theme_preference', val);
@@ -133,7 +134,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('English'),
               value: 'en',
               groupValue: _currentLanguage,
-              activeColor: const Color(0xFF2E7D32),
+              activeColor: AppColors.primary,
               onChanged: (val) {
                 if (val != null) {
                   _savePreference('language_preference', val);
@@ -145,7 +146,7 @@ class _SettingsPageState extends State<SettingsPage> {
               title: const Text('Tamil (தமிழ்)'),
               value: 'ta',
               groupValue: _currentLanguage,
-              activeColor: const Color(0xFF2E7D32),
+              activeColor: AppColors.primary,
               onChanged: (val) {
                 if (val != null) {
                   _savePreference('language_preference', val);
@@ -205,7 +206,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -225,7 +226,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 if (mounted) setState(() => _loading = false);
               }
             },
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
             child: const Text('Logout'),
           ),
         ],
@@ -278,7 +279,7 @@ class _SettingsPageState extends State<SettingsPage> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
               ),
               ElevatedButton(
                 onPressed: !deleteEnabled
@@ -321,7 +322,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
         backgroundColor: Colors.white,
@@ -459,8 +460,8 @@ class _SettingsPageState extends State<SettingsPage> {
                 _buildSettingsTile(
                   icon: Icons.logout_rounded,
                   title: 'Logout',
-                  titleColor: const Color(0xFF2E7D32),
-                  iconColor: const Color(0xFF2E7D32),
+                  titleColor: AppColors.primary,
+                  iconColor: AppColors.primary,
                   onTap: _showLogoutDialog,
                 ),
                 _buildDivider(),
@@ -478,7 +479,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Container(
               color: Colors.black.withValues(alpha: 0.1),
               child: const Center(
-                child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                child: CircularProgressIndicator(color: AppColors.primary),
               ),
             ),
         ],
@@ -527,7 +528,7 @@ class _SettingsPageState extends State<SettingsPage> {
       leading: Icon(icon, color: iconColor ?? const Color(0xFF3F4A3C), size: 22),
       title: Text(
         title,
-        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: titleColor ?? const Color(0xFF1A1A1A)),
+        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: titleColor ?? AppColors.textPrimary),
       ),
       trailing: trailing ?? const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
       onTap: onTap,
@@ -581,7 +582,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Location updated successfully!'), backgroundColor: Color(0xFF2E7D32)),
+            const SnackBar(content: Text('Location updated successfully!'), backgroundColor: AppColors.primary),
           );
         }
       } else if (result is LocationFailure) {
@@ -601,7 +602,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Update Location')),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -616,7 +617,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.location_on_outlined, color: Color(0xFF2E7D32), size: 48),
+              const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 48),
               const SizedBox(height: 16),
               const Text('Verified Location Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 12),
@@ -634,7 +635,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
                       : const Icon(Icons.refresh, color: Colors.white),
                   label: const Text('Refresh Location', style: TextStyle(fontWeight: FontWeight.bold)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -696,7 +697,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
       }, SetOptions(merge: true));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Preferences saved successfully!'), backgroundColor: Color(0xFF2E7D32)),
+          const SnackBar(content: Text('Preferences saved successfully!'), backgroundColor: AppColors.primary),
         );
       }
     } catch (e) {
@@ -709,7 +710,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Notifications')),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -726,7 +727,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
                   title: const Text('Borrow Requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Get notified when someone requests your items', style: TextStyle(fontSize: 12)),
                   value: _requests,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _requests = val),
                 ),
                 const Divider(height: 1),
@@ -734,7 +735,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
                   title: const Text('Chat Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Get notified when you receive new chat messages', style: TextStyle(fontSize: 12)),
                   value: _chat,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _chat = val),
                 ),
                 const Divider(height: 1),
@@ -742,7 +743,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
                   title: const Text('Item Updates', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Get notified of changes to status of borrow requests', style: TextStyle(fontSize: 12)),
                   value: _updates,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _updates = val),
                 ),
                 const Divider(height: 1),
@@ -750,7 +751,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
                   title: const Text('General Announcements', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Stay updated with community events and features', style: TextStyle(fontSize: 12)),
                   value: _announcements,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _announcements = val),
                 ),
               ],
@@ -762,7 +763,7 @@ class _NotificationsScreenState extends State<_NotificationsScreen> {
             child: ElevatedButton(
               onPressed: _saving ? null : _saveSettings,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -822,7 +823,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
       }, SetOptions(merge: true));
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Privacy settings updated!'), backgroundColor: Color(0xFF2E7D32)),
+          const SnackBar(content: Text('Privacy settings updated!'), backgroundColor: AppColors.primary),
         );
       }
     } catch (e) {
@@ -835,7 +836,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Privacy Settings')),
       body: ListView(
         padding: const EdgeInsets.all(24),
@@ -852,7 +853,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
                   title: const Text('Show Approximate Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Allow other users to see your approximate town/city', style: TextStyle(fontSize: 12)),
                   value: _showApproxLoc,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _showApproxLoc = val),
                 ),
                 const Divider(height: 1),
@@ -860,7 +861,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
                   title: const Text('Allow Direct Messages', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Allow direct chat requests from other members', style: TextStyle(fontSize: 12)),
                   value: _allowDms,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _allowDms = val),
                 ),
                 const Divider(height: 1),
@@ -868,7 +869,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
                   title: const Text('Receive Borrow Requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                   subtitle: const Text('Show your items as requestable in search grids', style: TextStyle(fontSize: 12)),
                   value: _receiveRequests,
-                  activeColor: const Color(0xFF2E7D32),
+                  activeColor: AppColors.primary,
                   onChanged: (val) => setState(() => _receiveRequests = val),
                 ),
               ],
@@ -880,7 +881,7 @@ class _PrivacyScreenState extends State<_PrivacyScreen> {
             child: ElevatedButton(
               onPressed: _saving ? null : _saveSettings,
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -975,7 +976,7 @@ class _AboutScreen extends StatelessWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.loop_rounded, color: Color(0xFF2E7D32), size: 64),
+              Icon(Icons.loop_rounded, color: AppColors.primary, size: 64),
               SizedBox(height: 16),
               Text('Borrow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 24)),
               SizedBox(height: 6),

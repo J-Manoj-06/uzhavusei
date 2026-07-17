@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../models/app_user_model.dart';
@@ -8,6 +8,7 @@ import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
 import '../../equipment/presentation/create_listing_flow.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MarketplaceDashboardPage extends StatefulWidget {
   const MarketplaceDashboardPage({
@@ -33,7 +34,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Community Listings'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         actions: [
           IconButton(
@@ -45,7 +46,7 @@ class _MarketplaceDashboardPageState extends State<MarketplaceDashboardPage> {
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'marketplace_dashboard_fab',
         onPressed: _openAddEquipmentForm,
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.volunteer_activism_rounded),
         label: const Text('Share an Item'),
@@ -271,13 +272,13 @@ class _EquipmentCard extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: equipment.availability ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                      color: equipment.availability ? AppColors.primaryContainer : const Color(0xFFFFF3E0),
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       equipment.availability ? 'Available' : 'On Loan',
                       style: TextStyle(
-                        color: equipment.availability ? const Color(0xFF2E7D32) : Colors.orange.shade800,
+                        color: equipment.availability ? AppColors.primary : Colors.orange.shade800,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
@@ -424,7 +425,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF4CAF50),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                 ),
                 child: const Text('Apply Filters'),

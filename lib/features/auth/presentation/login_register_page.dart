@@ -1,10 +1,11 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/services.dart';
 import 'dart:ui';
 
 import '../../../services/auth_service.dart';
 import 'registration_flow_page.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class LoginRegisterPage extends StatefulWidget {
   const LoginRegisterPage({
@@ -26,7 +27,7 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
   bool _obscurePassword = true;
   bool _submitting = false;
   
-  final Color _primaryGreen = const Color(0xFF4CAF50);
+  final Color _primaryGreen = AppColors.primary;
 
   @override
   void dispose() {

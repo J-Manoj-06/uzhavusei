@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +10,7 @@ import '../../../../services/search_service.dart';
 import '../../../../services/search_history_manager.dart';
 import '../../../../providers/location_provider.dart';
 import '../../equipment/presentation/equipment_details_page.dart' as real_details;
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class GlobalSearchPage extends StatefulWidget {
   const GlobalSearchPage({super.key});
@@ -208,7 +209,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                     const SizedBox(height: 16),
                     const Text(
                       'Filter Search Results',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 20),
 
@@ -222,9 +223,9 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                         return ChoiceChip(
                           label: Text(cat),
                           selected: isSel,
-                          selectedColor: const Color(0xFFE8F5E9),
+                          selectedColor: AppColors.primaryContainer,
                           labelStyle: TextStyle(
-                            color: isSel ? const Color(0xFF2E7D32) : Colors.black87,
+                            color: isSel ? AppColors.primary : Colors.black87,
                             fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                           ),
                           onSelected: (selected) {
@@ -249,9 +250,9 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                         return ChoiceChip(
                           label: Text(cond),
                           selected: isSel,
-                          selectedColor: const Color(0xFFE8F5E9),
+                          selectedColor: AppColors.primaryContainer,
                           labelStyle: TextStyle(
-                            color: isSel ? const Color(0xFF2E7D32) : Colors.black87,
+                            color: isSel ? AppColors.primary : Colors.black87,
                             fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                           ),
                           onSelected: (selected) {
@@ -316,8 +317,8 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                               min: 5,
                               max: 100,
                               divisions: 19,
-                              activeColor: const Color(0xFF2E7D32),
-                              inactiveColor: const Color(0xFFE8F5E9),
+                              activeColor: AppColors.primary,
+                              inactiveColor: AppColors.primaryContainer,
                               label: _maxDistanceKm != null ? '${_maxDistanceKm!.round()} KM' : 'Anywhere',
                               onChanged: (val) {
                                 setModalState(() {
@@ -332,7 +333,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                           ),
                           Text(
                             _maxDistanceKm != null ? '${_maxDistanceKm!.round()} km' : 'Anywhere',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF2E7D32)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
                           ),
                         ],
                       ),
@@ -343,7 +344,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                     SwitchListTile(
                       title: const Text('Available Only', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       value: _onlyAvailable,
-                      activeColor: const Color(0xFF2E7D32),
+                      activeColor: AppColors.primary,
                       contentPadding: EdgeInsets.zero,
                       onChanged: (val) {
                         setModalState(() => _onlyAvailable = val);
@@ -359,7 +360,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                       child: ElevatedButton(
                         onPressed: () => Navigator.pop(context),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2E7D32),
+                          backgroundColor: AppColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -402,7 +403,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
     if (query.isEmpty) {
       return Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
       );
     }
 
@@ -412,7 +413,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
     if (!lowerTitle.contains(lowerQuery)) {
       return Text(
         title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
       );
     }
 
@@ -424,15 +425,15 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
       if (indexOfMatch > start) {
         spans.add(TextSpan(
           text: title.substring(start, indexOfMatch),
-          style: const TextStyle(color: Color(0xFF1A1A1A)),
+          style: const TextStyle(color: AppColors.textPrimary),
         ));
       }
 
       spans.add(TextSpan(
         text: title.substring(indexOfMatch, indexOfMatch + query.length),
         style: const TextStyle(
-          color: Color(0xFF2E7D32),
-          backgroundColor: Color(0xFFE8F5E9),
+          color: AppColors.primary,
+          backgroundColor: AppColors.primaryContainer,
           fontWeight: FontWeight.bold,
         ),
       ));
@@ -443,13 +444,13 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
     if (start < title.length) {
       spans.add(TextSpan(
         text: title.substring(start),
-        style: const TextStyle(color: Color(0xFF1A1A1A)),
+        style: const TextStyle(color: AppColors.textPrimary),
       ));
     }
 
     return RichText(
       text: TextSpan(
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
         children: spans,
       ),
       maxLines: 1,
@@ -471,7 +472,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A1A),
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -486,7 +487,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
               Navigator.pop(context); // Tapping Browse Categories returns home
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -546,7 +547,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
       ),
       body: RefreshIndicator(
         onRefresh: () => _performSearch(_searchCtrl.text),
-        color: const Color(0xFF2E7D32),
+        color: AppColors.primary,
         child: SingleChildScrollView(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -591,7 +592,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
                                     content: Text('Voice search feature coming soon!'),
-                                    backgroundColor: Color(0xFF2E7D32),
+                                    backgroundColor: AppColors.primary,
                                   ),
                                 );
                               },
@@ -606,10 +607,10 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
+                          color: AppColors.primaryContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.filter_list, color: Color(0xFF2E7D32), size: 20),
+                        child: const Icon(Icons.filter_list, color: AppColors.primary, size: 20),
                       ),
                     ),
                   ],
@@ -643,29 +644,28 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
               if (_searchCtrl.text.isEmpty && _allSearchResults.isEmpty) ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Popular Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A))),
+                  child: Text('Popular Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
                     children: ['Books', 'Farm Equipment', 'Construction Equipment'].map((cat) {
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8),
-                        child: ActionChip(
-                          avatar: Text(_getCategoryEmoji(cat)),
-                          label: Text(cat, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          backgroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: const BorderSide(color: Color(0xFFEBEFF0)),
-                          ),
-                          onPressed: () {
-                            setState(() {
-                              _selectedCategory = cat;
-                            });
-                            _performSearch(_searchCtrl.text);
-                          },
+                      return ActionChip(
+                        avatar: Text(_getCategoryEmoji(cat)),
+                        label: Text(cat, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
+                        backgroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          side: const BorderSide(color: Color(0xFFEBEFF0)),
                         ),
+                        onPressed: () {
+                          setState(() {
+                            _selectedCategory = cat;
+                          });
+                          _performSearch(_searchCtrl.text);
+                        },
                       );
                     }).toList(),
                   ),
@@ -675,7 +675,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                 const SizedBox(height: 16),
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Popular Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A))),
+                  child: Text('Popular Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -701,11 +701,11 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Recent Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A))),
+                        const Text('Recent Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                         TextButton(
                           onPressed: _clearRecentSearches,
                           style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(40, 20), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          child: const Text('Clear All', style: TextStyle(fontSize: 12, color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                          child: const Text('Clear All', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
                         ),
                       ],
                     ),
@@ -739,14 +739,14 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                     children: [
                       Text(
                         'Search Results (${_allSearchResults.length})',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A)),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                       ),
                       const Spacer(),
                       DropdownButton<String>(
                         value: _selectedSort,
-                        icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF2E7D32)),
+                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
                         underline: const SizedBox(),
-                        style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 12),
+                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
                         items: <String>['Relevance', 'Newest', 'Nearest', 'Highest Rated', 'Most Requested'].map((String value) {
                           return DropdownMenuItem<String>(
                             value: value,
@@ -859,11 +859,11 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                       Row(
                                         children: [
                                           if (_locationAvailable && distanceStr.isNotEmpty) ...[
-                                            const Icon(Icons.near_me_rounded, size: 12, color: Color(0xFF2E7D32)),
+                                            const Icon(Icons.near_me_rounded, size: 12, color: AppColors.primary),
                                             const SizedBox(width: 4),
                                             Text(
                                               distanceStr,
-                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
                                             ),
                                             const SizedBox(width: 8),
                                           ],
@@ -885,12 +885,12 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                             decoration: BoxDecoration(
-                                              color: const Color(0xFFE8F5E9),
+                                              color: AppColors.primaryContainer,
                                               borderRadius: BorderRadius.circular(6),
                                             ),
                                             child: Text(
                                               item.condition,
-                                              style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 10, fontWeight: FontWeight.bold),
+                                              style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
                                             ),
                                           ),
                                           const Spacer(),
@@ -909,7 +909,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                             width: 6,
                                             height: 6,
                                             decoration: BoxDecoration(
-                                              color: item.availability ? Colors.green : Colors.orange,
+                                              color: item.availability ? AppColors.success : Colors.orange,
                                               shape: BoxShape.circle,
                                             ),
                                           ),
@@ -919,14 +919,14 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                             style: TextStyle(
                                               fontSize: 10,
                                               fontWeight: FontWeight.bold,
-                                              color: item.availability ? Colors.green : Colors.orange,
+                                              color: item.availability ? AppColors.success : Colors.orange,
                                             ),
                                           ),
                                           const Spacer(),
                                           ElevatedButton(
                                             onPressed: () => _navigateToDetails(item),
                                             style: ElevatedButton.styleFrom(
-                                              backgroundColor: const Color(0xFF2E7D32),
+                                              backgroundColor: AppColors.primary,
                                               foregroundColor: Colors.white,
                                               elevation: 0,
                                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -951,7 +951,7 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 16),
                     child: Center(
-                      child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                      child: CircularProgressIndicator(color: AppColors.primary),
                     ),
                   ),
               ],

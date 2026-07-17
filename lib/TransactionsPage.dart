@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 
 import 'providers/user_profile_provider.dart';
 import 'widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class TransactionsPage extends StatefulWidget {
   const TransactionsPage({super.key});
@@ -17,7 +18,7 @@ class TransactionsPage extends StatefulWidget {
 
 class _TransactionsPageState extends State<TransactionsPage> {
   static const int _pageSize = 50;
-  static const Color _brandGreen = Color(0xFF4CAF50);
+  static const Color _brandGreen = AppColors.primary;
 
   String _searchQuery = '';
   TransactionFilter _activeFilter = TransactionFilter.all;
@@ -610,7 +611,7 @@ class _TransactionCard extends StatelessWidget {
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF2E7D32),
+                      color: AppColors.primary,
                     ),
                   ),
                 ],
@@ -650,7 +651,7 @@ class TransactionDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Transaction Details'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -855,8 +856,8 @@ _StatusStyle _statusStyle(String statusRaw) {
   if (status == 'completed') {
     return const _StatusStyle(
       label: 'Completed',
-      fg: Color(0xFF2E7D32),
-      bg: Color(0xFFE8F5E9),
+      fg: AppColors.primary,
+      bg: AppColors.primaryContainer,
       icon: Icons.check_circle_rounded,
     );
   }

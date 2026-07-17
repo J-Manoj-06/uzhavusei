@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +8,7 @@ import '../../../localization/app_localizations.dart';
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 String generateYoutubeUrl(String category, String lang) {
   final normalizedCategory = category.trim();
@@ -153,7 +154,7 @@ Cover:
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.tr('explore_details')),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: ListView(
@@ -197,7 +198,7 @@ Cover:
                   : const Icon(Icons.play_arrow_rounded),
               label: Text(l10n.tr('watch_tutorial_video')),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF4CAF50),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(

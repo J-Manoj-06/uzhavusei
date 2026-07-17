@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -7,6 +7,7 @@ import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../../services/location_service.dart';
 import '../../../services/logger_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class VerificationCenterPage extends StatefulWidget {
   const VerificationCenterPage({
@@ -87,7 +88,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Verification email sent! Please check your inbox.'),
-              backgroundColor: Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
             ),
           );
         }
@@ -121,7 +122,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text('Location verified successfully!'),
-              backgroundColor: Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
             ),
           );
         }
@@ -197,7 +198,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
             actions: [
               TextButton(
                 onPressed: _verifyingPhone ? null : () => Navigator.pop(ctx),
-                child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
               ),
               ElevatedButton(
                 onPressed: _verifyingPhone
@@ -271,7 +272,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
                             sm.showSnackBar(
                               const SnackBar(
                                 content: Text('Phone number verified successfully!'),
-                                backgroundColor: Color(0xFF2E7D32),
+                                backgroundColor: AppColors.primary,
                               ),
                             );
                           } catch (e) {
@@ -282,7 +283,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
                           }
                         }
                       },
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF2E7D32), foregroundColor: Colors.white),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white),
                 child: _verifyingPhone
                     ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(otpSent ? 'Verify' : 'Send OTP'),
@@ -312,7 +313,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
     final locVerified = _user.latitude != null && _user.longitude != null && _user.latitude != 0.0 && _user.longitude != 0.0;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Verification Center', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
         backgroundColor: Colors.white,
@@ -345,13 +346,13 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
                   children: [
                     Icon(
                       allVerified ? Icons.verified : Icons.verified_user_outlined,
-                      color: allVerified ? const Color(0xFF2E7D32) : Colors.amber,
+                      color: allVerified ? AppColors.primary : Colors.amber,
                       size: 48,
                     ),
                     const SizedBox(height: 12),
                     Text(
                       allVerified ? "🎉 You're fully verified." : 'Complete Verifications',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A)),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -365,7 +366,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
                     LinearProgressIndicator(
                       value: verifiedCount / 3,
                       backgroundColor: Colors.grey.shade100,
-                      color: allVerified ? const Color(0xFF2E7D32) : Colors.amber,
+                      color: allVerified ? AppColors.primary : Colors.amber,
                       minHeight: 8,
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -379,7 +380,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
               ),
 
               const SizedBox(height: 32),
-              const Text('Required Verifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A))),
+              const Text('Required Verifications', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
               const SizedBox(height: 16),
 
               // 1. Phone Card
@@ -445,7 +446,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A))),
+                Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 const SizedBox(height: 4),
                 _buildBadge(isVerified ? 'Verified' : 'Not Verified', isVerified),
               ],
@@ -454,7 +455,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
           ElevatedButton(
             onPressed: isVerified || isLoading ? null : onAction,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               disabledBackgroundColor: Colors.grey.shade100,
               disabledForegroundColor: Colors.grey.shade400,
@@ -463,7 +464,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             ),
             child: isLoading
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E7D32)))
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
                 : Text(isVerified ? 'Verified' : 'Verify', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
           ),
         ],
@@ -475,7 +476,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: isVerified ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+        color: isVerified ? AppColors.primaryContainer : const Color(0xFFFFEBEE),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
@@ -483,7 +484,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          color: isVerified ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+          color: isVerified ? AppColors.primary : const Color(0xFFC62828),
         ),
       ),
     );

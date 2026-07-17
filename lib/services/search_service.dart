@@ -90,7 +90,7 @@ class SearchService {
         continue;
       }
 
-      if (onlyAvailable == true && !item.availability) {
+      if (!item.availability) {
         continue;
       }
 

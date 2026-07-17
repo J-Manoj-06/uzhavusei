@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../config.dart';
@@ -6,6 +6,7 @@ import '../../../models/marketplace_equipment_model.dart';
 import '../../../services/marketplace_service.dart';
 import '../../../services/razorpay_checkout_service.dart';
 import '../../../widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class BookingPaymentPage extends StatefulWidget {
   const BookingPaymentPage({
@@ -28,9 +29,9 @@ class BookingPaymentPage extends StatefulWidget {
 }
 
 class _BookingPaymentPageState extends State<BookingPaymentPage> {
-  static const _green = Color(0xFF4CAF50);
-  static const _darkGreen = Color(0xFF2E7D32);
-  static const _lightGreen = Color(0xFFE8F5E9);
+  static const _green = AppColors.primary;
+  static const _darkGreen = AppColors.primary;
+  static const _lightGreen = AppColors.primaryContainer;
   static const _bgColor = Color(0xFFF7F8FA);
 
   final _service = MarketplaceService();
@@ -183,7 +184,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
         style: const TextStyle(
           fontSize: 16,
           fontWeight: FontWeight.w700,
-          color: Color(0xFF1A1A1A),
+          color: AppColors.textPrimary,
         ),
       );
 
@@ -234,7 +235,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w700,
-                              color: Color(0xFF1A1A1A),
+                              color: AppColors.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -465,7 +466,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: error ? Colors.red.shade700 : const Color(0xFF1A1A1A),
+                color: error ? Colors.red.shade700 : AppColors.textPrimary,
               ),
             ),
           ],
@@ -542,7 +543,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w700,
-                  color: Color(0xFF1A1A1A),
+                  color: AppColors.textPrimary,
                 ),
               ),
               AnimatedSwitcher(
@@ -589,7 +590,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
             style: const TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF1A1A1A),
+              color: AppColors.textPrimary,
             ),
           ),
         ],
@@ -764,7 +765,7 @@ class _BookingPaymentPageState extends State<BookingPaymentPage> {
           colorScheme: const ColorScheme.light(
             primary: _green,
             onPrimary: Colors.white,
-            onSurface: Color(0xFF1A1A1A),
+            onSurface: AppColors.textPrimary,
           ),
         ),
         child: child!,
@@ -919,9 +920,9 @@ class _SuccessDialog extends StatelessWidget {
   final String Function(TimeOfDay) fmtTime;
   final VoidCallback onContinue;
 
-  static const _green = Color(0xFF4CAF50);
-  static const _darkGreen = Color(0xFF2E7D32);
-  static const _lightGreen = Color(0xFFE8F5E9);
+  static const _green = AppColors.primary;
+  static const _darkGreen = AppColors.primary;
+  static const _lightGreen = AppColors.primaryContainer;
 
   @override
   Widget build(BuildContext context) {
@@ -947,7 +948,7 @@ class _SuccessDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 6),
@@ -1034,7 +1035,7 @@ class _SuccessDialog extends StatelessWidget {
               style: TextStyle(
                 fontSize: bold ? 15 : 13,
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
-                color: green ? _darkGreen : const Color(0xFF1A1A1A),
+                color: green ? _darkGreen : AppColors.textPrimary,
               ),
             ),
           ),

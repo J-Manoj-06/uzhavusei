@@ -1,10 +1,11 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:image_cropper/image_cropper.dart';
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class BorrowImageItem {
   final File? localFile;
@@ -141,7 +142,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
       uiSettings: [
         AndroidUiSettings(
           toolbarTitle: 'Crop Image (16:9)',
-          toolbarColor: const Color(0xFF2E7D32),
+          toolbarColor: AppColors.primary,
           toolbarWidgetColor: Colors.white,
           aspectRatioPresets: [CropAspectRatioPreset.ratio16x9],
           initAspectRatio: CropAspectRatioPreset.ratio16x9,
@@ -234,11 +235,11 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
             children: [
               const Text(
                 'Add Photos',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
               ),
               const SizedBox(height: 16),
               ListTile(
-                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF2E7D32)),
+                leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primary),
                 title: const Text('Take Photo', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -246,7 +247,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
                 },
               ),
               ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF2E7D32)),
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primary),
                 title: const Text('Choose from Gallery', style: TextStyle(fontWeight: FontWeight.bold)),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -283,7 +284,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
       children: [
         const Text(
           'Listing Images',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A)),
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
         ),
         const SizedBox(height: 8),
         Stack(
@@ -302,7 +303,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.add_a_photo_outlined, color: Color(0xFF2E7D32), size: 36),
+                            Icon(Icons.add_a_photo_outlined, color: AppColors.primary, size: 36),
                             SizedBox(height: 8),
                             Text(
                               'Upload Images (16:9 crop)',
@@ -361,7 +362,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
                                         bottom: 8,
                                         child: Container(
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFF2E7D32),
+                                            color: AppColors.primary,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -420,7 +421,7 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
                                 child: const Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.add, color: Color(0xFF2E7D32), size: 24),
+                                    Icon(Icons.add, color: AppColors.primary, size: 24),
                                     SizedBox(height: 4),
                                     Text(
                                       'Add More',
@@ -445,11 +446,11 @@ class _BorrowImagePickerState extends State<BorrowImagePicker> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                        CircularProgressIndicator(color: AppColors.primary),
                         SizedBox(height: 12),
                         Text(
                           'Optimizing image...',
-                          style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2E7D32), fontSize: 14),
+                          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 14),
                         ),
                       ],
                     ),

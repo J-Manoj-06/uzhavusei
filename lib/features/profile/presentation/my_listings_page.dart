@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/app_user_model.dart';
 import '../../../../../models/marketplace_equipment_model.dart';
@@ -8,6 +8,7 @@ import 'widgets/unified_listing.dart';
 import 'widgets/equipment_listing_card.dart';
 import '../../equipment/presentation/create_listing_flow.dart';
 import '../../../localization/app_localizations.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MyListingsPage extends StatefulWidget {
   const MyListingsPage({
@@ -329,7 +330,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('📋 Listing duplicated successfully!'),
-            backgroundColor: Color(0xFF2E7D32),
+            backgroundColor: AppColors.primary,
           ),
         );
       }
@@ -352,7 +353,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -411,7 +412,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Search', style: TextStyle(color: Color(0xFF2E7D32))),
+            child: const Text('Search', style: TextStyle(color: AppColors.primary)),
           ),
         ],
       ),
@@ -432,7 +433,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               leading: Radio<String>(
                 value: 'Newest',
                 groupValue: _sortBy,
-                activeColor: const Color(0xFF2E7D32),
+                activeColor: AppColors.primary,
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -446,7 +447,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               leading: Radio<String>(
                 value: 'Price Low-High',
                 groupValue: _sortBy,
-                activeColor: const Color(0xFF2E7D32),
+                activeColor: AppColors.primary,
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -460,7 +461,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               leading: Radio<String>(
                 value: 'Price High-Low',
                 groupValue: _sortBy,
-                activeColor: const Color(0xFF2E7D32),
+                activeColor: AppColors.primary,
                 onChanged: (val) {
                   if (val != null) {
                     setState(() => _sortBy = val);
@@ -479,8 +480,8 @@ class _MyListingsPageState extends State<MyListingsPage> {
   Widget build(BuildContext context) {
     if (_loading) {
       return const Scaffold(
-        backgroundColor: Color(0xFFF8FAF8),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator(color: AppColors.primary)),
       );
     }
 
@@ -501,7 +502,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -515,7 +516,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               Text(
                 'My Listings',
                 style: TextStyle(
-                  color: Color(0xFF1A1A1A),
+                  color: AppColors.textPrimary,
                   fontSize: 30, // 30sp Page Title
                   fontWeight: FontWeight.bold,
                 ),
@@ -524,7 +525,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               Text(
                 'Manage all your shared resources.',
                 style: TextStyle(
-                  color: Color(0xFF6F7A6B),
+                  color: AppColors.textSecondary,
                   fontSize: 14, // 14sp Caption
                   fontWeight: FontWeight.normal,
                 ),
@@ -534,13 +535,13 @@ class _MyListingsPageState extends State<MyListingsPage> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, size: 28, color: Color(0xFF1A1A1A)),
+            icon: const Icon(Icons.search, size: 28, color: AppColors.textPrimary),
             onPressed: _showSearchDialog,
             tooltip: 'Search',
           ),
           const SizedBox(width: 8),
           IconButton(
-            icon: const Icon(Icons.tune, size: 28, color: Color(0xFF1A1A1A)),
+            icon: const Icon(Icons.tune, size: 28, color: AppColors.textPrimary),
             onPressed: _showFilterDialog,
             tooltip: 'Sort Options',
           ),
@@ -588,7 +589,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Shared Resources (${filteredListings.length})',
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
             ),
             const SizedBox(height: 12),
@@ -632,8 +633,8 @@ class _MyListingsPageState extends State<MyListingsPage> {
         mainAxisSpacing: 16,
         childAspectRatio: 1.5,
         children: [
-          _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, const Color(0xFF2E7D32)),
-          _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, const Color(0xFF4CAF50)),
+          _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, AppColors.primary),
+          _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, AppColors.primary),
           _buildStatCard('Borrow Requests', '$_borrowRequestsCount', Icons.question_answer_outlined, const Color(0xFF2196F3)),
           _buildStatCard('Completed Exchanges', '$_completedExchangesCount', Icons.handshake_outlined, const Color(0xFFE65100)),
         ],
@@ -666,7 +667,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               Icon(icon, color: accentColor, size: 24),
               Text(
                 value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
             ],
           ),
@@ -697,10 +698,10 @@ class _MyListingsPageState extends State<MyListingsPage> {
               onSelected: (selected) {
                 if (selected) setState(() => _selectedCategory = cat);
               },
-              selectedColor: const Color(0xFF2E7D32),
+              selectedColor: AppColors.primary,
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF1A1A1A),
+                color: isSelected ? Colors.white : AppColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 12,
               ),
@@ -734,10 +735,10 @@ class _MyListingsPageState extends State<MyListingsPage> {
               onSelected: (selected) {
                 if (selected) setState(() => _selectedStatus = stat);
               },
-              selectedColor: const Color(0xFF2E7D32),
+              selectedColor: AppColors.primary,
               backgroundColor: Colors.white,
               labelStyle: TextStyle(
-                color: isSelected ? Colors.white : const Color(0xFF1A1A1A),
+                color: isSelected ? Colors.white : AppColors.textPrimary,
                 fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 fontSize: 12,
               ),
@@ -767,7 +768,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
                     width: 100,
                     height: 100,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFE8F5E9).withValues(alpha: 0.4),
+                      color: AppColors.primaryContainer.withValues(alpha: 0.4),
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -775,7 +776,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
                     width: 70,
                     height: 70,
                     decoration: const BoxDecoration(
-                      color: Color(0xFFE8F5E9),
+                      color: AppColors.primaryContainer,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -787,7 +788,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
                   Positioned(
                     top: 15,
                     right: 30,
-                    child: _emojiBubble('🚜', 36, Colors.green.shade50),
+                    child: _emojiBubble('🚜', 36, AppColors.success),
                   ),
                   Positioned(
                     bottom: 15,
@@ -803,11 +804,11 @@ class _MyListingsPageState extends State<MyListingsPage> {
                     width: 44,
                     height: 44,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2E7D32),
+                      color: AppColors.primary,
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF2E7D32).withValues(alpha: 0.3),
+                          color: AppColors.primary.withValues(alpha: 0.3),
                           blurRadius: 10,
                           offset: const Offset(0, 4),
                         ),
@@ -824,7 +825,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF1A1A1A),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
@@ -843,7 +844,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text('Create Listing', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),

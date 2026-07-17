@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
@@ -16,6 +16,7 @@ import 'services/razorpay_checkout_service.dart';
 import 'widgets/image_loader.dart';
 import 'features/equipment/presentation/create_listing_flow.dart';
 import 'models/app_user_model.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class Calendar extends StatefulWidget {
   const Calendar({super.key});
@@ -25,7 +26,7 @@ class Calendar extends StatefulWidget {
 }
 
 class _CalendarState extends State<Calendar> {
-  static const Color _primaryGreen = Color(0xFF4CAF50);
+  static const Color _primaryGreen = AppColors.primary;
 
   final DateTime _today = DateTime.now();
   FirestoreBookingRepository? _bookingRepository;
@@ -147,7 +148,7 @@ class _CalendarState extends State<Calendar> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: Colors.green.shade100),
+                        border: Border.all(color: AppColors.success),
                         boxShadow: [
                           BoxShadow(
                             color: Colors.black.withValues(alpha: 0.05),
@@ -275,10 +276,10 @@ class _CalendarState extends State<Calendar> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: Colors.green.shade200),
+          borderSide: BorderSide(color: AppColors.success),
         ),
         filled: true,
-        fillColor: Colors.green.shade50.withValues(alpha: 0.35),
+        fillColor: AppColors.success.withValues(alpha: 0.35),
       ),
       items: machineries
           .map(
@@ -321,7 +322,7 @@ class _CalendarState extends State<Calendar> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.green.shade100),
+        border: Border.all(color: AppColors.success),
       ),
       child: Row(
         children: [
@@ -364,7 +365,7 @@ class _CalendarState extends State<Calendar> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: AppColors.success,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -412,7 +413,7 @@ class _CalendarState extends State<Calendar> {
     }
 
     if (isSelected) {
-      fill = const Color(0xFFE8F5E9);
+      fill = AppColors.primaryContainer;
       border = _primaryGreen;
       textColor = _primaryGreen;
       weight = FontWeight.w800;
@@ -449,7 +450,7 @@ class _CalendarState extends State<Calendar> {
       children: [
         _LegendDot('Available', Color(0xFFFFFFFF), Color(0xFFBDBDBD)),
         _LegendDot('Booked', Color(0xFFFFEBEE), Color(0xFFE57373)),
-        _LegendDot('Selected', Color(0xFFE8F5E9), Color(0xFF4CAF50)),
+        _LegendDot('Selected', AppColors.primaryContainer, AppColors.primary),
         _LegendDot('Today', Color(0xFFE3F2FD), Color(0xFF42A5F5)),
       ],
     );
@@ -680,8 +681,8 @@ class _CalendarState extends State<Calendar> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        color: Colors.green.shade50,
-        border: Border.all(color: Colors.green.shade200),
+        color: AppColors.success,
+        border: Border.all(color: AppColors.success),
       ),
       child: Row(
         children: [
@@ -773,7 +774,7 @@ class _CalendarState extends State<Calendar> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
         color: Colors.white,
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: AppColors.success),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1092,7 +1093,7 @@ class _CalendarState extends State<Calendar> {
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.green.shade100),
+              border: Border.all(color: AppColors.success),
             ),
             padding: const EdgeInsets.all(10),
             child: TableCalendar<dynamic>(

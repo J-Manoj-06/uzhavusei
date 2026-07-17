@@ -1,6 +1,7 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../../../services/auth_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class RoleSelectionPage extends StatefulWidget {
   const RoleSelectionPage({
@@ -23,7 +24,7 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Choose Role'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: Padding(
@@ -77,9 +78,9 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> {
                     ? null
                     : () => _selectRole(_selectedRole!),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF43A047),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.green.shade200,
+                  disabledBackgroundColor: AppColors.success,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14),
@@ -153,9 +154,9 @@ class _RoleCard extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(14),
-          color: selected ? const Color(0xFFE8F5E9) : Colors.white,
+          color: selected ? AppColors.primaryContainer : Colors.white,
           border: Border.all(
-            color: selected ? const Color(0xFF43A047) : Colors.green.shade100,
+            color: selected ? AppColors.primary : AppColors.success,
             width: selected ? 1.8 : 1,
           ),
           boxShadow: [
@@ -172,8 +173,8 @@ class _RoleCard extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 24,
-                backgroundColor: const Color(0xFFE8F5E9),
-                child: Icon(icon, color: const Color(0xFF2E7D32)),
+                backgroundColor: AppColors.primaryContainer,
+                child: Icon(icon, color: AppColors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -198,7 +199,7 @@ class _RoleCard extends StatelessWidget {
               Icon(
                 selected ? Icons.check_circle : Icons.circle_outlined,
                 size: 22,
-                color: selected ? const Color(0xFF2E7D32) : Colors.grey,
+                color: selected ? AppColors.primary : Colors.grey,
               ),
             ],
           ),

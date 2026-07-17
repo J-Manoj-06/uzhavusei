@@ -1,7 +1,8 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../services/auth_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class VerifyEmailPage extends StatefulWidget {
   const VerifyEmailPage({super.key, required this.authService});
@@ -56,7 +57,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Verify Email'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       body: Center(
@@ -65,7 +66,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.mark_email_unread_outlined, size: 80, color: Color(0xFF4CAF50)),
+              const Icon(Icons.mark_email_unread_outlined, size: 80, color: AppColors.primary),
               const SizedBox(height: 24),
               const Text(
                 'Verify your email address',
@@ -90,7 +91,7 @@ class _VerifyEmailPageState extends State<VerifyEmailPage> {
                   : ElevatedButton(
                       onPressed: _checkEmailVerified,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF43A047),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
                       ),

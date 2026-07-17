@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:app_links/app_links.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../features/equipment/presentation/equipment_details_page.dart';
 import '../models/app_user_model.dart';
 import 'marketplace_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class DeepLinkHandler {
   DeepLinkHandler._privateConstructor();
@@ -106,7 +107,7 @@ class DeepLinkHandler {
       context: context,
       barrierDismissible: false,
       builder: (_) => const Center(
-        child: CircularProgressIndicator(color: Color(0xFF4CAF50)),
+        child: CircularProgressIndicator(color: AppColors.primary),
       ),
     );
   }

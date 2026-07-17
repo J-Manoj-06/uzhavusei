@@ -10,6 +10,7 @@ import 'providers/user_profile_provider.dart';
 import 'services/auth_service.dart';
 import 'services/firebase_bootstrap.dart';
 import 'splash_screen.dart';
+import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -35,11 +36,8 @@ class MyApp extends StatelessWidget {
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) => MaterialApp(
           debugShowCheckedModeBanner: false,
-          title: 'FarmConnect',
-          theme: ThemeData(
-            primaryColor: const Color(0xFF4CAF50),
-            fontFamily: 'Roboto',
-          ),
+          title: 'Borrow',
+          theme: AppTheme.light(),
           locale: localeProvider.locale,
           supportedLocales: AppLocalizations.supportedLocales,
           localizationsDelegates: const [

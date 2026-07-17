@@ -1,10 +1,11 @@
-import 'dart:ui';
+﻿import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../providers/locale_provider.dart';
@@ -17,6 +18,9 @@ import 'create_listing_flow.dart';
 import '../../../models/app_user_model.dart';
 import '../../profile/presentation/my_listings_page.dart';
 import '../../profile/presentation/my_bookings_page.dart';
+import 'widgets/borrow_image_picker.dart';
+import '../../../services/cloudinary_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class EquipmentDetailsPage extends StatefulWidget {
   const EquipmentDetailsPage({
@@ -26,6 +30,7 @@ class EquipmentDetailsPage extends StatefulWidget {
     required this.userName,
     required this.userEmail,
     required this.userPhone,
+    this.isPreviewMode = false,
   });
 
   final MarketplaceEquipmentModel equipment;
@@ -33,6 +38,7 @@ class EquipmentDetailsPage extends StatefulWidget {
   final String userName;
   final String userEmail;
   final String userPhone;
+  final bool isPreviewMode;
 
   @override
   State<EquipmentDetailsPage> createState() => _EquipmentDetailsPageState();
@@ -171,6 +177,12 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
         final description = item.descriptionForLanguage(languageCode);
         final isSaved = item.savedBy.contains(widget.userId);
         final images = item.imageUrls.isEmpty ? ['assets/logo.jpg'] : item.imageUrls;
+
+        final bool isOwner = item.ownerId == widget.userId && !widget.isPreviewMode;
+
+        if (isOwner) {
+          return _buildOwnerView(item, title, category, description);
+        }
 
         return Scaffold(
           backgroundColor: const Color(0xFFF7F8FA),
@@ -365,7 +377,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                 style: const TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w900,
-                  color: Color(0xFF1A1A1A),
+                  color: AppColors.textPrimary,
                   height: 1.2,
                 ),
               ),
@@ -373,10 +385,10 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: isAvailable ? const Color(0xFFE8F5E9) : const Color(0xFFFFEBEE),
+                color: isAvailable ? AppColors.primaryContainer : const Color(0xFFFFEBEE),
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isAvailable ? const Color(0xFF4CAF50) : const Color(0xFFF44336),
+                  color: isAvailable ? AppColors.primary : const Color(0xFFF44336),
                   width: 1.5,
                 ),
               ),
@@ -386,13 +398,13 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   Icon(
                     isAvailable ? Icons.check_circle : Icons.do_not_disturb_alt,
                     size: 14,
-                    color: isAvailable ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                    color: isAvailable ? AppColors.primary : const Color(0xFFC62828),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     isAvailable ? 'Available Now' : 'Currently On Loan',
                     style: TextStyle(
-                      color: isAvailable ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+                      color: isAvailable ? AppColors.primary : const Color(0xFFC62828),
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
                     ),
@@ -421,12 +433,12 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
               ),
             ),
              const SizedBox(width: 12),
-             const Icon(Icons.location_on, size: 16, color: Color(0xFF6F7A6B)),
+             const Icon(Icons.location_on, size: 16, color: AppColors.textSecondary),
              const SizedBox(width: 4),
              Expanded(
                child: Text(
                  '${item.distanceInfo != null ? "${item.distanceInfo!.formattedString} away • " : ""}Near ${item.area.isNotEmpty ? item.area : (item.city.isNotEmpty ? item.city : item.location)}',
-                 style: const TextStyle(color: Color(0xFF6F7A6B), fontSize: 14, fontWeight: FontWeight.w500),
+                 style: const TextStyle(color: AppColors.textSecondary, fontSize: 14, fontWeight: FontWeight.w500),
                  maxLines: 1,
                  overflow: TextOverflow.ellipsis,
                ),
@@ -467,7 +479,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           children: [
           CircleAvatar(
             radius: 28,
-            backgroundColor: const Color(0xFFE8F5E9),
+            backgroundColor: AppColors.primaryContainer,
             child: Text(
               item.ownerName.isNotEmpty ? item.ownerName[0].toUpperCase() : 'O',
               style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
@@ -482,7 +494,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   children: [
                     Text(
                       item.ownerName,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.verified, color: Colors.blue, size: 18),
@@ -495,7 +507,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                     const SizedBox(width: 4),
                     const Text(
                       'Trusted Equipment Owner',
-                      style: TextStyle(color: Color(0xFF6F7A6B), fontSize: 12, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: AppColors.textSecondary, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ],
                 ),
@@ -528,18 +540,18 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
       children: [
         Row(
           children: [
-            Icon(icon, size: 16, color: iconColor ?? const Color(0xFF6F7A6B)),
+            Icon(icon, size: 16, color: iconColor ?? AppColors.textSecondary),
             const SizedBox(width: 4),
             Text(
               value,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF1A1A1A)),
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
             ),
           ],
         ),
         const SizedBox(height: 4),
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF6F7A6B), fontWeight: FontWeight.w500),
+          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
         ),
       ],
     );
@@ -573,7 +585,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   SizedBox(width: 8),
                   Text(
                     'About this Equipment',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
                   ),
                 ],
               ),
@@ -607,7 +619,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
       children: [
         const Text(
           'Specifications & Features',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
         ),
         const SizedBox(height: 16),
         Wrap(
@@ -726,7 +738,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
         children: [
           const Text(
             'Select Borrow Dates',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 16),
           TableCalendar(
@@ -760,7 +772,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
               rightChevronIcon: Icon(Icons.chevron_right, color: Color(0xFF006E1C)),
             ),
             calendarStyle: CalendarStyle(
-              rangeHighlightColor: const Color(0xFFE8F5E9),
+              rangeHighlightColor: AppColors.primaryContainer,
               rangeStartDecoration: const BoxDecoration(color: Color(0xFF006E1C), shape: BoxShape.circle),
               rangeEndDecoration: const BoxDecoration(color: Color(0xFF006E1C), shape: BoxShape.circle),
               withinRangeTextStyle: const TextStyle(color: Color(0xFF006E1C), fontWeight: FontWeight.w600),
@@ -778,7 +790,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              _legendDot(const Color(0xFFE8F5E9), const Color(0xFF4CAF50), 'Available'),
+              _legendDot(AppColors.primaryContainer, AppColors.primary, 'Available'),
               const SizedBox(width: 16),
               _legendDot(Colors.red.shade50, Colors.red, 'Booked'),
               const SizedBox(width: 16),
@@ -820,18 +832,18 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
       decoration: BoxDecoration(
         color: const Color(0xFFF1F8E9),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFC8E6C9)),
+        border: Border.all(color: AppColors.primaryContainer),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Row(
             children: [
-              Icon(Icons.handshake_rounded, color: Color(0xFF2E7D32), size: 20),
+              Icon(Icons.handshake_rounded, color: AppColors.primary, size: 20),
               SizedBox(width: 8),
               Text(
                 'Borrow Summary',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primary),
               ),
             ],
           ),
@@ -840,7 +852,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('From', style: TextStyle(color: Color(0xFF3F4A3C), fontSize: 14)),
-              Text(_fmt(start), style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(_fmt(start), style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
           const SizedBox(height: 8),
@@ -848,17 +860,17 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Until', style: TextStyle(color: Color(0xFF3F4A3C), fontSize: 14)),
-              Text(_fmt(end), style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 14, fontWeight: FontWeight.w600)),
+              Text(_fmt(end), style: const TextStyle(color: AppColors.textPrimary, fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
-            child: Divider(color: Color(0xFFC8E6C9)),
+            child: Divider(color: AppColors.primaryContainer),
           ),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Borrow Duration', style: TextStyle(color: Color(0xFF1A1A1A), fontSize: 16, fontWeight: FontWeight.bold)),
+              const Text('Borrow Duration', style: TextStyle(color: AppColors.textPrimary, fontSize: 16, fontWeight: FontWeight.bold)),
               Text('$days ${days == 1 ? 'day' : 'days'}',
                   style: const TextStyle(color: Color(0xFF006E1C), fontSize: 18, fontWeight: FontWeight.w900)),
             ],
@@ -866,12 +878,12 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           const SizedBox(height: 8),
           const Row(
             children: [
-              Icon(Icons.info_outline, size: 14, color: Color(0xFF6F7A6B)),
+              Icon(Icons.info_outline, size: 14, color: AppColors.textSecondary),
               SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'This is a free community borrow. No payment required.',
-                  style: TextStyle(fontSize: 12, color: Color(0xFF6F7A6B)),
+                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
                 ),
               ),
             ],
@@ -887,7 +899,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
       children: [
         const Text(
           'Similar Equipment Nearby',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
         ),
         const SizedBox(height: 16),
         SizedBox(
@@ -974,14 +986,14 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                   decoration: BoxDecoration(
-                                    color: rel.availability ? const Color(0xFFE8F5E9) : const Color(0xFFFFF3E0),
+                                    color: rel.availability ? AppColors.primaryContainer : const Color(0xFFFFF3E0),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
                                     rel.availability ? 'Available' : 'On Loan',
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      color: rel.availability ? const Color(0xFF2E7D32) : Colors.orange.shade800,
+                                      color: rel.availability ? AppColors.primary : Colors.orange.shade800,
                                       fontSize: 11,
                                     ),
                                   ),
@@ -1006,7 +1018,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+      builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
     );
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
@@ -1051,7 +1063,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+      builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
     );
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
@@ -1082,7 +1094,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator(color: Color(0xFF2E7D32))),
+      builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
     );
     try {
       final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
@@ -1140,15 +1152,15 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                       : (item.availability ? '🟢 Available' : '🔴 On Loan'),
                   style: TextStyle(
                     color: isSelfOwned
-                        ? const Color(0xFF2E7D32)
-                        : (item.availability ? const Color(0xFF2E7D32) : Colors.red.shade700),
+                        ? AppColors.primary
+                        : (item.availability ? AppColors.primary : Colors.red.shade700),
                     fontSize: 13,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
                 Text(
                   isSelfOwned ? 'Manage or edit listing' : 'Free to borrow',
-                  style: const TextStyle(color: Color(0xFF6F7A6B), fontSize: 12),
+                  style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
                 ),
               ],
             ),
@@ -1164,8 +1176,8 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                               child: OutlinedButton.icon(
                                 onPressed: _handleEditListing,
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF2E7D32),
-                                  side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary, width: 1.5),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   minimumSize: const Size(0, 48),
                                 ),
@@ -1178,8 +1190,8 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                               child: OutlinedButton.icon(
                                 onPressed: _handleManageListing,
                                 style: OutlinedButton.styleFrom(
-                                  foregroundColor: const Color(0xFF2E7D32),
-                                  side: const BorderSide(color: Color(0xFF2E7D32), width: 1.5),
+                                  foregroundColor: AppColors.primary,
+                                  side: const BorderSide(color: AppColors.primary, width: 1.5),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                   minimumSize: const Size(0, 48),
                                 ),
@@ -1196,7 +1208,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                           child: ElevatedButton.icon(
                             onPressed: _handleViewRequests,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2E7D32),
+                              backgroundColor: AppColors.primary,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
@@ -1212,7 +1224,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                         borderRadius: BorderRadius.circular(16),
                         gradient: LinearGradient(
                           colors: item.availability
-                              ? [const Color(0xFF4CAF50), const Color(0xFF2E7D32)]
+                              ? [AppColors.primary, AppColors.primary]
                               : [Colors.grey.shade400, Colors.grey.shade600],
                           begin: Alignment.centerLeft,
                           end: Alignment.centerRight,
@@ -1220,7 +1232,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                         boxShadow: [
                           BoxShadow(
                             color: item.availability
-                                ? const Color(0xFF4CAF50).withValues(alpha: 0.3)
+                                ? AppColors.primary.withValues(alpha: 0.3)
                                 : Colors.grey.withValues(alpha: 0.2),
                             blurRadius: 16,
                             offset: const Offset(0, 8),
@@ -1289,7 +1301,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
               const SizedBox(height: 20),
               Row(
                 children: [
-                  const Icon(Icons.handshake_rounded, color: Color(0xFF2E7D32), size: 28),
+                  const Icon(Icons.handshake_rounded, color: AppColors.primary, size: 28),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1297,11 +1309,11 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                       children: [
                         const Text(
                           'Request to Borrow',
-                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                         ),
                         Text(
                           item.equipmentName,
-                          style: const TextStyle(fontSize: 14, color: Color(0xFF6F7A6B)),
+                          style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -1318,33 +1330,33 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   decoration: BoxDecoration(
                     color: const Color(0xFFF1F8E9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: const Color(0xFFC8E6C9)),
+                    border: Border.all(color: AppColors.primaryContainer),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
                       Column(
                         children: [
-                          const Text('From', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          const Text('From', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                             '${_selectedStartDay!.day}/${_selectedStartDay!.month}/${_selectedStartDay!.year}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                           ),
                         ],
                       ),
-                      const Icon(Icons.arrow_forward, color: Color(0xFF2E7D32), size: 18),
+                      const Icon(Icons.arrow_forward, color: AppColors.primary, size: 18),
                       Column(
                         children: [
-                          const Text('Until', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          const Text('Until', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                             '${(_selectedEndDay ?? _selectedStartDay!).day}/${(_selectedEndDay ?? _selectedStartDay!).month}/${(_selectedEndDay ?? _selectedStartDay!).year}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                           ),
                         ],
                       ),
                       Column(
                         children: [
-                          const Text('Duration', style: TextStyle(fontSize: 11, color: Color(0xFF6F7A6B))),
+                          const Text('Duration', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                           Text(
                             '$days ${days == 1 ? 'day' : 'days'}',
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF006E1C)),
@@ -1365,7 +1377,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
-                        borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                        borderSide: const BorderSide(color: AppColors.primary, width: 2),
                       ),
                     ),
                     items: const [
@@ -1392,7 +1404,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2),
+                    borderSide: const BorderSide(color: AppColors.primary, width: 2),
                   ),
                 ),
               ),
@@ -1445,7 +1457,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                               ),
                             ],
                           ),
-                          backgroundColor: const Color(0xFF2E7D32),
+                          backgroundColor: AppColors.primary,
                           behavior: SnackBarBehavior.floating,
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           duration: const Duration(seconds: 3),
@@ -1454,7 +1466,7 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
@@ -1465,6 +1477,789 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                   ),
                 ),
               ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // OWNER VIEW DASHBOARD IMPLEMENTATIONS (PART 3)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildOwnerView(
+      MarketplaceEquipmentModel item, String title, String category, String description) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF7F8FA),
+      appBar: AppBar(
+        title: const Text('Manage Listing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 0.5,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.visibility_outlined, color: Colors.black87),
+            tooltip: 'Preview as Borrower',
+            onPressed: () => _handlePreviewListing(item),
+          ),
+          IconButton(
+            icon: const Icon(Icons.more_vert_rounded, color: Colors.black87),
+            tooltip: 'Menu',
+            onPressed: () => _showOwnerMenuBottomSheet(item),
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+        children: [
+          // Owner badge & Status Banner
+          _buildOwnerHeaderBanner(item),
+          const SizedBox(height: 20),
+
+          // Requests summary
+          _buildBookingSummaryCards(item),
+          const SizedBox(height: 20),
+
+          // Quick actions grid
+          _buildOwnerQuickActions(item),
+          const SizedBox(height: 20),
+
+          // Details overview
+          _buildDetailsCard(item, description),
+          const SizedBox(height: 20),
+
+          // Specifications
+          _buildSpecifications(item),
+          const SizedBox(height: 20),
+
+          // Listing general info
+          _buildListingInfoPanel(item),
+        ],
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, -8),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _handleEditListing,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary, width: 1.5),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(0, 52),
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: const Text('Edit Details', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: _handleViewRequests,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  minimumSize: const Size(0, 52),
+                ),
+                icon: const Icon(Icons.notifications_active_outlined, size: 18),
+                label: const Text('Manage Requests', style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOwnerHeaderBanner(MarketplaceEquipmentModel item) {
+    String status = 'Available';
+    Color chipColor = AppColors.primaryContainer;
+    Color textColor = AppColors.primary;
+
+    if (!item.availability) {
+      status = 'Unavailable';
+      chipColor = Colors.grey.shade200;
+      textColor = Colors.grey.shade700;
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE0E0E0)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.02),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryContainer,
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle, color: AppColors.primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('✓ Your Listing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.primary)),
+                  const SizedBox(height: 2),
+                  Text(item.equipmentName, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                ],
+              ),
+            ],
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: chipColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              status,
+              style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookingSummaryCards(MarketplaceEquipmentModel item) {
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collection('bookings')
+          .where('equipmentId', isEqualTo: item.equipmentId)
+          .snapshots(),
+      builder: (context, snapshot) {
+        int pending = 0;
+        int active = 0;
+        int completed = 0;
+        String currentBorrower = 'None';
+
+        if (snapshot.hasData) {
+          final docs = snapshot.data!.docs;
+          for (var doc in docs) {
+            final data = doc.data();
+            final stat = (data['status'] ?? '').toString().toLowerCase();
+            if (stat == 'pending') {
+              pending++;
+            } else if (stat == 'approved' || stat == 'confirmed') {
+              active++;
+              currentBorrower = (data['userName'] ?? 'User').toString();
+            } else if (stat == 'completed') {
+              completed++;
+            }
+          }
+        }
+
+        return GridView.count(
+          crossAxisCount: 2,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+          childAspectRatio: 1.6,
+          children: [
+            _buildStatSummaryCard('Pending Requests', '$pending', Icons.hourglass_empty_rounded, Colors.orange),
+            _buildStatSummaryCard('Current Borrower', currentBorrower, Icons.person_outline_rounded, AppColors.primary),
+            _buildStatSummaryCard('Active Loans', '$active', Icons.loop_rounded, Colors.blue),
+            _buildStatSummaryCard('Completed Borrows', '$completed', Icons.done_all_rounded, Colors.grey.shade700),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildStatSummaryCard(String title, String value, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(title, style: TextStyle(color: Colors.grey.shade600, fontSize: 11, fontWeight: FontWeight.bold)),
+              Icon(icon, color: color, size: 18),
+            ],
+          ),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOwnerQuickActions(MarketplaceEquipmentModel item) {
+    return Card(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFEBEFF0))),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Quick Actions', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _buildActionButton('Edit Listing', Icons.edit_outlined, _handleEditListing),
+                _buildActionButton('Borrow Requests', Icons.inbox_outlined, _handleViewRequests),
+                _buildActionButton('Preview Listing', Icons.visibility_outlined, () => _handlePreviewListing(item)),
+                _buildActionButton('Edit Availability', Icons.calendar_month_outlined, () => _showEditAvailabilitySheet(item)),
+                _buildActionButton('Manage Images', Icons.image_outlined, () => _showManageImagesSheet(item)),
+                _buildActionButton('Delete Listing', Icons.delete_outline_rounded, () => _handleDeleteListing(item), isDestructive: true),
+              ],
+            ),
+            const Divider(height: 24, color: Color(0xFFEBEFF0)),
+            SwitchListTile.adaptive(
+              value: item.availability,
+              activeColor: AppColors.primary,
+              title: const Text('Available to Borrow', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              subtitle: Text(
+                item.availability ? 'Visible to borrowers in marketplace search and feeds' : 'Hidden from marketplace exploration feeds',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+              onChanged: (val) async {
+                await _service.updateEquipment(equipmentId: item.equipmentId, updates: {'availability': val});
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Listing is now ${val ? "Available" : "Unavailable"}')),
+                  );
+                }
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionButton(String label, IconData icon, VoidCallback onTap, {bool isDestructive = false}) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 104,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+        decoration: BoxDecoration(
+          border: Border.all(color: isDestructive ? Colors.red.shade100 : const Color(0xFFEBEFF0)),
+          borderRadius: BorderRadius.circular(12),
+          color: isDestructive ? Colors.red.withValues(alpha: 0.03) : Colors.transparent,
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: isDestructive ? Colors.red : AppColors.primary, size: 20),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isDestructive ? Colors.red : Colors.black87),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListingInfoPanel(MarketplaceEquipmentModel item) {
+    final dateFormat = DateFormat.yMMMd();
+    return Card(
+      color: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20), side: const BorderSide(color: Color(0xFFEBEFF0))),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Listing Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary)),
+            const SizedBox(height: 12),
+            _buildInfoRow('Category', item.category),
+            _buildInfoRow('Location', item.location),
+            _buildInfoRow('Condition', item.condition),
+            _buildInfoRow('Created Date', dateFormat.format(item.createdAt)),
+            _buildInfoRow('Views Count', '${item.views}'),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 13, fontWeight: FontWeight.w500)),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _handlePreviewListing(MarketplaceEquipmentModel item) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => EquipmentDetailsPage(
+          equipment: item,
+          userId: widget.userId,
+          userName: widget.userName,
+          userEmail: widget.userEmail,
+          userPhone: widget.userPhone,
+          isPreviewMode: true,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _handleDeleteListing(MarketplaceEquipmentModel item) async {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Text('Delete this listing?', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text('This action cannot be undone. All associated requests and logs will be permanently deleted.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('Cancel', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx); // pop dialog
+                
+                // Show loader
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                );
+
+                try {
+                  await _service.deleteEquipment(item.equipmentId);
+                  if (mounted) {
+                    Navigator.pop(context); // pop loader
+                    Navigator.pop(context); // pop details page back to parent
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Listing deleted successfully.')),
+                    );
+                  }
+                } catch (e) {
+                  if (mounted) {
+                    Navigator.pop(context); // pop loader
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Error deleting listing: $e')),
+                    );
+                  }
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Delete', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  void _showEditAvailabilitySheet(MarketplaceEquipmentModel item) {
+    DateTime? fromDate = item.availabilityFrom ?? DateTime.now();
+    DateTime? toDate = item.availabilityTo ?? DateTime.now().add(const Duration(days: 30));
+    final durationCtrl = TextEditingController(text: '${item.minRentalDuration.toInt()}');
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            Future<void> _pickDate(bool isFrom) async {
+              final picked = await showDatePicker(
+                context: context,
+                initialDate: isFrom ? fromDate! : toDate!,
+                firstDate: DateTime.now().subtract(const Duration(days: 365)),
+                lastDate: DateTime.now().add(const Duration(days: 1000)),
+                builder: (context, child) {
+                  return Theme(
+                    data: Theme.of(context).copyWith(
+                      colorScheme: const ColorScheme.light(
+                        primary: AppColors.primary,
+                        onPrimary: Colors.white,
+                        onSurface: Colors.black,
+                      ),
+                    ),
+                    child: child!,
+                  );
+                },
+              );
+              if (picked != null) {
+                setModalState(() {
+                  if (isFrom) {
+                    fromDate = picked;
+                    if (toDate!.isBefore(fromDate!)) {
+                      toDate = fromDate!.add(const Duration(days: 1));
+                    }
+                  } else {
+                    toDate = picked;
+                  }
+                });
+              }
+            }
+
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Edit Availability Calendar', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                  const SizedBox(height: 20),
+
+                  // Dates pickers
+                  Row(
+                    children: [
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _pickDate(true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Available From', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                const SizedBox(height: 4),
+                                Text(DateFormat.yMMMd().format(fromDate!), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: InkWell(
+                          onTap: () => _pickDate(false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              border: Border.all(color: Colors.grey.shade400),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text('Available Until', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                                const SizedBox(height: 4),
+                                Text(DateFormat.yMMMd().format(toDate!), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Rental duration field
+                  TextField(
+                    controller: durationCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'Minimum Borrow Duration (days)',
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx); // pop sheet
+                        
+                        // Update database
+                        final minDuration = double.tryParse(durationCtrl.text.trim()) ?? 1.0;
+                        await _service.updateEquipment(
+                          equipmentId: item.equipmentId,
+                          updates: {
+                            'availabilityFrom': Timestamp.fromDate(fromDate!),
+                            'availabilityTo': Timestamp.fromDate(toDate!),
+                            'minRentalDuration': minDuration,
+                          },
+                        );
+
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Availability details updated successfully.')),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Save Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showManageImagesSheet(MarketplaceEquipmentModel item) {
+    List<BorrowImageItem> currentImages = item.imageUrls.map((url) => BorrowImageItem(remoteUrl: url)).toList();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.8,
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text('Manage Photos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text('The first image is the cover photo. Reorder or delete images below.', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                  const SizedBox(height: 16),
+
+                  // Image picker container
+                  Expanded(
+                    child: BorrowImagePicker(
+                      initialImages: currentImages,
+                      onImagesChanged: (updated) {
+                        currentImages = updated;
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: () async {
+                        Navigator.pop(ctx); // pop sheet
+                        
+                        // Show loading popup
+                        showDialog(
+                          context: context,
+                          barrierDismissible: false,
+                          builder: (context) => const Center(child: CircularProgressIndicator(color: AppColors.primary)),
+                        );
+
+                        try {
+                          final List<String> finalUrls = [];
+                          final CloudinaryService cloudinary = CloudinaryService();
+
+                          for (var img in currentImages) {
+                            if (img.isLocal) {
+                              final secureUrl = await cloudinary.uploadImage(img.localFile!);
+                              finalUrls.add(secureUrl);
+                            } else {
+                              finalUrls.add(img.remoteUrl!);
+                            }
+                          }
+
+                          await _service.updateEquipment(
+                            equipmentId: item.equipmentId,
+                            updates: {
+                              'imageUrls': finalUrls,
+                            },
+                          );
+
+                          if (context.mounted) {
+                            Navigator.pop(context); // pop loader
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Listing photos updated successfully.')),
+                            );
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            Navigator.pop(context); // pop loader
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error updating photos: $e')),
+                            );
+                          }
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      ),
+                      child: const Text('Save Images', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _showOwnerMenuBottomSheet(MarketplaceEquipmentModel item) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 44,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Listing Options', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
+                title: const Text('Edit Listing details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleEditListing();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.image_outlined, color: AppColors.primary),
+                title: const Text('Manage listing photos', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showManageImagesSheet(item);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.notifications_active_outlined, color: AppColors.primary),
+                title: const Text('Manage Borrow requests', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleViewRequests();
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.calendar_month_outlined, color: AppColors.primary),
+                title: const Text('Change calendar availability', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showEditAvailabilitySheet(item);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.delete_outline_rounded, color: Colors.red),
+                title: const Text('Delete Listing permanently', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.red)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _handleDeleteListing(item);
+                },
+              ),
+              const SizedBox(height: 12),
             ],
           ),
         );

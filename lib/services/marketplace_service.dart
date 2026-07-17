@@ -35,7 +35,7 @@ class MarketplaceService {
             return values.contains(categoryQuery);
           })
           .where((item) => item.status.toLowerCase() == 'published')
-          .where((item) => onlyAvailable == true ? item.availability : true)
+          .where((item) => item.availability)
           .toList(growable: false)
         ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return items;

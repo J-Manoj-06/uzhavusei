@@ -1,9 +1,10 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../providers/locale_provider.dart';
 import '../../../services/deepseek_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class ChatbotPage extends StatefulWidget {
   const ChatbotPage({super.key});
@@ -25,8 +26,8 @@ class _ChatbotPageState extends State<ChatbotPage>
   late final AnimationController _entranceController;
   late final Animation<double> _fadeAnimation;
 
-  static const Color _green = Color(0xFF66BB6A);
-  static const Color _darkGreen = Color(0xFF2E7D32);
+  static const Color _green = AppColors.secondary;
+  static const Color _darkGreen = AppColors.primary;
 
   @override
   void initState() {
@@ -148,7 +149,7 @@ class _ChatbotPageState extends State<ChatbotPage>
     final localeCode = context.watch<LocaleProvider>().languageCode;
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: _buildAppBar(localeCode),
       body: Column(
         children: [
@@ -176,7 +177,7 @@ class _ChatbotPageState extends State<ChatbotPage>
   PreferredSizeWidget _buildAppBar(String localeCode) {
     return AppBar(
       backgroundColor: Colors.white,
-      foregroundColor: const Color(0xFF1A1A1A),
+      foregroundColor: AppColors.textPrimary,
       elevation: 0,
       surfaceTintColor: Colors.transparent,
       titleSpacing: 0,
@@ -188,7 +189,7 @@ class _ChatbotPageState extends State<ChatbotPage>
             margin: const EdgeInsets.only(left: 16),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF66BB6A), _darkGreen],
+                colors: [AppColors.secondary, _darkGreen],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -202,7 +203,7 @@ class _ChatbotPageState extends State<ChatbotPage>
             children: [
               const Text(
                 'Borrow AI',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
               ),
               Row(
                 children: [
@@ -265,7 +266,7 @@ class _ChatbotPageState extends State<ChatbotPage>
           onTap: onPressed,
           child: Tooltip(
             message: tooltip,
-            child: Icon(icon, color: const Color(0xFF2E7D32), size: 18),
+            child: Icon(icon, color: AppColors.primary, size: 18),
           ),
         ),
       ),
@@ -286,7 +287,7 @@ class _ChatbotPageState extends State<ChatbotPage>
               style: TextStyle(
                 fontSize: 32,
                 fontWeight: FontWeight.w800,
-                color: Color(0xFF1A1A1A),
+                color: AppColors.textPrimary,
                 height: 1.2,
               ),
             ),
@@ -369,14 +370,14 @@ class _ChatbotPageState extends State<ChatbotPage>
               child: Container(
                 constraints: const BoxConstraints(minHeight: 52),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF8FAF8),
+                  color: AppColors.background,
                   borderRadius: BorderRadius.circular(30),
                   border: Border.all(color: const Color(0xFFEBEFF0), width: 1.5),
                 ),
                 child: Row(
                   children: [
                     const SizedBox(width: 14),
-                    const Icon(Icons.auto_awesome, color: Color(0xFF66BB6A), size: 18),
+                    const Icon(Icons.auto_awesome, color: AppColors.secondary, size: 18),
                     Expanded(
                       child: TextField(
                         controller: _controller,
@@ -384,7 +385,7 @@ class _ChatbotPageState extends State<ChatbotPage>
                         minLines: 1,
                         maxLines: 5,
                         textInputAction: TextInputAction.newline,
-                        style: const TextStyle(fontSize: 15, color: Color(0xFF1A1A1A)),
+                        style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
                         decoration: InputDecoration(
                           hintText: _hintForLanguage(localeCode),
                           hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
@@ -414,7 +415,7 @@ class _ChatbotPageState extends State<ChatbotPage>
                             height: 52,
                             decoration: const BoxDecoration(
                               gradient: LinearGradient(
-                                colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+                                colors: [AppColors.secondary, AppColors.primary],
                                 begin: Alignment.topLeft,
                                 end: Alignment.bottomRight,
                               ),
@@ -489,13 +490,13 @@ class _QuickActionCardState extends State<_QuickActionCard> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: _isPressed ? const Color(0xFF66BB6A).withValues(alpha: 0.5) : const Color(0xFFEBEFF0),
+              color: _isPressed ? AppColors.secondary.withValues(alpha: 0.5) : const Color(0xFFEBEFF0),
               width: 1.5,
             ),
             boxShadow: [
               BoxShadow(
                 color: _isPressed 
-                  ? const Color(0xFF2E7D32).withValues(alpha: 0.12)
+                  ? AppColors.primary.withValues(alpha: 0.12)
                   : Colors.black.withValues(alpha: 0.04),
                 blurRadius: _isPressed ? 16 : 8,
                 offset: _isPressed ? const Offset(0, 6) : const Offset(0, 2),
@@ -513,7 +514,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAF8),
+                      color: AppColors.background,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     alignment: Alignment.center,
@@ -525,7 +526,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                   Icon(
                     Icons.arrow_outward_rounded,
                     size: 14,
-                    color: _isPressed ? const Color(0xFF2E7D32) : Colors.grey.shade400,
+                    color: _isPressed ? AppColors.primary : Colors.grey.shade400,
                   ),
                 ],
               ),
@@ -540,7 +541,7 @@ class _QuickActionCardState extends State<_QuickActionCard> {
                       style: const TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF1A1A1A),
+                        color: AppColors.textPrimary,
                         height: 1.1,
                       ),
                     ),
@@ -602,7 +603,7 @@ class _ChatBubble extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+                    colors: [AppColors.secondary, AppColors.primary],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
@@ -645,7 +646,7 @@ class _ChatBubble extends StatelessWidget {
               margin: const EdgeInsets.only(right: 10, top: 2),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
-                  colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+                  colors: [AppColors.secondary, AppColors.primary],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
@@ -678,7 +679,7 @@ class _ChatBubble extends StatelessWidget {
                     child: Text(
                       message.text,
                       style: const TextStyle(
-                        color: Color(0xFF1A1A1A),
+                        color: AppColors.textPrimary,
                         fontSize: 14.5,
                         height: 1.5,
                       ),
@@ -770,7 +771,7 @@ class _TypingBubbleState extends State<_TypingBubble>
             margin: const EdgeInsets.only(right: 10, bottom: 12),
             decoration: BoxDecoration(
               gradient: const LinearGradient(
-                colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
+                colors: [AppColors.secondary, AppColors.primary],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -823,7 +824,7 @@ class _Dot extends StatelessWidget {
       offset: Offset(0, offset),
       child: Container(
         width: 8, height: 8,
-        decoration: const BoxDecoration(color: Color(0xFF66BB6A), shape: BoxShape.circle),
+        decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
       ),
     );
   }

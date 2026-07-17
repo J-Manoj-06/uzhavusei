@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../localization/app_localizations.dart';
@@ -8,6 +8,7 @@ import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../equipment/presentation/equipment_details_page.dart';
 import '../../equipment/presentation/create_listing_flow.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MyEquipmentsPage extends StatefulWidget {
   const MyEquipmentsPage({
@@ -31,7 +32,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: Text(l10n.tr('my_equipments_title'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
         backgroundColor: Colors.white,
@@ -48,7 +49,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
             ),
           ),
         ),
-        backgroundColor: const Color(0xFF2E7D32),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.add),
         label: const Text('Share an Item', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -149,7 +150,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
                               ),
                               title: Text(
                                 item.equipmentName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1A1A1A)),
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
                               ),
                               subtitle: Padding(
                                 padding: const EdgeInsets.only(top: 4.0),
@@ -228,7 +229,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
                                         actions: [
                                           TextButton(
                                             onPressed: () => Navigator.pop(context, false),
-                                            child: Text(l10n.tr('cancel'), style: const TextStyle(color: Color(0xFF6F7A6B))),
+                                            child: Text(l10n.tr('cancel'), style: const TextStyle(color: AppColors.textSecondary)),
                                           ),
                                           ElevatedButton(
                                             onPressed: () => Navigator.pop(context, true),
@@ -275,7 +276,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
       onSelected: (sel) {
         if (sel) setState(() => _statusFilter = value);
       },
-      selectedColor: const Color(0xFF2E7D32),
+      selectedColor: AppColors.primary,
       backgroundColor: const Color(0xFFF1F3F4),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide.none),
       showCheckmark: false,
@@ -293,7 +294,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
             const SizedBox(height: 16),
             const Text(
               'No shared items yet.',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -314,7 +315,7 @@ class _MyEquipmentsPageState extends State<MyEquipmentsPage> {
                 );
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

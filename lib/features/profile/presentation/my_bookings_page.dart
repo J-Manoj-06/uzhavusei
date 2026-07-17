@@ -1,10 +1,11 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../../../localization/app_localizations.dart';
 import '../../../models/app_user_model.dart';
 import '../../../widgets/image_loader.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MyBookingsPage extends StatefulWidget {
   const MyBookingsPage({
@@ -141,7 +142,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                     }
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2E7D32),
+                    backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
@@ -198,7 +199,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                 }
               },
               style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2E7D32),
+                backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
@@ -268,7 +269,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                     children: [
                       Text(
                         (data['equipmentName'] ?? data['machineryName'] ?? 'Equipment').toString(),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -299,16 +300,16 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                 decoration: BoxDecoration(
                   color: const Color(0xFFF1F8E9),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFC8E6C9)),
+                  border: Border.all(color: AppColors.primaryContainer),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Row(
                       children: [
-                        Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 16),
+                        Icon(Icons.location_on, color: AppColors.primary, size: 16),
                         SizedBox(width: 6),
-                        Text('Pickup Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Color(0xFF1B5E20))),
+                        Text('Pickup Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primaryDark)),
                       ],
                     ),
                     const SizedBox(height: 6),
@@ -336,7 +337,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                   child: ElevatedButton(
                     onPressed: () => _updateBookingStatus(bookingId, {'readyToReturn': true}),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -374,14 +375,14 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFFE8F5E9),
+                  color: AppColors.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Row(
                   children: [
-                    Icon(Icons.check_circle_outline, color: Color(0xFF2E7D32), size: 16),
+                    Icon(Icons.check_circle_outline, color: AppColors.primary, size: 16),
                     SizedBox(width: 8),
-                    Text('Item Returned successfully!', style: TextStyle(fontSize: 12, color: Color(0xFF1B5E20), fontWeight: FontWeight.bold)),
+                    Text('Item Returned successfully!', style: TextStyle(fontSize: 12, color: AppColors.primaryDark, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ),
@@ -431,12 +432,12 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                     children: [
                       Text(
                         (data['equipmentName'] ?? data['machineryName'] ?? 'Equipment').toString(),
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Requested by: $borrowerName',
-                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
                       ),
                       Text(
                         '${DateFormat('dd MMM').format(start)} - ${DateFormat('dd MMM yyyy').format(end)}',
@@ -477,8 +478,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                     child: OutlinedButton(
                       onPressed: () => _showSuggestDatesDialog(context, bookingId),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFF2E7D32)),
-                        foregroundColor: const Color(0xFF2E7D32),
+                        side: const BorderSide(color: AppColors.primary),
+                        foregroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
                       child: const Text('Suggest Dates', style: TextStyle(fontSize: 11)),
@@ -489,7 +490,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                     child: ElevatedButton(
                       onPressed: () => _showAcceptDialog(context, bookingId),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E7D32),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                       ),
@@ -523,7 +524,7 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                   child: ElevatedButton(
                     onPressed: () => _updateBookingStatus(bookingId, {'status': 'completed', 'returned': true}),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     ),
@@ -532,12 +533,12 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
                 ),
               ] else ...[
                 const Center(
-                  child: Text('On Loan 🚜 (Awaiting borrower return)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                  child: Text('On Loan 🚜 (Awaiting borrower return)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
                 ),
               ],
             ] else if (status == 'completed') ...[
               const Center(
-                child: Text('Completed 🎉 (Item returned & confirmed)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32))),
+                child: Text('Completed 🎉 (Item returned & confirmed)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary)),
               ),
             ] else if (status == 'rejected') ...[
               const Center(
@@ -556,8 +557,8 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
     String label = 'Pending Approval';
 
     if (status == 'approved') {
-      bg = const Color(0xFFE8F5E9);
-      fg = const Color(0xFF2E7D32);
+      bg = AppColors.primaryContainer;
+      fg = AppColors.primary;
       label = 'Approved';
     } else if (status == 'completed') {
       bg = const Color(0xFFE3F2FD);
@@ -589,9 +590,9 @@ class _MyBookingsPageState extends State<MyBookingsPage> with SingleTickerProvid
         elevation: 0.5,
         bottom: TabBar(
           controller: _tabController,
-          labelColor: const Color(0xFF2E7D32),
+          labelColor: AppColors.primary,
           unselectedLabelColor: Colors.grey,
-          indicatorColor: const Color(0xFF2E7D32),
+          indicatorColor: AppColors.primary,
           tabs: const [
             Tab(text: 'My Requests'),
             Tab(text: 'Lent Requests'),

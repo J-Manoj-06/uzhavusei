@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../../localization/app_localizations.dart';
@@ -8,6 +8,7 @@ import '../../../services/marketplace_service.dart';
 import '../../../widgets/image_loader.dart';
 import 'chatbot_page.dart';
 import 'explore_details_page.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class ExplorePage extends StatefulWidget {
   const ExplorePage({super.key});
@@ -35,12 +36,12 @@ class _ExplorePageState extends State<ExplorePage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(l10n.tr('explore')),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
       ),
       floatingActionButton: FloatingActionButton(
         heroTag: 'explore_fab',
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
         foregroundColor: Colors.white,
         onPressed: () {
           Navigator.push(
@@ -176,7 +177,7 @@ class _ExplorePageState extends State<ExplorePage> {
                                     Text(
                                       '₹${item.pricePerDay.toStringAsFixed(0)} / day',
                                       style: const TextStyle(
-                                        color: Color(0xFF2E7D32),
+                                        color: AppColors.primary,
                                         fontWeight: FontWeight.w700,
                                       ),
                                     ),

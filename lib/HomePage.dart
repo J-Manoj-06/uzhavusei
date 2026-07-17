@@ -10,6 +10,7 @@ import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
 import 'services/distance_service.dart';
 import 'providers/location_provider.dart';
+import 'services/location_service.dart';
 import 'widgets/image_loader.dart';
 import 'features/equipment/presentation/booking_payment_page.dart';
 import 'features/equipment/presentation/equipment_details_page.dart' as real_details;
@@ -21,6 +22,7 @@ import 'features/equipment/presentation/books_marketplace_page.dart';
 import 'features/equipment/presentation/farm_marketplace_page.dart';
 import 'features/equipment/presentation/construction_marketplace_page.dart';
 import 'models/app_user_model.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -29,7 +31,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _currentLocation = 'Loading...';
   double _latitude = 13.0827;
   double _longitude = 80.2707;
@@ -57,6 +59,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _getCurrentLocation();
     _loadBackendData();
     _loadMarketplaceData();
@@ -77,21 +80,146 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _locationProvider?.removeListener(_onLocationProviderChanged);
     _searchController.dispose();
     _pageController.dispose();
     super.dispose();
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkLocationOnResume();
+    }
+  }
+
+  Future<void> _checkLocationOnResume() async {
+    final locationProvider = context.read<LocationProvider>();
+    final isGpsEnabled = await Geolocator.isLocationServiceEnabled();
+    final permission = await Geolocator.checkPermission();
+
+    if (isGpsEnabled &&
+        (permission == LocationPermission.always ||
+            permission == LocationPermission.whileInUse)) {
+      // Automatically refresh when returning to app with GPS/permissions ready
+      _refreshLocationAndRecommendations();
+    } else {
+      // Rechecks permissions to update banner state
+      await locationProvider.recheckPermission();
+    }
+  }
+
+  Future<void> _handleLocationActivationFlow() async {
+    final locationProvider = context.read<LocationProvider>();
+    final isGpsEnabled = await Geolocator.isLocationServiceEnabled();
+
+    if (!isGpsEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Opening system Location Settings...'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      await Geolocator.openLocationSettings();
+      return;
+    }
+
+    final permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Location Access Required'),
+          content: const Text('Borrow needs your location to recommend nearby items.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final res = await Geolocator.requestPermission();
+                if (res == LocationPermission.always ||
+                    res == LocationPermission.whileInUse) {
+                  _refreshLocationAndRecommendations();
+                }
+              },
+              child: const Text('Allow'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (permission == LocationPermission.deniedForever) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Permission Permanently Denied'),
+          content: const Text(
+              'Location permission is permanently denied. Please enable it in the system settings to recommend nearby items.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.pop(ctx);
+                await Geolocator.openAppSettings();
+              },
+              child: const Text('Open Settings'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    _refreshLocationAndRecommendations();
+  }
+
+  Future<void> _refreshLocationAndRecommendations() async {
+    if (!mounted) return;
+    setState(() => _isLoadingRecommendations = true);
+    final locationProvider = context.read<LocationProvider>();
+    await locationProvider.refresh();
+    await _loadMarketplaceData();
+  }
+
   void _onLocationProviderChanged() {
     final lvl = _locationProvider?.lastVerifiedLocation;
-    if (lvl != null && (lvl.latitude != _latitude || lvl.longitude != _longitude)) {
+    final error = _locationProvider?.errorMessage;
+
+    String locText = 'Loading...';
+    if (error != null) {
+      locText = error;
+    } else if (lvl != null) {
+      locText = (lvl.city != null && lvl.city!.isNotEmpty)
+          ? '${lvl.city}, ${lvl.country ?? 'India'}'
+          : '${lvl.latitude.toStringAsFixed(4)}, ${lvl.longitude.toStringAsFixed(4)}';
+    }
+
+    if (lvl != null &&
+        (lvl.latitude != _latitude ||
+            lvl.longitude != _longitude ||
+            _currentLocation != locText)) {
       setState(() {
         _latitude = lvl.latitude;
         _longitude = lvl.longitude;
-        _currentLocation = '${lvl.latitude.toStringAsFixed(4)}, ${lvl.longitude.toStringAsFixed(4)}';
+        _currentLocation = locText;
       });
       _saveLocationToFirestore(lvl.latitude, lvl.longitude);
+      _rebuildRecommendations();
+    } else if (_currentLocation != locText) {
+      setState(() {
+        _currentLocation = locText;
+      });
       _rebuildRecommendations();
     }
   }
@@ -113,62 +241,32 @@ class _HomePageState extends State<HomePage> {
       return e.copyWithDistance(distInfo);
     }).where((e) => e.distanceInfo != null).toList();
 
-    if (_bypassNearbyFilter) {
+    final isGpsOn = _locationProvider != null &&
+        _locationProvider!.permissionStatus == LocationPermissionStatus.granted;
+
+    if (isGpsOn && !_bypassNearbyFilter) {
+      // STRICT FILTER: 5 km (5000 meters)
+      final strictRadius = 5000.0;
+      final filtered = enrichedList.where((e) {
+        if (!e.availability) return false;
+        return e.distanceInfo!.meters <= strictRadius;
+      }).toList();
+
+      // Sort by nearest first
+      filtered.sort((a, b) => a.distanceInfo!.meters.compareTo(b.distanceInfo!.meters));
+
+      setState(() {
+        _recommendations = filtered;
+        _currentRadiusLabel = 'Showing items within 5 km';
+      });
+    } else {
+      // Fallback: GPS disabled or bypassed filter
       enrichedList.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       setState(() {
         _recommendations = enrichedList.where((e) => e.availability).toList();
         _currentRadiusLabel = 'Showing items from all locations';
       });
-      return;
     }
-
-    final radii = [5000.0, 10000.0, 20000.0, 50000.0, 100000.0, double.infinity];
-    final labels = [
-      'Showing items within 5 km',
-      'Showing items within 10 km',
-      'Showing items within 20 km',
-      'Showing items within 50 km',
-      'Showing items within 100 km',
-      'Showing items from all locations'
-    ];
-
-    List<MarketplaceEquipmentModel> filtered = [];
-    String radiusLabel = labels[0];
-
-    for (int i = 0; i < radii.length; i++) {
-      final radius = radii[i];
-      radiusLabel = labels[i];
-      filtered = enrichedList.where((e) {
-        if (!e.availability) return false;
-        return e.distanceInfo!.meters <= radius;
-      }).toList();
-
-      if (filtered.length >= 20 || radius == double.infinity) {
-        break;
-      }
-    }
-
-    filtered.sort((a, b) {
-      final distA = a.distanceInfo?.meters ?? double.infinity;
-      final distB = b.distanceInfo?.meters ?? double.infinity;
-      final distComp = distA.compareTo(distB);
-      if (distComp != 0) return distComp;
-
-      final timeA = a.createdAt;
-      final timeB = b.createdAt;
-      final timeComp = timeB.compareTo(timeA);
-      if (timeComp != 0) return timeComp;
-
-      final ratingComp = b.rating.compareTo(a.rating);
-      if (ratingComp != 0) return ratingComp;
-
-      return b.bookingsCount.compareTo(a.bookingsCount);
-    });
-
-    setState(() {
-      _recommendations = filtered;
-      _currentRadiusLabel = radiusLabel;
-    });
   }
 
   void _showAllResources() {
@@ -291,7 +389,7 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 16),
           const Text(
             'No nearby resources found.',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Color(0xFF1A1A1A)),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
           Text(
@@ -303,7 +401,7 @@ class _HomePageState extends State<HomePage> {
           ElevatedButton(
             onPressed: _showAllResources,
             style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2E7D32),
+              backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -721,7 +819,7 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAF8),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -740,7 +838,7 @@ class _HomePageState extends State<HomePage> {
                   const Text(
                     'Borrow',
                     style: TextStyle(
-                      color: Color(0xFF2E7D32),
+                      color: AppColors.primary,
                       fontSize: 24,
                       fontWeight: FontWeight.w900,
                       letterSpacing: -0.8,
@@ -757,8 +855,8 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(width: 12),
                       const CircleAvatar(
                         radius: 14,
-                        backgroundColor: Color(0xFFE8F5E9),
-                        child: Icon(Icons.person_outline, size: 16, color: Color(0xFF2E7D32)),
+                        backgroundColor: AppColors.primaryContainer,
+                        child: Icon(Icons.person_outline, size: 16, color: AppColors.primary),
                       ),
                     ],
                   ),
@@ -766,23 +864,27 @@ class _HomePageState extends State<HomePage> {
               ),
               const SizedBox(height: 6),
               // Row 2: Location selector (stacked vertically to avoid horizontal overflow)
-              Row(
-                children: [
-                  const Icon(Icons.location_on, color: Color(0xFF2E7D32), size: 14),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      _currentLocation.contains(',') ? 'Chennai, India' : _currentLocation,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Color(0xFF3F4A3C),
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+              GestureDetector(
+                onTap: _handleLocationActivationFlow,
+                child: Row(
+                  children: [
+                    const Icon(Icons.location_on, color: AppColors.primary, size: 14),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        _currentLocation,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF3F4A3C),
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF3F4A3C)),
+                  ],
+                ),
               ),
               const SizedBox(height: 10),
               // Search Capsule
@@ -796,7 +898,7 @@ class _HomePageState extends State<HomePage> {
                 child: Container(
                   height: 44,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF8FAF8),
+                    color: AppColors.background,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(color: const Color(0xFFEBEFF0), width: 1.5),
                   ),
@@ -826,14 +928,14 @@ class _HomePageState extends State<HomePage> {
       ),
       body: RefreshIndicator(
         onRefresh: _handleRefresh,
-        color: const Color(0xFF2E7D32),
+        color: AppColors.primary,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 16),
-              
+              _buildLocationBanner(),
               const SizedBox(height: 16),
   
               // Quick Categories Grid
@@ -841,7 +943,7 @@ class _HomePageState extends State<HomePage> {
                 padding: EdgeInsets.symmetric(horizontal: 16),
                 child: Text(
                   'Explore Categories',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                 ),
               ),
               const SizedBox(height: 12),
@@ -860,7 +962,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const Text(
                       '📍 Nearby Recommendations',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -879,7 +981,7 @@ class _HomePageState extends State<HomePage> {
               padding: EdgeInsets.symmetric(horizontal: 16),
               child: Text(
                 'Nearby Resources',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
             ),
             const SizedBox(height: 12),
@@ -899,18 +1001,109 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  Widget _buildLocationBanner() {
+    final locationProvider = Provider.of<LocationProvider>(context);
+    final lvl = locationProvider.lastVerifiedLocation;
+    final error = locationProvider.errorMessage;
+
+    final isGpsOff = error != null &&
+        (error.contains('GPS') ||
+            error.contains('disabled') ||
+            error.contains('turned off'));
+    final isPermissionDenied =
+        error != null && (error.contains('permission') || error.contains('denied'));
+
+    final Color bannerColor;
+    final Color textColor;
+    final IconData iconData;
+    final String message;
+    final bool showGreenDot;
+
+    if (isGpsOff) {
+      bannerColor = const Color(0xFFFEE2E2); // Red-50 (error container light)
+      textColor = const Color(0xFF991B1B); // Red-800
+      iconData = Icons.location_off_rounded;
+      message = 'GPS is disabled. Tap to enable.';
+      showGreenDot = false;
+    } else if (isPermissionDenied) {
+      bannerColor = const Color(0xFFFEF3C7); // Amber-50 (warning container light)
+      textColor = const Color(0xFF92400E); // Amber-800
+      iconData = Icons.location_disabled_rounded;
+      message = 'Location access is required. Tap to grant.';
+      showGreenDot = false;
+    } else if (lvl != null) {
+      bannerColor = const Color(0xFFDCFCE7); // Green-50 (success container light)
+      textColor = const Color(0xFF166534); // Green-800
+      iconData = Icons.near_me_rounded;
+      message = 'Showing nearby items within 5 km';
+      showGreenDot = true;
+    } else {
+      bannerColor = const Color(0xFFEFF6FF); // Blue-50
+      textColor = const Color(0xFF1E40AF); // Blue-800
+      iconData = Icons.location_on_rounded;
+      message = 'Fetching your current location...';
+      showGreenDot = false;
+    }
+
+    return AnimatedSize(
+      duration: const Duration(milliseconds: 300),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        child: InkWell(
+          onTap: _handleLocationActivationFlow,
+          borderRadius: BorderRadius.circular(16),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: bannerColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: textColor.withValues(alpha: 0.15)),
+            ),
+            child: Row(
+              children: [
+                Icon(iconData, color: textColor, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message,
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                if (showGreenDot)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                if (!showGreenDot)
+                  Icon(Icons.chevron_right_rounded, color: textColor, size: 16),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPromoBanner(String imagePath, String title) {
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: const LinearGradient(
-          colors: [Color(0xFF2E7D32), Color(0xFF66BB6A)],
+          colors: [AppColors.primary, AppColors.secondary],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF2E7D32).withValues(alpha: 0.15),
+            color: AppColors.primary.withValues(alpha: 0.15),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -950,7 +1143,7 @@ class _HomePageState extends State<HomePage> {
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: const Color(0xFF2E7D32),
+                    foregroundColor: AppColors.primary,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -1039,7 +1232,7 @@ class _HomePageState extends State<HomePage> {
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF1A1A1A),
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ],
@@ -1074,7 +1267,7 @@ class _HomePageState extends State<HomePage> {
             padding: const EdgeInsets.only(right: 8),
             child: Chip(
               label: Text('${f['emoji']!} ${f['label']!}'),
-              backgroundColor: const Color(0xFFF8FAF8),
+              backgroundColor: AppColors.background,
               labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF3F4A3C)),
               side: const BorderSide(color: Color(0xFFEBEFF0)),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -1107,11 +1300,11 @@ class _HomePageState extends State<HomePage> {
             const SizedBox(height: 20),
             const Text(
               'Add a Listing',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.share, color: Color(0xFF2E7D32)),
+              leading: const Icon(Icons.share, color: AppColors.primary),
               title: const Text('Lend Out Resource', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Lend equipment or items to community members.'),
               onTap: () {
@@ -1120,7 +1313,7 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_box_outlined, color: Color(0xFF2E7D32)),
+              leading: const Icon(Icons.add_box_outlined, color: AppColors.primary),
               title: const Text('Add Equipment to Share', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Add farming machinery or tools to share.'),
               onTap: () {
@@ -1129,7 +1322,7 @@ class _HomePageState extends State<HomePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.book_outlined, color: Color(0xFF2E7D32)),
+              leading: const Icon(Icons.book_outlined, color: AppColors.primary),
               title: const Text('Upload Book', style: TextStyle(fontWeight: FontWeight.bold)),
               subtitle: const Text('Share or lend textbooks and guides with others.'),
               onTap: () {
@@ -1151,7 +1344,7 @@ class _HomePageState extends State<HomePage> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Added to wishlist'),
-            backgroundColor: Color(0xFF2E7D32),
+            backgroundColor: AppColors.primary,
           ),
         );
       }
@@ -1164,7 +1357,7 @@ class _HomePageState extends State<HomePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Removed from wishlist'),
-          backgroundColor: Color(0xFF2E7D32),
+          backgroundColor: AppColors.primary,
         ),
       );
     });
@@ -1219,7 +1412,7 @@ class _HomePageState extends State<HomePage> {
                   equipment['title'],
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF1A1A1A)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 Row(
@@ -1242,7 +1435,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const Text(
                       'Borrow for Free',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primary),
                     ),
                     Row(
                       children: [
@@ -1263,7 +1456,7 @@ class _HomePageState extends State<HomePage> {
                   child: ElevatedButton(
                     onPressed: onTap,
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2E7D32),
+                      backgroundColor: AppColors.primary,
                       foregroundColor: Colors.white,
                       elevation: 0,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
@@ -1313,7 +1506,7 @@ class _HomePageState extends State<HomePage> {
                 children: [
                   Text(
                     item['title'],
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF1A1A1A)),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Wrap(
@@ -1323,7 +1516,7 @@ class _HomePageState extends State<HomePage> {
                     children: [
                       const Text(
                         'Borrow for Free',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Color(0xFF2E7D32)),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.primary),
                       ),
                       Text(
                         '• By ${item['seller']}',
@@ -1337,11 +1530,23 @@ class _HomePageState extends State<HomePage> {
                       const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
                       const SizedBox(width: 2),
                       Expanded(
-                        child: Text(
-                          item['distance'],
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        child: Builder(
+                          builder: (context) {
+                            final original = item['original_model'] as MarketplaceEquipmentModel?;
+                            String distanceStr = item['distance'] ?? 'Unknown location';
+                            if (original != null) {
+                              final distInfo = DistanceService.instance.getDistanceInfo(_latitude, _longitude, original.latitude, original.longitude);
+                              if (distInfo != null) {
+                                distanceStr = distInfo.formattedString;
+                              }
+                            }
+                            return Text(
+                              distanceStr,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            );
+                          },
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -1350,11 +1555,11 @@ class _HomePageState extends State<HomePage> {
                         child: TextButton(
                           onPressed: () => _navigateToDetails(item),
                           style: TextButton.styleFrom(
-                            foregroundColor: const Color(0xFF2E7D32),
+                            foregroundColor: AppColors.primary,
                             padding: const EdgeInsets.symmetric(horizontal: 12),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8),
-                              side: const BorderSide(color: Color(0xFF2E7D32)),
+                              side: const BorderSide(color: AppColors.primary),
                             ),
                           ),
                           child: const Text('View', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
@@ -1407,7 +1612,7 @@ class _HomePageState extends State<HomePage> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: item['available'] == 'Unavailable' ? Colors.red : const Color(0xFF2E7D32),
+                    color: item['available'] == 'Unavailable' ? Colors.red : AppColors.primary,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -1427,17 +1632,17 @@ class _HomePageState extends State<HomePage> {
                   item['title'],
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF1A1A1A)),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 6),
                 Row(
                   children: [
                     CircleAvatar(
                       radius: 10,
-                      backgroundColor: const Color(0xFFE8F5E9),
+                      backgroundColor: AppColors.primaryContainer,
                       child: Text(
                         (item['seller'] ?? 'O')[0].toUpperCase(),
-                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                        style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primary),
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -1464,7 +1669,7 @@ class _HomePageState extends State<HomePage> {
                   children: [
                     const Text(
                       'Borrow for Free',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32)),
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w900, color: AppColors.primary),
                     ),
                     Text(
                       item['distance'],
@@ -1641,7 +1846,7 @@ class _HomePageState extends State<HomePage> {
                             style: const TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF1A1A1A),
+                              color: AppColors.textPrimary,
                               height: 1.25,
                             ),
                           ),
@@ -1652,12 +1857,12 @@ class _HomePageState extends State<HomePage> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFFE8F5E9),
+                                  color: AppColors.primaryContainer,
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
                                   item.condition,
-                                  style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 9, fontWeight: FontWeight.bold),
+                                  style: const TextStyle(color: AppColors.primary, fontSize: 9, fontWeight: FontWeight.bold),
                                 ),
                               ),
                               const Spacer(),
@@ -1673,11 +1878,11 @@ class _HomePageState extends State<HomePage> {
                           // Distance Info
                           Row(
                             children: [
-                              const Icon(Icons.near_me_outlined, size: 11, color: Color(0xFF2E7D32)),
+                              const Icon(Icons.near_me_outlined, size: 11, color: AppColors.primary),
                               const SizedBox(width: 4),
                               Text(
                                 distanceStr,
-                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32)),
+                                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.primary),
                               ),
                             ],
                           ),
@@ -1705,7 +1910,7 @@ class _HomePageState extends State<HomePage> {
                                 width: 6,
                                 height: 6,
                                 decoration: BoxDecoration(
-                                  color: item.availability ? Colors.green : Colors.orange,
+                                  color: item.availability ? AppColors.success : Colors.orange,
                                   shape: BoxShape.circle,
                                 ),
                               ),
@@ -1715,7 +1920,7 @@ class _HomePageState extends State<HomePage> {
                                 style: TextStyle(
                                   fontSize: 9, 
                                   fontWeight: FontWeight.bold, 
-                                  color: item.availability ? Colors.green : Colors.orange,
+                                  color: item.availability ? AppColors.success : Colors.orange,
                                 ),
                               ),
                             ],
@@ -1730,7 +1935,7 @@ class _HomePageState extends State<HomePage> {
                                 _navigateToDetailsModel(item);
                               },
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF2E7D32),
+                                backgroundColor: AppColors.primary,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -1774,7 +1979,7 @@ class EquipmentListPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('All Equipment'),
-        backgroundColor: const Color(0xFF4CAF50),
+        backgroundColor: AppColors.primary,
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -1837,7 +2042,7 @@ class EquipmentListPage extends StatelessWidget {
                                 const Text(
                                   'Borrow for Free',
                                   style: TextStyle(
-                                    color: Color(0xFF4CAF50),
+                                    color: AppColors.primary,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
                                   ),
@@ -1870,7 +2075,7 @@ class EquipmentListPage extends StatelessWidget {
                           ElevatedButton(
                             onPressed: () => onItemSelected(equipment[index]),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF4CAF50),
+                              backgroundColor: AppColors.primary,
                             ),
                             child: const Text('Borrow Now'),
                           ),

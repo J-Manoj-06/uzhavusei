@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +10,7 @@ import '../../../../services/marketplace_service.dart';
 import '../../../../services/distance_service.dart';
 import '../../../../providers/location_provider.dart';
 import 'equipment_details_page.dart' as real_details;
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class FilterOption {
   final String key;
@@ -346,9 +347,8 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
       }
     }
 
-    if (_onlyAvailable) {
-      list = list.where((item) => item.availability).toList();
-    }
+    // Exclude all unavailable items from exploration category listing
+    list = list.where((item) => item.availability).toList();
 
     list = list.map((e) {
       final distInfo = DistanceService.instance.getDistanceInfo(_latitude, _longitude, e.latitude, e.longitude);
@@ -506,7 +506,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                   const SizedBox(height: 16),
                   const Text(
                     'Filter Listings',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                   ),
                   const SizedBox(height: 20),
                   ...config.filters.map((filter) {
@@ -514,7 +514,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                       return SwitchListTile(
                         title: Text(filter.label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                         value: _onlyAvailable,
-                        activeColor: const Color(0xFF2E7D32),
+                        activeColor: AppColors.primary,
                         contentPadding: EdgeInsets.zero,
                         onChanged: (val) {
                           setModalState(() {
@@ -566,9 +566,9 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                 return ChoiceChip(
                                   label: Text(opt),
                                   selected: isSel,
-                                  selectedColor: const Color(0xFFE8F5E9),
+                                  selectedColor: AppColors.primaryContainer,
                                   labelStyle: TextStyle(
-                                    color: isSel ? const Color(0xFF2E7D32) : Colors.black87,
+                                    color: isSel ? AppColors.primary : Colors.black87,
                                     fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
                                   ),
                                   onSelected: (selected) {
@@ -597,7 +597,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                     child: ElevatedButton(
                       onPressed: () => Navigator.pop(context),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF2E7D32),
+                        backgroundColor: AppColors.primary,
                         foregroundColor: Colors.white,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
@@ -649,7 +649,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
             style: const TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1A1A),
+              color: AppColors.textPrimary,
             ),
           ),
           const SizedBox(height: 8),
@@ -670,8 +670,8 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                   _applyFilterAndSort();
                 },
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF2E7D32)),
-                  foregroundColor: const Color(0xFF2E7D32),
+                  side: const BorderSide(color: AppColors.primary),
+                  foregroundColor: AppColors.primary,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
@@ -686,7 +686,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                   _applyFilterAndSort();
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF2E7D32),
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -747,7 +747,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadLocationAndListings,
-        color: const Color(0xFF2E7D32),
+        color: AppColors.primary,
         child: SingleChildScrollView(
           controller: _scrollController,
           physics: const AlwaysScrollableScrollPhysics(),
@@ -799,10 +799,10 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                       child: Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
+                          color: AppColors.primaryContainer,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.filter_list, color: Color(0xFF2E7D32), size: 20),
+                        child: const Icon(Icons.filter_list, color: AppColors.primary, size: 20),
                       ),
                     ),
                   ],
@@ -820,7 +820,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                         children: [
                           Text(
                             _currentRadiusLabel,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
                           ),
                           if (_isOffline)
                             const Text(
@@ -832,9 +832,9 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                     ),
                     DropdownButton<String>(
                       value: _selectedSort,
-                      icon: const Icon(Icons.arrow_drop_down, color: Color(0xFF2E7D32)),
+                      icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
                       underline: const SizedBox(),
-                      style: const TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold, fontSize: 12),
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
                       items: <String>['Nearest', 'Recently Added', 'Most Requested', 'Highest Rated'].map((String value) {
                         return DropdownMenuItem<String>(
                           value: value,
@@ -946,16 +946,16 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                       item.equipmentName,
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A)),
+                                      style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
                                     ),
                                     const SizedBox(height: 6),
                                     Row(
                                       children: [
-                                        const Icon(Icons.near_me_rounded, size: 12, color: Color(0xFF2E7D32)),
+                                        const Icon(Icons.near_me_rounded, size: 12, color: AppColors.primary),
                                         const SizedBox(width: 4),
                                         Text(
                                           distanceStr,
-                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFF2E7D32)),
+                                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
                                         ),
                                         const SizedBox(width: 8),
                                         const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
@@ -976,12 +976,12 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                           decoration: BoxDecoration(
-                                            color: const Color(0xFFE8F5E9),
+                                            color: AppColors.primaryContainer,
                                             borderRadius: BorderRadius.circular(6),
                                           ),
                                           child: Text(
                                             item.condition,
-                                            style: const TextStyle(color: Color(0xFF2E7D32), fontSize: 10, fontWeight: FontWeight.bold),
+                                            style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
                                           ),
                                         ),
                                         const Spacer(),
@@ -1000,7 +1000,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                           width: 6,
                                           height: 6,
                                           decoration: BoxDecoration(
-                                            color: item.availability ? Colors.green : Colors.orange,
+                                            color: item.availability ? AppColors.success : Colors.orange,
                                             shape: BoxShape.circle,
                                           ),
                                         ),
@@ -1010,14 +1010,14 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                           style: TextStyle(
                                             fontSize: 10,
                                             fontWeight: FontWeight.bold,
-                                            color: item.availability ? Colors.green : Colors.orange,
+                                            color: item.availability ? AppColors.success : Colors.orange,
                                           ),
                                         ),
                                         const Spacer(),
                                         ElevatedButton(
                                           onPressed: () => _navigateToDetails(item),
                                           style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(0xFF2E7D32),
+                                            backgroundColor: AppColors.primary,
                                             foregroundColor: Colors.white,
                                             elevation: 0,
                                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -1042,7 +1042,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF2E7D32)),
+                    child: CircularProgressIndicator(color: AppColors.primary),
                   ),
                 ),
 

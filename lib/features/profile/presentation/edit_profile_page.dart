@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -9,6 +9,7 @@ import '../../../services/auth_service.dart';
 import '../../../services/cloudinary_service.dart';
 import '../../../widgets/image_loader.dart';
 import '../../../services/logger_service.dart';
+import 'package:UzhavuSei/theme/app_theme.dart';
 
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({
@@ -110,7 +111,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
             const Text('Profile Picture Source', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
             ListTile(
-              leading: const Icon(Icons.camera_alt, color: Color(0xFF2E7D32)),
+              leading: const Icon(Icons.camera_alt, color: AppColors.primary),
               title: const Text('Take Photo'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -118,7 +119,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library, color: Color(0xFF2E7D32)),
+              leading: const Icon(Icons.photo_library, color: AppColors.primary),
               title: const Text('Choose from Gallery'),
               onTap: () {
                 Navigator.pop(ctx);
@@ -202,7 +203,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(l10n.tr('profile_updated')),
-          backgroundColor: const Color(0xFF2E7D32),
+          backgroundColor: AppColors.primary,
         ),
       );
       Navigator.pop(context);
@@ -233,7 +234,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF6F7A6B))),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -260,7 +261,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         }
       },
       child: Scaffold(
-        backgroundColor: const Color(0xFFF8FAF8),
+        backgroundColor: AppColors.background,
         appBar: AppBar(
           title: Text(l10n.tr('edit_profile'), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Colors.black)),
           backgroundColor: Colors.white,
@@ -278,8 +279,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
             TextButton(
               onPressed: _saving ? null : _save,
               child: _saving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF2E7D32)))
-                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold, color: Color(0xFF2E7D32), fontSize: 16)),
+                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+                  : const Text('Save', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary, fontSize: 16)),
             ),
             const SizedBox(width: 8),
           ],
@@ -294,10 +295,10 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   children: [
                     CircleAvatar(
                       radius: 48,
-                      backgroundColor: const Color(0xFFE8F5E9),
+                      backgroundColor: AppColors.primaryContainer,
                       child: ClipOval(
                         child: _removePhoto
-                            ? const Icon(Icons.person, size: 42, color: Color(0xFF2E7D32))
+                            ? const Icon(Icons.person, size: 42, color: AppColors.primary)
                             : _newImage != null
                                 ? Image.file(_newImage!, width: 96, height: 96, fit: BoxFit.cover)
                                 : widget.initialUser.profileImage.trim().isNotEmpty
@@ -307,7 +308,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                                         height: 96,
                                         fit: BoxFit.cover,
                                       )
-                                    : const Icon(Icons.person, size: 42, color: Color(0xFF2E7D32)),
+                                    : const Icon(Icons.person, size: 42, color: AppColors.primary),
                       ),
                     ),
                     Positioned(
@@ -317,7 +318,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                         onTap: _showImageSourceDialog,
                         child: const CircleAvatar(
                           radius: 16,
-                          backgroundColor: Color(0xFF2E7D32),
+                          backgroundColor: AppColors.primary,
                           child: Icon(Icons.camera_alt, color: Colors.white, size: 16),
                         ),
                       ),
@@ -329,7 +330,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
               Center(
                 child: TextButton(
                   onPressed: _showImageSourceDialog,
-                  child: const Text('Change Photo', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                  child: const Text('Change Photo', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold)),
                 ),
               ),
               const SizedBox(height: 24),
@@ -338,7 +339,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 decoration: InputDecoration(
                   labelText: 'Full Name',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -354,7 +355,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                   labelText: 'Username',
                   prefixText: '@',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -374,7 +375,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 decoration: InputDecoration(
                   labelText: 'Approximate Location (e.g. Chennai)',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                 ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
@@ -391,7 +392,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                 decoration: InputDecoration(
                   labelText: 'Short Bio (optional)',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: Color(0xFF2E7D32), width: 2)),
+                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                 ),
                 validator: (value) {
                   if (value != null && value.trim().length > 150) {
