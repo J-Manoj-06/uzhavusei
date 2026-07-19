@@ -159,8 +159,8 @@ void main() {
     final service = DistanceService.instance;
 
     test('Sorting by distance Nearest First and Farthest First', () {
-      final userLat = 13.082680;
-      final userLng = 80.270718;
+      const userLat = 13.082680;
+      const userLng = 80.270718;
 
       final items = [
         _MockListing(name: 'Far', lat: 12.9234, lng: 79.3512), // ~100km
