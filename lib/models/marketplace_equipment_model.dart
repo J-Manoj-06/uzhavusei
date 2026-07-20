@@ -46,9 +46,13 @@ class MarketplaceEquipmentModel {
     this.views = 0,
     this.savedBy = const <String>[],
     this.bookingsCount = 0,
+    this.productId = '',
+    this.productIdLower = '',
   });
 
   final String equipmentId;
+  final String productId;
+  final String productIdLower;
   final String ownerId;
   final String equipmentName;
   final String category;
@@ -200,6 +204,8 @@ class MarketplaceEquipmentModel {
       views: data['views'] ?? 0,
       savedBy: _toStringList(data['savedBy']),
       bookingsCount: data['bookingsCount'] ?? 0,
+      productId: (data['productId'] ?? '').toString(),
+      productIdLower: (data['productIdLower'] ?? '').toString(),
     );
   }
 
@@ -214,6 +220,8 @@ class MarketplaceEquipmentModel {
 
     return {
       'equipmentId': equipmentId,
+      'productId': productId,
+      'productIdLower': productIdLower,
       'owner_user_id': ownerId,
       'ownerId': ownerId,
       'title': titleLocalized,

@@ -1,4 +1,4 @@
-﻿import 'dart:ui';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -21,15 +21,18 @@ import '../../profile/presentation/my_bookings_page.dart';
 import 'widgets/borrow_image_picker.dart';
 import '../../../services/cloudinary_service.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../../../widgets/borrow_product_id_card.dart';
+import '../../../services/listing_context_service.dart';
+import '../../explore/presentation/chatbot_page.dart';
 
 class EquipmentDetailsPage extends StatefulWidget {
   const EquipmentDetailsPage({
     super.key,
     required this.equipment,
     required this.userId,
-    required this.userName,
-    required this.userEmail,
-    required this.userPhone,
+    this.userName = 'User',
+    this.userEmail = '',
+    this.userPhone = '9000000000',
     this.isPreviewMode = false,
   });
 
@@ -201,7 +204,13 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                     const SizedBox(height: 24),
                     _buildSocialProof(item),
                     const SizedBox(height: 24),
+                    if (item.productId.isNotEmpty) ...[
+                      BorrowProductIdCard(productId: item.productId),
+                      const SizedBox(height: 24),
+                    ],
                     _buildDetailsCard(item, description),
+                    const SizedBox(height: 16),
+                    _buildAskAiButton(item),
                     const SizedBox(height: 24),
                     _buildSpecifications(item),
                     const SizedBox(height: 24),
@@ -554,6 +563,41 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w500),
         ),
       ],
+    );
+  }
+
+  Widget _buildAskAiButton(MarketplaceEquipmentModel item) {
+    return SizedBox(
+      width: double.infinity,
+      child: ElevatedButton.icon(
+        onPressed: () {
+          ListingContextService.instance.cacheListing(item);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const ChatbotPage(isFromListing: true),
+            ),
+          );
+        },
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        icon: const Icon(Icons.auto_awesome, size: 18),
+        label: const Text(
+          '✨ Ask Borrow AI',
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1526,7 +1570,13 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           const SizedBox(height: 20),
 
           // Details overview
+          if (item.productId.isNotEmpty) ...[
+            BorrowProductIdCard(productId: item.productId),
+            const SizedBox(height: 20),
+          ],
           _buildDetailsCard(item, description),
+          const SizedBox(height: 12),
+          _buildAskAiButton(item),
           const SizedBox(height: 20),
 
           // Specifications

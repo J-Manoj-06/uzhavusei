@@ -22,6 +22,7 @@ class UnifiedListing {
     required this.bookingsCount,
     required this.createdAt,
     required this.rating,
+    this.productId = '',
     this.originalEquipment,
     this.originalExchange,
   });
@@ -45,6 +46,7 @@ class UnifiedListing {
   final int bookingsCount;
   final DateTime createdAt;
   final double rating;
+  final String productId;
   final MarketplaceEquipmentModel? originalEquipment;
   final FarmSurplusExchangeModel? originalExchange;
 

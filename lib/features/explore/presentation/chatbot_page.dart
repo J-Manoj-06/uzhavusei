@@ -6,7 +6,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../providers/locale_provider.dart';
 import '../../../services/deepseek_service.dart';
+import '../../../services/listing_context_service.dart';
+import '../../../models/marketplace_equipment_model.dart';
+import '../../equipment/presentation/equipment_details_page.dart' as real_details;
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import 'listing_select_page.dart';
+import '../../../services/listing_attachment_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT SESSION MODEL
@@ -60,7 +66,12 @@ class ChatSession {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class ChatbotPage extends StatefulWidget {
-  const ChatbotPage({super.key});
+  const ChatbotPage({
+    super.key,
+    this.isFromListing = false,
+  });
+
+  final bool isFromListing;
 
   @override
   State<ChatbotPage> createState() => _ChatbotPageState();
@@ -141,6 +152,28 @@ class _ChatbotPageState extends State<ChatbotPage>
       }
     } catch (e) {
       debugPrint('[ChatbotPage] Error loading sessions: $e');
+    }
+
+    if (widget.isFromListing && ListingAttachmentService.instance.hasAttachment) {
+      final listing = ListingAttachmentService.instance.activeAttachment!;
+      setState(() {
+        _chatActive = true;
+        final titleText = 'Analyzing ${listing.equipmentName}';
+        final idx = _sessions.indexWhere((s) => s.title == titleText || s.title.startsWith('Analyzing ${listing.equipmentName}'));
+        if (idx != -1) {
+          _activeSession = _sessions[idx];
+        } else {
+          final newSession = ChatSession(
+            id: DateTime.now().millisecondsSinceEpoch.toString(),
+            title: titleText,
+            messages: [],
+            timestamp: DateTime.now(),
+          );
+          _sessions.insert(0, newSession);
+          _activeSession = newSession;
+        }
+      });
+      _saveSessions();
     }
   }
 
@@ -242,6 +275,7 @@ class _ChatbotPageState extends State<ChatbotPage>
     final reply = await _service.generateReply(
       chatHistory: updatedMessages,
       languageCode: languageCode,
+      listingContextPrompt: ListingContextService.instance.buildContextPrompt(),
     );
 
     if (!mounted) return;
@@ -366,6 +400,69 @@ class _ChatbotPageState extends State<ChatbotPage>
     );
   }
 
+  void _showAttachmentSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (BuildContext context) {
+        return SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+                title: const Text(
+                  '📦 Attach Listing',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                onTap: () async {
+                  Navigator.pop(context); // Close bottom sheet
+                  final result = await Navigator.push<MarketplaceEquipmentModel>(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const ListingSelectPage(),
+                    ),
+                  );
+                  if (result != null) {
+                    setState(() {
+                      ListingAttachmentService.instance.attachListing(result);
+                    });
+                  }
+                },
+              ),
+              const Divider(height: 1, color: Color(0xFFE2E8F0)),
+              ListTile(
+                leading: const Icon(Icons.close_rounded, color: Colors.red),
+                title: const Text(
+                  '❌ Cancel',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                },
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final localeCode = context.watch<LocaleProvider>().languageCode;
@@ -397,6 +494,13 @@ class _ChatbotPageState extends State<ChatbotPage>
             localeCode: localeCode,
             onSubmitted: (text) => _sendMessage(text),
             onChanged: (val) => setState(() {}),
+            attachedListing: ListingAttachmentService.instance.activeAttachment,
+            onRemoveAttachment: () {
+              setState(() {
+                ListingAttachmentService.instance.removeListing();
+              });
+            },
+            onAttachTap: _showAttachmentSheet,
           ),
         ],
       ),
@@ -406,43 +510,218 @@ class _ChatbotPageState extends State<ChatbotPage>
   // ── ACTIVE CHAT SCREEN ───────────────────────────────────────
   Widget _buildActiveChat() {
     final messages = _activeSession?.messages ?? [];
+    final activeListing = ListingAttachmentService.instance.activeAttachment;
 
-    if (messages.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.auto_awesome, color: AppColors.primary, size: 40),
-            SizedBox(height: 16),
-            Text(
-              'Start of your conversation',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
-            ),
-            SizedBox(height: 6),
-            Text(
-              'Ask me anything about books or equipment!',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
+    return Column(
+      children: [
+        if (activeListing != null)
+          _buildAttachedListingCard(activeListing),
+        Expanded(
+          child: messages.isEmpty
+              ? const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.auto_awesome, color: AppColors.primary, size: 40),
+                      SizedBox(height: 16),
+                      Text(
+                        'Start of your conversation',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textSecondary),
+                      ),
+                      SizedBox(height: 6),
+                      Text(
+                        'Ask me anything about books or equipment!',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+                  itemCount: messages.length + (_isLoading ? 1 : 0),
+                  itemBuilder: (context, index) {
+                    if (_isLoading && index == messages.length) {
+                      return const LoadingState();
+                    }
+                    final msgMap = messages[index];
+                    return _ChatBubble(
+                      isUser: msgMap['role'] == 'user',
+                      text: msgMap['content'] ?? '',
+                      time: DateTime.now(),
+                    );
+                  },
+                ),
         ),
-      );
+      ],
+    );
+  }
+
+  Widget _buildAttachedListingCard(MarketplaceEquipmentModel item) {
+    final distanceStr = item.distanceInfo?.formattedString ?? 'Unknown distance';
+
+    String emoji = '⚙️';
+    if (item.category.toLowerCase().contains('book')) {
+      emoji = '📚';
+    } else if (item.category.toLowerCase().contains('farm') || item.category.toLowerCase().contains('tractor')) {
+      emoji = '🚜';
+    } else if (item.category.toLowerCase().contains('construct') || item.category.toLowerCase().contains('build')) {
+      emoji = '🏗️';
     }
 
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      itemCount: messages.length + (_isLoading ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (_isLoading && index == messages.length) {
-          return const LoadingState();
-        }
-        final msgMap = messages[index];
-        return _ChatBubble(
-          isUser: msgMap['role'] == 'user',
-          text: msgMap['content'] ?? '',
-          time: DateTime.now(), // Fallback or store timestamp in message
-        );
-      },
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.blue.shade100, width: 1),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.blue.shade900.withValues(alpha: 0.04),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  emoji,
+                  style: const TextStyle(fontSize: 20),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.equipmentName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
+                        children: [
+                          if (item.productId.isNotEmpty)
+                            _buildCardMiniBadge('ID: ${item.productId}', Colors.grey.shade700, Colors.grey.shade100),
+                          _buildCardMiniBadge('Cond: ${item.condition}', Colors.blue.shade700, Colors.blue.shade50),
+                          _buildCardMiniBadge(
+                            item.availability ? 'Available' : 'Unavailable',
+                            item.availability ? Colors.green.shade700 : Colors.red.shade700,
+                            item.availability ? Colors.green.shade50 : Colors.red.shade50,
+                          ),
+                          _buildCardMiniBadge('Dist: $distanceStr', Colors.orange.shade700, Colors.orange.shade50),
+                          _buildCardMiniBadge('★ ${item.rating.toStringAsFixed(1)}', Colors.amber.shade800, Colors.amber.shade50),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 4),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: const Icon(Icons.close_rounded, size: 18, color: Colors.grey),
+                  onPressed: () {
+                    setState(() {
+                      ListingAttachmentService.instance.removeListing();
+                    });
+                  },
+                  tooltip: 'Remove Listing',
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () {
+                    final user = FirebaseAuth.instance.currentUser;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => real_details.EquipmentDetailsPage(
+                          equipment: item,
+                          userId: user?.uid ?? '',
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 14, color: AppColors.primary),
+                  label: const Text(
+                    'View Listing →',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+                const Spacer(),
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      ListingAttachmentService.instance.removeListing();
+                    });
+                  },
+                  child: Text(
+                    '❌ Remove Listing',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.red.shade600,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardMiniBadge(String label, Color textColor, Color bgColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: textColor,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
     );
   }
 
@@ -548,41 +827,66 @@ class BorrowAiHeader extends StatelessWidget implements PreferredSizeWidget {
             child: const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
           ),
           const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'Borrow AI',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.textPrimary,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Borrow AI',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: isOnline ? AppColors.success : Colors.grey,
-                      shape: BoxShape.circle,
+                if (ListingAttachmentService.instance.hasAttachment) ...[
+                  Text(
+                    'Analyzing Product: ${ListingAttachmentService.instance.activeAttachment!.productId.isNotEmpty ? ListingAttachmentService.instance.activeAttachment!.productId : "Listing"}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primary,
                     ),
                   ),
-                  const SizedBox(width: 6),
                   Text(
-                    isOnline ? 'Online • Ready to help' : 'Offline',
+                    ListingAttachmentService.instance.activeAttachment!.equipmentName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: 9,
                       fontWeight: FontWeight.w500,
-                      color: Colors.grey.shade500,
+                      color: Colors.grey.shade600,
                     ),
+                  ),
+                ] else ...[
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: isOnline ? AppColors.success : Colors.grey,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        isOnline ? 'Online • Ready to help' : 'Offline',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey.shade500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1053,8 +1357,6 @@ class RecentConversationList extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.close_rounded, size: 16, color: Colors.grey),
                       onPressed: () => onDeleteSession(s.id),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
                     ),
                   ],
                 ),
@@ -1067,73 +1369,6 @@ class RecentConversationList extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// EMPTY STATE
-// ─────────────────────────────────────────────────────────────────────────────
-
-class EmptyState extends StatelessWidget {
-  const EmptyState({super.key, required this.onStartChat});
-
-  final VoidCallback onStartChat;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFEBEFF0)),
-      ),
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryContainer,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.forum_outlined,
-              size: 32,
-              color: AppColors.primary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Text(
-            'Ask Borrow AI about books, equipment or using the Borrow app.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-              height: 1.4,
-            ),
-          ),
-          const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: onStartChat,
-            icon: const Icon(Icons.add_rounded, size: 16),
-            label: const Text('Start Conversation', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BORROW AI CHAT INPUT
-// ─────────────────────────────────────────────────────────────────────────────
-
 class BorrowAiChatInput extends StatelessWidget {
   const BorrowAiChatInput({
     super.key,
@@ -1142,6 +1377,9 @@ class BorrowAiChatInput extends StatelessWidget {
     required this.localeCode,
     required this.onSubmitted,
     required this.onChanged,
+    required this.attachedListing,
+    required this.onRemoveAttachment,
+    required this.onAttachTap,
   });
 
   final TextEditingController controller;
@@ -1149,6 +1387,9 @@ class BorrowAiChatInput extends StatelessWidget {
   final String localeCode;
   final ValueChanged<String> onSubmitted;
   final ValueChanged<String> onChanged;
+  final MarketplaceEquipmentModel? attachedListing;
+  final VoidCallback onRemoveAttachment;
+  final VoidCallback onAttachTap;
 
   String _hintForLanguage(String code) {
     switch (code) {
@@ -1159,6 +1400,86 @@ class BorrowAiChatInput extends StatelessWidget {
       default:
         return 'Ask Borrow AI...';
     }
+  }
+
+  Widget _buildCompactAttachmentCard(BuildContext context, MarketplaceEquipmentModel attached) {
+    String emoji = '⚙️';
+    final categoryLower = attached.category.toLowerCase();
+    if (categoryLower.contains('book')) {
+      emoji = '📚';
+    } else if (categoryLower.contains('farm') || categoryLower.contains('tractor')) {
+      emoji = '🚜';
+    } else if (categoryLower.contains('construct') || categoryLower.contains('build')) {
+      emoji = '🏗️';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Text(
+                emoji,
+                style: const TextStyle(fontSize: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    attached.equipmentName,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    attached.productId,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Attached',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.green,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          TextButton.icon(
+            onPressed: onRemoveAttachment,
+            icon: const Icon(Icons.close, size: 14, color: Colors.red),
+            label: const Text(
+              'Remove',
+              style: TextStyle(color: Colors.red, fontSize: 12),
+            ),
+            style: TextButton.styleFrom(
+              padding: EdgeInsets.zero,
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1178,79 +1499,99 @@ class BorrowAiChatInput extends StatelessWidget {
             ),
           ],
         ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 48),
-                decoration: BoxDecoration(
-                  color: AppColors.background,
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(color: const Color(0xFFEBEFF0), width: 1.2),
+            if (attachedListing != null) ...[
+              _buildCompactAttachmentCard(context, attachedListing!),
+              const SizedBox(height: 8),
+            ],
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                IconButton(
+                  onPressed: onAttachTap,
+                  icon: const Icon(Icons.add_rounded, color: AppColors.primary, size: 28),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  style: IconButton.styleFrom(
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
-                child: Row(
-                  children: [
-                    const SizedBox(width: 14),
-                    const Icon(Icons.auto_awesome, color: AppColors.primary, size: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: controller,
-                        focusNode: focusNode,
-                        minLines: 1,
-                        maxLines: 5,
-                        textInputAction: TextInputAction.send,
-                        style: const TextStyle(fontSize: 14.5, color: AppColors.textPrimary),
-                        decoration: InputDecoration(
-                          hintText: _hintForLanguage(localeCode),
-                          hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13.5),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-                        ),
-                        onChanged: onChanged,
-                        onSubmitted: (val) {
-                          if (val.trim().isNotEmpty) {
-                            onSubmitted(val);
-                          }
-                        },
-                      ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Container(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(color: const Color(0xFFEBEFF0), width: 1.2),
                     ),
-                    Icon(Icons.mic_none_rounded, color: Colors.grey.shade400, size: 18),
-                    const SizedBox(width: 14),
-                  ],
-                ),
-              ),
-            ),
-            AnimatedSize(
-              duration: const Duration(milliseconds: 150),
-              curve: Curves.easeInOut,
-              child: hasText
-                  ? Row(
+                    child: Row(
                       children: [
-                        const SizedBox(width: 8),
-                        GestureDetector(
-                          onTap: () {
-                            if (controller.text.trim().isNotEmpty) {
-                              onSubmitted(controller.text);
-                            }
-                          },
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: const BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [AppColors.secondary, AppColors.primary],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              shape: BoxShape.circle,
+                        const SizedBox(width: 14),
+                        const Icon(Icons.auto_awesome, color: AppColors.primary, size: 16),
+                        Expanded(
+                          child: TextField(
+                            controller: controller,
+                            focusNode: focusNode,
+                            minLines: 1,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.send,
+                            style: const TextStyle(fontSize: 14.5, color: AppColors.textPrimary),
+                            decoration: InputDecoration(
+                              hintText: _hintForLanguage(localeCode),
+                              hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 13.5),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
                             ),
-                            child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
+                            onChanged: onChanged,
+                            onSubmitted: (val) {
+                              if (val.trim().isNotEmpty) {
+                                onSubmitted(val);
+                              }
+                            },
                           ),
                         ),
+                        Icon(Icons.mic_none_rounded, color: Colors.grey.shade400, size: 18),
+                        const SizedBox(width: 14),
                       ],
-                    )
-                  : const SizedBox.shrink(),
+                    ),
+                  ),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 150),
+                  curve: Curves.easeInOut,
+                  child: hasText
+                      ? Row(
+                          children: [
+                            const SizedBox(width: 8),
+                            GestureDetector(
+                              onTap: () {
+                                if (controller.text.trim().isNotEmpty) {
+                                  onSubmitted(controller.text);
+                                }
+                              },
+                              child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: const BoxDecoration(
+                                  gradient: LinearGradient(
+                                    colors: [AppColors.secondary, AppColors.primary],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.arrow_upward_rounded, color: Colors.white, size: 20),
+                              ),
+                            ),
+                          ],
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
             ),
           ],
         ),
@@ -1533,6 +1874,58 @@ class _Dot extends StatelessWidget {
         width: 8,
         height: 8,
         decoration: const BoxDecoration(color: AppColors.secondary, shape: BoxShape.circle),
+      ),
+    );
+  }
+}
+
+class EmptyState extends StatelessWidget {
+  const EmptyState({super.key, required this.onStartChat});
+
+  final VoidCallback onStartChat;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.chat_bubble_outline_rounded,
+            size: 64,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            'No conversations yet',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: AppColors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a new chat to ask about listings!',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey.shade500,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: onStartChat,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('Start Chat'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

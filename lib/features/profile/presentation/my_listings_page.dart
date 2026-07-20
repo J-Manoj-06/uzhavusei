@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../models/app_user_model.dart';
 import '../../../../../models/marketplace_equipment_model.dart';
@@ -140,6 +140,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         bookingsCount: e.bookingsCount,
         createdAt: e.createdAt,
         rating: e.rating,
+        productId: e.productId,
         originalEquipment: e,
       ));
     }

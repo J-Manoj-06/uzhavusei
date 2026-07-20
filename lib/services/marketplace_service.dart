@@ -4,6 +4,8 @@ import '../models/marketplace_booking_model.dart';
 import '../models/marketplace_equipment_model.dart';
 import '../models/marketplace_surplus_model.dart';
 import '../models/farm_surplus_exchange_model.dart';
+import 'product_id_service.dart';
+import 'package:flutter/foundation.dart';
 
 class MarketplaceService {
   MarketplaceService({FirebaseFirestore? firestore})
@@ -352,6 +354,15 @@ class MarketplaceService {
         ..['updated_at'] =
             (equipmentData['updated_at'] ?? FieldValue.serverTimestamp()),
     );
+    try {
+      final generatedId = await ProductIdService.instance.generateProductId();
+      await doc.update({
+        'productId': generatedId,
+        'productIdLower': generatedId.toLowerCase(),
+      });
+    } catch (e) {
+      debugPrint('[MarketplaceService] Failed to generate/update productId: $e');
+    }
     return doc.id;
   }
 

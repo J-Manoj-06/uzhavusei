@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -7,6 +7,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../models/marketplace_equipment_model.dart';
 import '../../../../models/search_result_model.dart';
 import '../../../../services/search_service.dart';
+import '../../../../services/product_id_service.dart';
 import '../../../../services/search_history_manager.dart';
 import '../../../../providers/location_provider.dart';
 import '../../equipment/presentation/equipment_details_page.dart' as real_details;
@@ -106,16 +107,51 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
 
   Future<void> _performSearch(String query) async {
     if (!mounted) return;
+    final cleanQuery = query.trim();
+    if (cleanQuery.isEmpty) return;
+
     setState(() => _isLoading = true);
 
-    if (query.trim().isNotEmpty) {
-      await SearchHistoryManager.addSearch(query.trim());
-      _loadRecentSearches();
+    await SearchHistoryManager.addSearch(cleanQuery);
+    _loadRecentSearches();
+
+    final RegExp idRegExp = RegExp(r'^brw-\d{6}$', caseSensitive: false);
+    if (idRegExp.hasMatch(cleanQuery)) {
+      try {
+        final doc = await ProductIdService.instance.searchByProductId(cleanQuery);
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+
+        if (doc != null && doc.exists) {
+          final model = MarketplaceEquipmentModel.fromDoc(doc);
+          _navigateToDetails(model);
+          return;
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No listing found for this Product ID.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          setState(() {
+            _allSearchResults = [];
+            _displayedSearchResults = [];
+          });
+          return;
+        }
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error searching Product ID: $e')),
+        );
+        return;
+      }
     }
 
     try {
       final results = await SearchService.instance.searchListings(
-        query: query,
+        query: cleanQuery,
         userLat: _userLat,
         userLng: _userLng,
         category: _selectedCategory,
@@ -893,6 +929,18 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                               style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
                                             ),
                                           ),
+                                          if (item.productId.isNotEmpty) ...[
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              item.productId,
+                                              style: const TextStyle(
+                                                fontFamily: 'monospace',
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.grey,
+                                              ),
+                                            ),
+                                          ],
                                           const Spacer(),
                                           const Icon(Icons.star, size: 12, color: Colors.amber),
                                           const SizedBox(width: 2),

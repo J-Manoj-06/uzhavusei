@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../../../widgets/image_loader.dart';
 import '../../../equipment/presentation/widgets/borrow_image_picker.dart';
@@ -6,6 +6,7 @@ import '../../../../../services/cloudinary_service.dart';
 import 'unified_listing.dart';
 import 'listing_analytics_sheet.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../../../../../services/product_id_service.dart';
 
 class EquipmentListingCard extends StatefulWidget {
   const EquipmentListingCard({
@@ -465,6 +466,15 @@ class _EquipmentListingCardState extends State<EquipmentListingCard> {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
+                    if (widget.listing.productId.isNotEmpty)
+                      _buildMaterialChip(
+                        widget.listing.productId,
+                        Icons.copy_all_rounded,
+                        AppColors.primary,
+                        onTap: () {
+                          ProductIdService.instance.copyToClipboard(context, widget.listing.productId);
+                        },
+                      ),
                     _buildMaterialChip(widget.listing.condition, Icons.handyman_outlined, Colors.grey.shade700),
                     _buildMaterialChip('Qty $_inventoryCount', Icons.shopping_bag_outlined, Colors.blue.shade700, onTap: () {
                       _showQuantityEditDialog();
