@@ -276,7 +276,7 @@ class _CalendarState extends State<Calendar> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: AppColors.success),
+          borderSide: const BorderSide(color: AppColors.success),
         ),
         filled: true,
         fillColor: AppColors.success.withValues(alpha: 0.35),

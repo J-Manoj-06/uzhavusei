@@ -1,9 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../theme/app_theme.dart';
 
 import '../../HomePage.dart';
-import '../../localization/app_localizations.dart';
 import '../../models/app_user_model.dart';
 import '../../providers/locale_provider.dart';
 import '../../services/auth_service.dart';
@@ -13,7 +13,6 @@ import '../profile/presentation/marketplace_profile_page.dart';
 import '../profile/presentation/my_listings_page.dart';
 import '../equipment/presentation/create_listing_flow.dart';
 import '../../services/deep_link_handler.dart';
-import 'package:UzhavuSei/theme/app_theme.dart';
 
 class MarketplaceShell extends StatefulWidget {
   const MarketplaceShell({
@@ -47,10 +46,10 @@ class _MarketplaceShellState extends State<MarketplaceShell>
   ];
 
   static const Color _green = AppColors.primary;
-  static const Color _darkGreen = AppColors.primary;
+  static const Color _darkGreen = AppColors.primaryDark;
   static const Color _lightGreen = AppColors.primaryContainer;
-  static const Color _grey = Color(0xFF9E9E9E);
-  static const Color _lightGrey = Color(0xFFF5F5F5);
+  static const Color _grey = AppColors.textSecondary;
+  static const Color _lightGrey = AppColors.background;
 
   late final AnimationController _floatController;
   late final Animation<double> _floatAnimation;
@@ -367,7 +366,7 @@ class _ActionSheetState extends State<_ActionSheet>
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w800,
-                          color: AppColors.textPrimary,
+                          color: Color(0xFF1A1A1A),
                           height: 1.2,
                         ),
                       ),
@@ -401,7 +400,7 @@ class _ActionSheetState extends State<_ActionSheet>
                             'Share or exchange unused seeds, fertilizers, and pesticides with nearby farmers.',
                         features: const ['Reduce Waste', 'Community Giveaway', 'Exchanges'],
                         gradient: const LinearGradient(
-                          colors: [Color(0xFFF1F8E9), AppColors.primaryContainer],
+                          colors: [Color(0xFFF1F8E9), Color(0xFFDCEDC8)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
@@ -418,23 +417,23 @@ class _ActionSheetState extends State<_ActionSheet>
                       _OptionCard(
                         emoji: '🚜',
                         tag: '🚜  Equipment Rental',
-                        tagColor: AppColors.primary,
+                        tagColor: const Color(0xFF2E7D32),
                         title: 'Rent Out Equipment',
                         description:
                             'Generate income by renting out your idle farming machinery to nearby farmers.',
                         features: const ['Extra Income', 'Nearby Farmers', 'Flexible Pricing'],
                         gradient: const LinearGradient(
-                          colors: [AppColors.primaryContainer, Color(0xFFF1F8E9)],
+                          colors: [Color(0xFFE8F5E9), Color(0xFFF1F8E9)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                         iconBgGradient: const LinearGradient(
-                          colors: [AppColors.secondary, AppColors.primary],
+                          colors: [Color(0xFF66BB6A), Color(0xFF2E7D32)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
-                        borderColor: AppColors.primaryContainer,
-                        titleColor: AppColors.primary,
+                        borderColor: const Color(0xFFA5D6A7),
+                        titleColor: const Color(0xFF2E7D32),
                         onTap: widget.onRentEquipment,
                       ),
                     ],
