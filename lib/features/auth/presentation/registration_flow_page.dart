@@ -734,7 +734,25 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
               ],
             ),
           ),
-          const SizedBox(height: 40),
+          const SizedBox(height: 24),
+          if (!_phoneVerified)
+            Center(
+              child: TextButton.icon(
+                onPressed: () async {
+                  await widget.authService.signOut();
+                },
+                icon: const Icon(Icons.arrow_back, color: Colors.black54),
+                label: const Text(
+                  'Back to Login',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.black54,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
           if (_phoneVerified) ...[
             SizedBox(
               width: double.infinity,
