@@ -9,6 +9,7 @@ import 'widgets/equipment_listing_card.dart';
 import '../../equipment/presentation/create_listing_flow.dart';
 import '../../../localization/app_localizations.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../../equipment/presentation/owner_borrow_requests_screen.dart';
 import '../data/listing_filter_model.dart';
 import '../data/listing_filter_service.dart';
 import 'widgets/listing_filter_bottom_sheet.dart';
@@ -530,49 +531,96 @@ class _MyListingsPageState extends State<MyListingsPage> {
         mainAxisSpacing: 16,
         childAspectRatio: 1.6,
         children: [
-          _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, AppColors.primary),
-          _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, AppColors.primary),
-          _buildStatCard('Borrow Requests', '$_borrowRequestsCount', Icons.question_answer_outlined, const Color(0xFF2196F3)),
-          _buildStatCard('Completed Exchanges', '$_completedExchangesCount', Icons.handshake_outlined, const Color(0xFFE65100)),
+          _buildStatCard(
+            label: 'Total Listings',
+            value: '$totalCount',
+            icon: Icons.inventory_2_outlined,
+            accentColor: AppColors.primary,
+          ),
+          _buildStatCard(
+            label: 'Active Listings',
+            value: '$activeCount',
+            icon: Icons.check_circle_outline,
+            accentColor: AppColors.primary,
+          ),
+          _buildStatCard(
+            label: 'Borrow Requests',
+            value: '$_borrowRequestsCount',
+            icon: Icons.question_answer_outlined,
+            accentColor: const Color(0xFF2196F3),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => OwnerBorrowRequestsScreen(
+                    ownerId: widget.currentUser.userId,
+                  ),
+                ),
+              );
+            },
+          ),
+          _buildStatCard(
+            label: 'Completed Exchanges',
+            value: '$_completedExchangesCount',
+            icon: Icons.handshake_outlined,
+            accentColor: const Color(0xFFE65100),
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildStatCard(String label, String value, IconData icon, Color accentColor) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Icon(icon, color: accentColor, size: 24),
-              Text(
-                value,
-                style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-              ),
-            ],
-          ),
-          Text(
-            label,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
-          ),
-        ],
+  Widget _buildStatCard({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color accentColor,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: accentColor, size: 24),
+                Text(
+                  value,
+                  style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
+                ),
+                if (onTap != null)
+                  const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.primary),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
