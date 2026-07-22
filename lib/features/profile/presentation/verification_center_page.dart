@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -114,9 +114,8 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
         await _db.collection('users').doc(_user.userId).update({
           'latitude': loc.latitude,
           'longitude': loc.longitude,
-          'village': loc.area,
-          'district': loc.city,
-          'state': loc.state,
+          'locationUpdatedAt': FieldValue.serverTimestamp(),
+          'accuracy': loc.accuracy ?? 0.0,
         });
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

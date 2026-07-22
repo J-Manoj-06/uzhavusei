@@ -14,18 +14,18 @@ class AppUserModel {
     required this.phoneVerified,
     this.latitude,
     this.longitude,
-    this.landArea,
-    this.serviceRange,
-    this.primaryCrops,
-    this.state,
-    this.district,
-    this.village,
-    this.landType,
-    this.ownedEquipment,
-    this.preferredServices,
+    this.selectedState,
+    this.locationUpdatedAt,
+    this.accuracy,
     this.username,
     this.bio,
-  });
+    this.preferredCategories,
+    this.listingCategories,
+    this.notificationsEnabled,
+    @Deprecated('Use selectedState instead') String? state,
+    @Deprecated('No longer used') String? district,
+    @Deprecated('No longer used') String? city,
+  }) : _state = state, _district = district, _city = city;
 
   final String userId;
   final String name;
@@ -39,25 +39,34 @@ class AppUserModel {
   final bool phoneVerified;
   final double? latitude;
   final double? longitude;
-  final String? landArea;
-  final String? serviceRange;
-  final String? primaryCrops;
-  final String? state;
-  final String? district;
-  final String? village;
-  final String? landType;
-  final List<String>? ownedEquipment;
-  final List<String>? preferredServices;
+  final String? selectedState;
+  final DateTime? locationUpdatedAt;
+  final double? accuracy;
   final String? username;
   final String? bio;
+  final List<String>? preferredCategories;
+  final List<String>? listingCategories;
+  final Map<String, bool>? notificationsEnabled;
 
-  bool get isRenter =>
-      role.toLowerCase() == 'renter' || role.toLowerCase() == 'owner';
-  bool get isOwner => role.toLowerCase() == 'owner';
-  bool get isFarmer => role.toLowerCase() == 'farmer';
+  final String? _state;
+  final String? _district;
+  final String? _city;
+
+  // Backwards compatibility getters
+  String? get state => selectedState ?? _state;
+  String? get district => _district;
+  String? get city => _city;
 
   factory AppUserModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final data = doc.data() ?? <String, dynamic>{};
+    
+    Map<String, bool>? parsedNotifications;
+    if (data['notificationsEnabled'] is Map) {
+      parsedNotifications = (data['notificationsEnabled'] as Map).map(
+        (key, value) => MapEntry(key.toString(), value == true),
+      );
+    }
+
     return AppUserModel(
       userId: (data['userId'] ?? doc.id).toString(),
       name: (data['name'] ?? 'User').toString(),
@@ -71,17 +80,17 @@ class AppUserModel {
       phoneVerified: data['phoneVerified'] == true,
       latitude: (data['latitude'] as num?)?.toDouble(),
       longitude: (data['longitude'] as num?)?.toDouble(),
-      landArea: data['landArea'] as String?,
-      serviceRange: data['serviceRange'] as String?,
-      primaryCrops: data['primaryCrops'] as String?,
-      state: data['state'] as String?,
-      district: data['district'] as String?,
-      village: data['village'] as String?,
-      landType: data['landType'] as String?,
-      ownedEquipment: (data['ownedEquipment'] as List?)?.map((e) => e.toString()).toList(),
-      preferredServices: (data['preferredServices'] as List?)?.map((e) => e.toString()).toList(),
+      selectedState: data['selectedState'] as String? ?? data['state'] as String?,
+      locationUpdatedAt: data['locationUpdatedAt'] != null ? _toDate(data['locationUpdatedAt']) : null,
+      accuracy: (data['accuracy'] as num?)?.toDouble(),
       username: data['username'] as String?,
       bio: data['bio'] as String?,
+      preferredCategories: (data['preferredCategories'] as List?)?.map((e) => e.toString()).toList(),
+      listingCategories: (data['listingCategories'] as List?)?.map((e) => e.toString()).toList(),
+      notificationsEnabled: parsedNotifications,
+      state: data['state'] as String?,
+      district: data['district'] as String?,
+      city: data['city'] as String?,
     );
   }
 
@@ -99,17 +108,14 @@ class AppUserModel {
       'phoneVerified': phoneVerified,
       if (latitude != null) 'latitude': latitude,
       if (longitude != null) 'longitude': longitude,
-      if (landArea != null) 'landArea': landArea,
-      if (serviceRange != null) 'serviceRange': serviceRange,
-      if (primaryCrops != null) 'primaryCrops': primaryCrops,
-      if (state != null) 'state': state,
-      if (district != null) 'district': district,
-      if (village != null) 'village': village,
-      if (landType != null) 'landType': landType,
-      if (ownedEquipment != null) 'ownedEquipment': ownedEquipment,
-      if (preferredServices != null) 'preferredServices': preferredServices,
+      if (selectedState != null) 'selectedState': selectedState,
+      if (locationUpdatedAt != null) 'locationUpdatedAt': Timestamp.fromDate(locationUpdatedAt!),
+      if (accuracy != null) 'accuracy': accuracy,
       if (username != null) 'username': username,
       if (bio != null) 'bio': bio,
+      if (preferredCategories != null) 'preferredCategories': preferredCategories,
+      if (listingCategories != null) 'listingCategories': listingCategories,
+      if (notificationsEnabled != null) 'notificationsEnabled': notificationsEnabled,
     };
   }
 }

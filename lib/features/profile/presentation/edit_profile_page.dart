@@ -1,8 +1,9 @@
-﻿import 'dart:io';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../../config/categories_config.dart';
 import '../../../localization/app_localizations.dart';
 import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
@@ -39,6 +40,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _removePhoto = false;
   bool _saving = false;
   bool _hasEdits = false;
+  String? _selectedState;
 
   @override
   void initState() {
@@ -47,11 +49,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _usernameController.text = widget.initialUser.username ?? '';
     _bioController.text = widget.initialUser.bio ?? '';
 
-    final locationParts = [widget.initialUser.village, widget.initialUser.district, widget.initialUser.state]
-        .where((e) => e != null && e.trim().isNotEmpty)
-        .map((e) => e!)
-        .toList();
-    _locationController.text = locationParts.isNotEmpty ? locationParts.first : '';
+    _selectedState = widget.initialUser.selectedState;
+    _locationController.text = _selectedState ?? '';
 
     _nameController.addListener(_onEdit);
     _usernameController.addListener(_onEdit);
@@ -194,9 +193,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         profileImage: imageUrl,
         username: username,
         bio: _bioController.text.trim(),
-        village: _locationController.text.trim(),
-        district: _locationController.text.trim(),
-        state: '',
+        selectedState: _selectedState,
       );
 
       if (!mounted) return;
@@ -221,6 +218,103 @@ class _EditProfilePageState extends State<EditProfilePage> {
         });
       }
     }
+  }
+
+  void _showStatePicker(StateSetter stateSetter) {
+    String searchQuery = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = CategoriesConfig.indianStates
+                .where((s) => s.toLowerCase().contains(searchQuery.toLowerCase()))
+                .toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Select State / Union Territory',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search State...',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setModalState(() {
+                            searchQuery = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final stateName = filtered[index];
+                            final isSelected = _selectedState == stateName;
+                            return ListTile(
+                              title: Text(
+                                stateName,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? AppColors.primary : Colors.black87,
+                                ),
+                              ),
+                              trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
+                              onTap: () {
+                                stateSetter(() {
+                                  _selectedState = stateName;
+                                  _locationController.text = stateName;
+                                  _hasEdits = true;
+                                });
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<bool> _onWillPop() async {
@@ -372,14 +466,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _locationController,
+                readOnly: true,
                 decoration: InputDecoration(
-                  labelText: 'Approximate Location (e.g. Chennai)',
+                  labelText: 'State / Union Territory',
+                  suffixIcon: const Icon(Icons.arrow_drop_down),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                   focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 2)),
                 ),
+                onTap: () => _showStatePicker(setState),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
-                    return 'Location is required.';
+                    return 'State is required.';
                   }
                   return null;
                 },

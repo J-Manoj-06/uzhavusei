@@ -5,6 +5,7 @@ import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../shell/marketplace_shell.dart';
 import 'login_register_page.dart';
+import 'registration_flow_page.dart';
 import 'verify_email_page.dart';
 
 
@@ -64,7 +65,7 @@ class _AuthGateState extends State<AuthGate> {
             }
 
             if (profile == null) {
-              return const _CenteredLoader();
+              return RegistrationFlowPage(authService: widget.authService);
             }
 
             _lastProfile = profile;

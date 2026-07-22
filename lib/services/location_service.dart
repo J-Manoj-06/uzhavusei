@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geocoding/geocoding.dart';
 
 // ─────────────────────────────────────────────────────────────
 //  Value objects
@@ -211,42 +210,21 @@ class LocationService {
         return LocationFailure('Unable to determine an accurate location. Please move to an open area and try again.');
       }
 
-      // 4. Reverse Geocode to get address details
-      String area = '';
-      String city = '';
-      String state = '';
-      String country = '';
-      try {
-        final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-        if (placemarks.isNotEmpty) {
-          final place = placemarks.first;
-          area = place.subLocality ?? place.name ?? '';
-          city = place.locality ?? '';
-          state = place.administrativeArea ?? '';
-          country = place.country ?? '';
-        }
-      } catch (e) {
-        debugPrint('[LocationService] Reverse geocoding failed: $e');
-        area = 'Unknown Area';
-        city = 'Unknown City';
-        state = 'Unknown State';
-        country = 'Unknown Country';
-      }
+      // 4. Retrieve state from local cache to preserve manual selection
+      final prefs = await SharedPreferences.getInstance();
+      final state = prefs.getString('lvl_state') ?? '';
 
       // 5. Build and cache the verified location
       final location = VerifiedLocation(
         latitude: position.latitude,
         longitude: position.longitude,
         timestamp: DateTime.now(),
-        area: area,
-        city: city,
         state: state,
-        country: country,
         accuracy: position.accuracy,
       );
       await _writeCache(location);
 
-      debugPrint('[LocationService] Fresh location acquired: $location');
+      debugPrint('[LocationService] Fresh location acquired (no geocoding): $location');
       return LocationSuccess(location);
     } catch (e) {
       debugPrint('[LocationService] getCurrentLocation error: $e');
@@ -312,10 +290,13 @@ class LocationService {
 
   /// Caches a fresh GPS position.
   Future<VerifiedLocation> cachePosition(Position position) async {
+    final prefs = await SharedPreferences.getInstance();
+    final state = prefs.getString('lvl_state') ?? '';
     final location = VerifiedLocation(
       latitude: position.latitude,
       longitude: position.longitude,
       timestamp: DateTime.now(),
+      state: state,
       accuracy: position.accuracy,
     );
     await _writeCache(location);

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -559,7 +559,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
   @override
   void initState() {
     super.initState();
-    _city = widget.currentUser.district;
+    _city = widget.currentUser.selectedState;
     _lastUpdated = 'Just now';
   }
 
@@ -572,12 +572,10 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
         await widget.db.collection('users').doc(widget.currentUser.userId).update({
           'latitude': loc.latitude,
           'longitude': loc.longitude,
-          'village': loc.area,
-          'district': loc.city,
-          'state': loc.state,
+          'locationUpdatedAt': FieldValue.serverTimestamp(),
+          'accuracy': loc.accuracy ?? 0.0,
         });
         setState(() {
-          _city = loc.city;
           _lastUpdated = 'Updated just now';
         });
         if (mounted) {
@@ -621,7 +619,7 @@ class _UpdateLocationScreenState extends State<_UpdateLocationScreen> {
               const SizedBox(height: 16),
               const Text('Verified Location Details', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
               const SizedBox(height: 12),
-              Text('Current City: ${_city ?? 'Not Set'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('Current State: ${_city ?? 'Not Set'}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const SizedBox(height: 4),
               Text('Last Updated: ${_lastUpdated ?? 'Unknown'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
               const SizedBox(height: 24),
@@ -912,7 +910,7 @@ class _PrivacyPolicyScreen extends StatelessWidget {
             Text('Privacy Policy', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20)),
             SizedBox(height: 16),
             Text(
-              'Your privacy is extremely important to us. Borrow does not collect or share exact location details before exchange approval. Only approximate distances and district areas are shown to other users to discover resources.',
+              'Your privacy is extremely important to us. Borrow does not collect or share exact location details before exchange approval. Only approximate distances and state details are shown to other users to discover resources.',
               style: TextStyle(fontSize: 14, height: 1.5, color: Colors.black87),
             ),
             SizedBox(height: 16),

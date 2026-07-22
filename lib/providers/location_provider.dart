@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/location_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Reactive wrapper around [LocationService].
 ///
@@ -122,6 +123,33 @@ class LocationProvider extends ChangeNotifier {
       _positionSubscription?.cancel();
       notifyListeners();
     }
+  }
+
+  /// Manually update selected state name in memory/cache and notify listeners.
+  Future<void> updateManualState(String stateName) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('lvl_state', stateName);
+    
+    if (_lastVerifiedLocation != null) {
+      _lastVerifiedLocation = VerifiedLocation(
+        latitude: _lastVerifiedLocation!.latitude,
+        longitude: _lastVerifiedLocation!.longitude,
+        timestamp: _lastVerifiedLocation!.timestamp,
+        accuracy: _lastVerifiedLocation!.accuracy,
+        area: _lastVerifiedLocation!.area,
+        city: _lastVerifiedLocation!.city,
+        state: stateName,
+        country: _lastVerifiedLocation!.country,
+      );
+    } else {
+      _lastVerifiedLocation = VerifiedLocation(
+        latitude: 0.0,
+        longitude: 0.0,
+        timestamp: DateTime.now(),
+        state: stateName,
+      );
+    }
+    notifyListeners();
   }
 
   /// Starts listening to Geolocator position changes (triggers on > 100 meters move).

@@ -5,7 +5,7 @@
     <application
         android:label="Borrow"
         android:name="${applicationName}"
-        android:icon="@mipmap/logo"
+        android:icon="@mipmap/launcher_icon"
         android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true">
         <meta-data

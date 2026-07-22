@@ -224,9 +224,14 @@ class AuthService {
     required String profileImage,
     String? username,
     String? bio,
-    String? village,
-    String? district,
-    String? state,
+    String? selectedState,
+    double? latitude,
+    double? longitude,
+    DateTime? locationUpdatedAt,
+    double? accuracy,
+    @Deprecated('Use selectedState instead') String? state,
+    @Deprecated('No longer used') String? district,
+    @Deprecated('No longer used') String? city,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) {
@@ -234,6 +239,8 @@ class AuthService {
     }
 
     await _auth.currentUser?.updateDisplayName(name);
+
+    final finalState = selectedState ?? state;
 
     await _firestore.collection('users').doc(uid).set({
       'name': name,
@@ -241,42 +248,19 @@ class AuthService {
       'profileImage': profileImage,
       if (username != null) 'username': username,
       if (bio != null) 'bio': bio,
-      if (village != null) 'village': village,
-      if (district != null) 'district': district,
-      if (state != null) 'state': state,
+      if (finalState != null) 'selectedState': finalState,
+      if (latitude != null) 'latitude': latitude,
+      if (longitude != null) 'longitude': longitude,
+      if (locationUpdatedAt != null) 'locationUpdatedAt': Timestamp.fromDate(locationUpdatedAt),
+      if (accuracy != null) 'accuracy': accuracy,
+      'district': FieldValue.delete(),
+      'city': FieldValue.delete(),
+      'address': FieldValue.delete(),
+      'placemark': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
-  Future<void> updateAdvancedUserProfile({
-    required String name,
-    required String phoneNumber,
-    required String state,
-    required String district,
-    required String village,
-    required String landArea,
-    required String primaryCrops,
-    required String serviceRange,
-  }) async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) {
-      throw Exception('User is not signed in');
-    }
-
-    await _auth.currentUser?.updateDisplayName(name);
-
-    await _firestore.collection('users').doc(uid).set({
-      'name': name,
-      'phoneNumber': phoneNumber,
-      'state': state,
-      'district': district,
-      'village': village,
-      'landArea': landArea,
-      'primaryCrops': primaryCrops,
-      'serviceRange': serviceRange,
-      'updatedAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
-  }
 
   Future<void> updateLanguage(String languageCode) async {
     final uid = _auth.currentUser?.uid;

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:pinput/pinput.dart';
@@ -6,6 +6,11 @@ import 'dart:ui';
 import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../../../config/categories_config.dart';
+import '../../../services/location_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class RegistrationFlowPage extends StatefulWidget {
   const RegistrationFlowPage({super.key, required this.authService});
@@ -15,10 +20,32 @@ class RegistrationFlowPage extends StatefulWidget {
   State<RegistrationFlowPage> createState() => _RegistrationFlowPageState();
 }
 
-class _RegistrationFlowPageState extends State<RegistrationFlowPage> with TickerProviderStateMixin {
-  final PageController _pageController = PageController();
+class _RegistrationFlowPageState extends State<RegistrationFlowPage> with TickerProviderStateMixin, WidgetsBindingObserver {
+  late final PageController _pageController;
   int _currentPage = 0;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      _phoneVerified = true;
+      if (user.email != null && user.email!.isNotEmpty) {
+        _currentPage = 2;
+      } else {
+        _currentPage = 1;
+      }
+    } else {
+      _currentPage = 0;
+      _phoneVerified = false;
+    }
+    
+    _pageController = PageController(initialPage: _currentPage);
+    _initializeLocation();
+  }
 
   // -- Colors
   final Color _primaryGreen = AppColors.primary;
@@ -45,31 +72,26 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
 
   // -- Step 3: Profile
   final _profileFormKey = GlobalKey<FormState>();
-  String _userType = 'Farmer'; 
   final _stateController = TextEditingController();
-  final _districtController = TextEditingController();
-  final _villageController = TextEditingController();
-  String _farmSize = '< 1 Acre'; 
-  String _landType = 'Wetland'; 
+  String? _selectedState;
   
-  final List<String> _selectedCrops = [];
-  final List<String> _cropOptions = [
-    'Paddy', 'Sugarcane', 'Cotton', 'Groundnut', 'Banana', 'Coconut', 'Vegetables', 'Fruits'
-  ];
+  final List<String> _selectedPurposes = [];
+  final List<String> _selectedInterests = [];
+  final List<String> _selectedShareCategories = [];
 
-  bool _ownsEquipment = false;
-  final List<String> _selectedEquipment = [];
-  final List<String> _equipmentOptions = [
-    'Tractor', 'Rotavator', 'Harvester', 'Sprayer', 'Seed Drill', 'Cultivator'
-  ];
+  final Map<String, bool> _notifications = {
+    'nearbyListings': true,
+    'borrowRequests': true,
+    'returnReminders': true,
+  };
 
-  final List<String> _selectedServices = [];
-  final List<String> _serviceOptions = [
-    'Rent Equipment', 'Lease Equipment', 'Buy Inputs', 'Sell Produce', 'Find Labour', 'Transport Services'
-  ];
+  bool _fetchingLocation = false;
+  VerifiedLocation? _gpsLocation;
+  String? _locationError;
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _pageController.dispose();
     _phoneController.dispose();
     _otpController.dispose();
@@ -78,9 +100,14 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
     _passwordController.dispose();
     _confirmController.dispose();
     _stateController.dispose();
-    _districtController.dispose();
-    _villageController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAndFetchLocationSilently();
+    }
   }
 
   void _showError(String msg) {
@@ -108,11 +135,11 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
   }
 
   double get _profileCompletionPercentage {
-    int total = 4;
-    int filled = 1; // user type
-    if (_stateController.text.isNotEmpty) filled++;
-    if (_selectedCrops.isNotEmpty) filled++;
-    if (_selectedServices.isNotEmpty) filled++;
+    int total = 3;
+    int filled = 0;
+    if (_selectedState != null && _selectedState!.isNotEmpty) filled++;
+    if (_gpsLocation != null) filled++;
+    if (_selectedInterests.isNotEmpty) filled++;
     return filled / total;
   }
 
@@ -284,8 +311,210 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
     }
   }
 
+  LocationPermissionStatus _permissionStatus = LocationPermissionStatus.unknown;
+
+  void _updateLocationErrorStatus(LocationPermissionStatus status) {
+    switch (status) {
+      case LocationPermissionStatus.serviceDisabled:
+        _locationError = 'GPS is disabled. Please enable location services.';
+        break;
+      case LocationPermissionStatus.denied:
+        _locationError = 'Location permission is denied.';
+        break;
+      case LocationPermissionStatus.permanentlyDenied:
+        _locationError = 'Location permission is permanently denied. Please enable it in Settings.';
+        break;
+      default:
+        _locationError = 'Location service status unknown.';
+    }
+  }
+
+  Future<void> _initializeLocation() async {
+    setState(() {
+      _fetchingLocation = true;
+      _locationError = null;
+    });
+    
+    VerifiedLocation? cached;
+    try {
+      cached = await LocationService.instance.getLastVerifiedLocation();
+      final loc = cached;
+      if (loc != null) {
+        setState(() {
+          _gpsLocation = loc;
+        });
+      }
+      
+      final prefs = await SharedPreferences.getInstance();
+      final stateCached = prefs.getString('lvl_state');
+      if (stateCached != null) {
+        setState(() {
+          _selectedState = stateCached;
+          _stateController.text = stateCached;
+        });
+      }
+    } catch (e) {
+      debugPrint('[RegistrationFlow] Error loading cached location: $e');
+    }
+
+    await _fetchGpsLocation(isBackground: cached != null);
+  }
+
+  Future<void> _checkAndFetchLocationSilently() async {
+    final status = await LocationService.instance.checkPermissionStatus();
+    setState(() {
+      _permissionStatus = status;
+    });
+
+    if (status == LocationPermissionStatus.granted) {
+      await _fetchGpsLocation(isBackground: _gpsLocation != null);
+    } else {
+      setState(() {
+        _updateLocationErrorStatus(status);
+      });
+    }
+  }
+
+  Future<void> _fetchGpsLocation({bool isBackground = false}) async {
+    if (_fetchingLocation) return;
+    if (!isBackground) {
+      setState(() {
+        _fetchingLocation = true;
+        _locationError = null;
+      });
+    }
+
+    try {
+      // 1. Check services
+      final serviceEnabled = await LocationService.instance.isLocationServiceEnabled();
+      debugPrint('[GPS Log] GPS Enabled check: $serviceEnabled');
+      if (!serviceEnabled) {
+        setState(() {
+          _fetchingLocation = false;
+          _locationError = 'GPS is disabled. Please enable location services.';
+          _permissionStatus = LocationPermissionStatus.serviceDisabled;
+        });
+        return;
+      }
+
+      // 2. Check permission
+      final status = await LocationService.instance.checkPermissionStatus();
+      debugPrint('[GPS Log] Permission check status: $status');
+      setState(() {
+        _permissionStatus = status;
+      });
+
+      if (status != LocationPermissionStatus.granted) {
+        setState(() {
+          _fetchingLocation = false;
+          _updateLocationErrorStatus(status);
+        });
+        return;
+      }
+
+      // 3. Request current position (coordinates) with 3 retries
+      Position? position;
+      String? positionError;
+      for (int i = 0; i < 3; i++) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 15),
+          );
+          if (position.accuracy <= 100) {
+            break;
+          } else {
+            positionError = 'Coordinates accuracy is poor: ${position.accuracy} meters.';
+          }
+        } catch (e) {
+          positionError = e.toString();
+          debugPrint('[GPS Log] Position retrieval attempt ${i + 1} failed: $e');
+          if (i < 2) {
+            await Future.delayed(const Duration(seconds: 1));
+          }
+        }
+      }
+
+      if (position == null) {
+        throw Exception(positionError ?? 'Could not retrieve GPS coordinates.');
+      }
+
+      final lat = position.latitude;
+      final lng = position.longitude;
+      debugPrint('[GPS Log] Coordinates resolved successfully - Lat: $lat, Lng: $lng, Accuracy: ${position.accuracy}');
+
+      // Save verified location to state and SharedPreferences local cache
+      final location = VerifiedLocation(
+        latitude: lat,
+        longitude: lng,
+        timestamp: DateTime.now(),
+        accuracy: position.accuracy,
+      );
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setDouble('lvl_latitude', lat);
+      await prefs.setDouble('lvl_longitude', lng);
+      await prefs.setInt('lvl_timestamp_ms', DateTime.now().millisecondsSinceEpoch);
+      await prefs.setDouble('lvl_accuracy', position.accuracy);
+
+      setState(() {
+        _gpsLocation = location;
+        _locationError = null;
+        _fetchingLocation = false;
+      });
+
+    } catch (e) {
+      debugPrint('[GPS Log] Fetch GPS Location Error: $e');
+      setState(() {
+        if (_gpsLocation == null) {
+          _locationError = 'Unable to determine your location. Please check your location settings.';
+        }
+        _fetchingLocation = false;
+      });
+    }
+  }
+
+  Future<void> _onEnableLocationPressed() async {
+    final status = await LocationService.instance.checkPermissionStatus();
+    if (status == LocationPermissionStatus.serviceDisabled) {
+      await LocationService.instance.openLocationSettings();
+    } else if (status == LocationPermissionStatus.denied) {
+      final newStatus = await LocationService.instance.requestPermission();
+      setState(() {
+        _permissionStatus = newStatus;
+      });
+      if (newStatus == LocationPermissionStatus.granted) {
+        await _fetchGpsLocation();
+      } else {
+        setState(() {
+          _updateLocationErrorStatus(newStatus);
+        });
+      }
+    } else if (status == LocationPermissionStatus.permanentlyDenied) {
+      await LocationService.instance.openAppPermissionSettings();
+    } else {
+      await _fetchGpsLocation();
+    }
+  }
+
   Future<void> _saveProfileAndFinish() async {
     if (!_profileFormKey.currentState!.validate()) return;
+    
+    if (_selectedState == null || _selectedState!.isEmpty) {
+      _showError('Please select your State.');
+      return;
+    }
+
+    if (_selectedInterests.isEmpty) {
+      _showError('Please select at least one Interested Category');
+      return;
+    }
+
+    if (_gpsLocation == null) {
+      _showError('GPS location coordinates are required.');
+      return;
+    }
+
     setState(() => _submitting = true);
     
     String phone = _phoneController.text.trim();
@@ -296,30 +525,40 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final uid = user.uid;
+        
         final appUser = AppUserModel(
           userId: uid,
           name: _nameController.text.trim(),
           email: _emailController.text.trim(),
-          role: _userType.toLowerCase(),
+          role: 'user',
           phoneNumber: phone,
           profileImage: '',
           language: 'en',
           createdAt: DateTime.now(),
           emailVerified: user.emailVerified,
           phoneVerified: true,
-          landArea: _farmSize,
-          landType: _landType,
-          primaryCrops: _selectedCrops.join(', '),
-          state: _stateController.text.trim(),
-          district: _districtController.text.trim(),
-          village: _villageController.text.trim(),
-          ownedEquipment: _ownsEquipment ? _selectedEquipment : [],
-          preferredServices: _selectedServices,
+          latitude: _gpsLocation!.latitude,
+          longitude: _gpsLocation!.longitude,
+          selectedState: _selectedState,
+          locationUpdatedAt: _gpsLocation!.timestamp,
+          accuracy: _gpsLocation!.accuracy,
+          preferredCategories: _selectedInterests,
+          listingCategories: _selectedShareCategories,
+          notificationsEnabled: _notifications,
         );
-        await FirebaseFirestore.instance.collection('users').doc(uid).set(appUser.toMap());
+        
+        final dataMap = appUser.toMap();
+        dataMap['purposes'] = _selectedPurposes;
+        
+        await FirebaseFirestore.instance.collection('users').doc(uid).set(dataMap);
+
+        // Also save state to SharedPreferences cache
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('lvl_state', _selectedState!);
+
         if (!mounted) return;
         setState(() => _submitting = false);
-        _nextPage(); // Go to Final Success Page
+        _nextPage();
       }
     } catch(e) {
       if (!mounted) return;
@@ -610,139 +849,308 @@ class _RegistrationFlowPageState extends State<RegistrationFlowPage> with Ticker
   }
 
   Widget _buildStep3Profile() {
+    final catOptions = CategoriesConfig.categories.map((c) => c.displayName).toList();
+    
     return StatefulBuilder(
       builder: (context, setStateLocal) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text("Build Your\nFarming Profile", style: TextStyle(color: Colors.black, fontSize: 32, fontWeight: FontWeight.bold, height: 1.2)),
-            const SizedBox(height: 8),
-            const Text("Help us personalize your experience", style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 20),
-            Expanded(
-              child: _buildGlassCard(
-                child: SingleChildScrollView(
-                  child: Form(
-                    key: _profileFormKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('I am a...', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: ['Farmer', 'Equipment Owner', 'Both'].map((type) {
-                            final isSel = _userType.toLowerCase() == type.toLowerCase();
-                            return Expanded(
-                              child: GestureDetector(
-                                onTap: () => setStateLocal(() => _userType = type),
-                                child: Container(
-                                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                                  padding: const EdgeInsets.symmetric(vertical: 12),
-                                  decoration: BoxDecoration(
-                                    color: isSel ? _primaryGreen : Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                      color: isSel ? _primaryGreen : Colors.grey.shade300,
-                                      width: 1.5,
-                                    )
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(type, style: TextStyle(color: isSel ? Colors.white : Colors.black87, fontSize: 12, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
-                                ),
-                              ),
-                            );
-                          }).toList(),
+        final locationResolved = _selectedState != null && _selectedState!.isNotEmpty && _gpsLocation != null;
+        
+        return SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Complete Your\nBorrow Profile", style: TextStyle(color: Colors.black, fontSize: 32, fontWeight: FontWeight.bold, height: 1.2)),
+              const SizedBox(height: 8),
+              const Text("Help us personalize your Borrow experience", style: TextStyle(color: Colors.black54, fontSize: 16, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 20),
+              _buildGlassCard(
+                child: Form(
+                  key: _profileFormKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // --- SECTION 1: I WANT TO... ---
+                      const Text('I want to...', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('Select all that apply to personalize recommendations', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      _buildChipSelector(catOptions, _selectedPurposes, setStateLocal),
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 2: STATE SELECTION ---
+                      const Text('State / Union Territory', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('Select your home state manually (Required)', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _stateController,
+                        readOnly: true,
+                        style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+                        decoration: _glassInputDecoration('Select State', Icons.map).copyWith(
+                          suffixIcon: (_selectedState != null)
+                              ? const Icon(Icons.check_circle, color: Colors.green)
+                              : const Icon(Icons.arrow_drop_down),
                         ),
-                        const SizedBox(height: 24),
-                        const Text('Location', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _stateController,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                          decoration: _glassInputDecoration('State', Icons.map),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _districtController,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                          decoration: _glassInputDecoration('District', Icons.location_city),
-                        ),
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: _villageController,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                          decoration: _glassInputDecoration('Village/Town', Icons.home),
-                        ),
-                        const SizedBox(height: 24),
-                        const Text('Farm Information', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: _farmSize,
-                          dropdownColor: Colors.white,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                          iconEnabledColor: Colors.black54,
-                          decoration: _glassInputDecoration('Farm Size', Icons.landscape),
-                          items: ['< 1 Acre', '1–5 Acres', '5–10 Acres', '10+ Acres'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                          onChanged: (val) { setStateLocal(() => _farmSize = val!); },
-                        ),
-                        const SizedBox(height: 12),
-                        DropdownButtonFormField<String>(
-                          value: _landType,
-                          dropdownColor: Colors.white,
-                          style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
-                          iconEnabledColor: Colors.black54,
-                          decoration: _glassInputDecoration('Land Type', Icons.grass),
-                          items: ['Wetland', 'Dryland', 'Mixed'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
-                          onChanged: (val) { setStateLocal(() => _landType = val!); },
-                        ),
-                        const SizedBox(height: 24),
-                        const Text('Primary Crops', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 12),
-                        _buildChipSelector(_cropOptions, _selectedCrops, setStateLocal),
-                        const SizedBox(height: 24),
-                        SwitchListTile(
-                          title: const Text('Do you own equipment?', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold)),
-                          value: _ownsEquipment,
-                          activeColor: Colors.white,
-                          activeTrackColor: _primaryGreen,
-                          inactiveThumbColor: Colors.white,
-                          inactiveTrackColor: Colors.grey.shade300,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: BorderSide(color: Colors.grey.shade300)),
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-                          onChanged: (val) { setStateLocal(() => _ownsEquipment = val); },
-                        ),
-                        if (_ownsEquipment) ...[
-                          const SizedBox(height: 12),
-                          _buildChipSelector(_equipmentOptions, _selectedEquipment, setStateLocal),
+                        onTap: () => _showStatePicker(setStateLocal),
+                        validator: (val) => (val == null || val.trim().isEmpty) ? 'State is required' : null,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 3: GPS ---
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Current Location', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                          if (_fetchingLocation)
+                            const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
                         ],
-                        const SizedBox(height: 24),
-                        const Text('Preferred Services', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _gpsLocation != null ? 'Location Enabled' : 'Location not enabled',
+                        style: TextStyle(
+                          color: _gpsLocation != null ? Colors.green : Colors.redAccent,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Location Buttons / Errors
+                      if (_locationError != null) ...[
+                        Text(
+                          _locationError!,
+                          style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
                         const SizedBox(height: 12),
-                        _buildChipSelector(_serviceOptions, _selectedServices, setStateLocal),
-                        const SizedBox(height: 24),
                       ],
-                    ),
+
+                      if (_fetchingLocation) ...[
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          alignment: Alignment.center,
+                          child: const Text('Acquiring GPS fix...', style: TextStyle(color: Colors.black54, fontWeight: FontWeight.bold)),
+                        )
+                      ] else ...[
+                        SizedBox(
+                          width: double.infinity,
+                          height: 48,
+                          child: OutlinedButton.icon(
+                            icon: Icon(_gpsLocation != null ? Icons.refresh : Icons.location_searching),
+                            label: Text(
+                              _gpsLocation != null ? 'Refresh Location' : 'Enable Location',
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(color: _primaryGreen),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                            onPressed: () async {
+                              if (_gpsLocation != null) {
+                                await _fetchGpsLocation();
+                              } else {
+                                await _onEnableLocationPressed();
+                              }
+                              setStateLocal(() {});
+                            },
+                          ),
+                        )
+                      ],
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 4: INTERESTED CATEGORIES ---
+                      const Text('Interested Categories', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('Choose the categories you are interested in (Required)', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      _buildChipSelector(catOptions, _selectedInterests, setStateLocal),
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 5: I CAN LIST... ---
+                      const Text('I can list... (Optional)', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 8),
+                      const Text('Select categories you might want to share or list', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                      const SizedBox(height: 12),
+                      _buildChipSelector(catOptions, _selectedShareCategories, setStateLocal),
+                      const SizedBox(height: 24),
+
+                      // --- SECTION 6: NOTIFICATIONS ---
+                      const Text('Notifications', style: TextStyle(color: Colors.black87, fontSize: 16, fontWeight: FontWeight.bold)),
+                      const SizedBox(height: 12),
+                      Material(
+                        color: Colors.transparent,
+                        clipBehavior: Clip.antiAlias,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: Column(
+                            children: [
+                              _buildNotificationToggle(
+                                'Nearby Listings',
+                                'nearbyListings',
+                                setStateLocal,
+                              ),
+                              const Divider(height: 1, indent: 16, endIndent: 16),
+                              _buildNotificationToggle(
+                                'Borrow Requests',
+                                'borrowRequests',
+                                setStateLocal,
+                              ),
+                              const Divider(height: 1, indent: 16, endIndent: 16),
+                              _buildNotificationToggle(
+                                'Return Reminders',
+                                'returnReminders',
+                                setStateLocal,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _submitting ? null : _saveProfileAndFinish,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _primaryGreen,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor: Colors.grey.shade300,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: (_submitting || !locationResolved) ? null : _saveProfileAndFinish,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _primaryGreen,
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16))
+                  ),
+                  child: _submitting 
+                      ? const CircularProgressIndicator(color: Colors.white) 
+                      : const Text('Complete Registration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 ),
-                child: _submitting ? const CircularProgressIndicator(color: Colors.white) : const Text('Complete Registration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               ),
-            )
-          ],
+              const SizedBox(height: 24),
+            ],
+          ),
         );
+      },
+    );
+  }
+
+  void _showStatePicker(StateSetter stateSetter) {
+    String searchQuery = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = CategoriesConfig.indianStates
+                .where((s) => s.toLowerCase().contains(searchQuery.toLowerCase()))
+                .toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Select State / Union Territory',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search State...',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setModalState(() {
+                            searchQuery = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final stateName = filtered[index];
+                            final isSelected = _selectedState == stateName;
+                            return ListTile(
+                              title: Text(
+                                stateName,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? _primaryGreen : Colors.black87,
+                                ),
+                              ),
+                              trailing: isSelected ? Icon(Icons.check, color: _primaryGreen) : null,
+                              onTap: () {
+                                stateSetter(() {
+                                  _selectedState = stateName;
+                                  _stateController.text = stateName;
+                                });
+                                Navigator.pop(context);
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildNotificationToggle(String label, String key, StateSetter stateSetter) {
+    return SwitchListTile(
+      title: Text(label, style: const TextStyle(color: Colors.black87, fontSize: 14, fontWeight: FontWeight.w500)),
+      value: _notifications[key] ?? true,
+      activeColor: Colors.white,
+      activeTrackColor: _primaryGreen,
+      inactiveThumbColor: Colors.white,
+      inactiveTrackColor: Colors.grey.shade300,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      onChanged: (val) {
+        stateSetter(() {
+          _notifications[key] = val;
+        });
       },
     );
   }

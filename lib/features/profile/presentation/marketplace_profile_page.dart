@@ -20,6 +20,12 @@ import 'settings_page.dart';
 import '../data/profile_service.dart';
 import 'dart:io';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import '../../../providers/location_provider.dart';
+import '../../../config/categories_config.dart';
+import '../../../services/location_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 class MarketplaceProfilePage extends StatefulWidget {
   const MarketplaceProfilePage({
@@ -35,7 +41,7 @@ class MarketplaceProfilePage extends StatefulWidget {
   State<MarketplaceProfilePage> createState() => _MarketplaceProfilePageState();
 }
 
-class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
+class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> with WidgetsBindingObserver {
   StreamSubscription? _profileSub;
 
   List<MarketplaceEquipmentModel>? _equipments;
@@ -48,9 +54,13 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
   bool _errorStats = false;
   bool _isOffline = false;
 
+  bool _fetchingLocation = false;
+  String? _locationError;
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _checkOffline();
     _loadStats();
   }
@@ -121,6 +131,7 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _cancelSubscriptions();
     super.dispose();
   }
@@ -210,10 +221,9 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
     final user = _liveUser ?? widget.currentUser;
 
     // Formatted location
-    final locationParts = [user.village, user.district, user.state]
-        .where((e) => e != null && e.trim().isNotEmpty)
-        .toList();
-    final displayLoc = locationParts.isNotEmpty ? '📍 ${locationParts.first}' : '📍 Location not set';
+    final displayLoc = (user.selectedState != null && user.selectedState!.isNotEmpty)
+        ? '📍 ${user.selectedState}'
+        : '📍 Location not set';
 
     // Username
     final displayUsername = user.username != null && user.username!.trim().isNotEmpty
@@ -454,6 +464,14 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
                                 _buildFadeIn(
                                   delayMs: 200,
                                   child: _buildVerificationSection(user),
+                                ),
+
+                                const SizedBox(height: 24),
+
+                                // Location Management Section
+                                _buildFadeIn(
+                                  delayMs: 210,
+                                  child: _buildLocationManagementSection(user),
                                 ),
 
                                 const SizedBox(height: 32),
@@ -1046,6 +1064,369 @@ class _MarketplaceProfilePageState extends State<MarketplaceProfilePage> {
           ),
         ],
       ),
+    );
+  }
+
+  // --- LOCATION MANAGEMENT ---
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkAndFetchLocationSilently();
+    }
+  }
+
+  Future<void> _checkAndFetchLocationSilently() async {
+    final status = await LocationService.instance.checkPermissionStatus();
+    if (status == LocationPermissionStatus.granted) {
+      await _refreshGpsLocation(silent: true);
+    }
+  }
+
+  Future<void> _refreshGpsLocation({bool silent = false}) async {
+    if (_fetchingLocation) return;
+    if (!silent) {
+      setState(() {
+        _fetchingLocation = true;
+        _locationError = null;
+      });
+    }
+
+    try {
+      final status = await LocationService.instance.checkPermissionStatus();
+      if (status != LocationPermissionStatus.granted) {
+        if (!silent) {
+          setState(() {
+            _fetchingLocation = false;
+            _locationError = 'Permission not granted.';
+          });
+        }
+        return;
+      }
+
+      final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (!silent) {
+          setState(() {
+            _fetchingLocation = false;
+            _locationError = 'GPS is disabled.';
+          });
+        }
+        return;
+      }
+
+      Position? position;
+      String? errorMsg;
+      for (int i = 0; i < 3; i++) {
+        try {
+          position = await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 15),
+          );
+          if (position.accuracy <= 100) {
+            break;
+          } else {
+            errorMsg = 'Accuracy is poor: ${position.accuracy} meters.';
+          }
+        } catch (e) {
+          errorMsg = e.toString();
+          if (i < 2) await Future.delayed(const Duration(seconds: 1));
+        }
+      }
+
+      if (position == null) {
+        throw Exception(errorMsg ?? 'Could not retrieve GPS coordinates.');
+      }
+
+      final location = await LocationService.instance.cachePosition(position);
+
+      final uid = widget.currentUser.userId;
+      await FirebaseFirestore.instance.collection('users').doc(uid).update({
+        'latitude': position.latitude,
+        'longitude': position.longitude,
+        'locationUpdatedAt': FieldValue.serverTimestamp(),
+        'accuracy': position.accuracy,
+      });
+
+      if (mounted) {
+        final lp = context.read<LocationProvider>();
+        await lp.recheckAndRefresh();
+      }
+
+      if (!silent && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('GPS Location updated successfully!'), backgroundColor: AppColors.primary),
+        );
+      }
+    } catch (e) {
+      debugPrint('[Profile Location] Error refreshing GPS: $e');
+      if (!silent && mounted) {
+        setState(() {
+          _locationError = 'Unable to refresh GPS coordinates.';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _fetchingLocation = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _handleLocationButtonClick() async {
+    final status = await LocationService.instance.checkPermissionStatus();
+    if (status == LocationPermissionStatus.serviceDisabled) {
+      await LocationService.instance.openLocationSettings();
+    } else if (status == LocationPermissionStatus.denied) {
+      final newStatus = await LocationService.instance.requestPermission();
+      if (newStatus == LocationPermissionStatus.granted) {
+        await _refreshGpsLocation();
+      }
+    } else if (status == LocationPermissionStatus.permanentlyDenied) {
+      await LocationService.instance.openAppPermissionSettings();
+    } else {
+      await _refreshGpsLocation();
+    }
+  }
+
+  String _getLocationLastUpdatedString(DateTime? dt) {
+    if (dt == null) return 'Never';
+    final diff = DateTime.now().difference(dt);
+    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  Widget _buildLocationManagementSection(AppUserModel user) {
+    final gpsEnabled = user.latitude != null && user.longitude != null;
+    final accuracyStr = user.accuracy != null ? '${user.accuracy!.toStringAsFixed(1)}m' : 'Not Available';
+    final lastUpdatedStr = user.locationUpdatedAt != null ? _getLocationLastUpdatedString(user.locationUpdatedAt) : 'Never';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFEBEFF0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.location_on_outlined, color: AppColors.primary, size: 24),
+              const SizedBox(width: 12),
+              const Text(
+                'Location',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.textPrimary),
+              ),
+              const Spacer(),
+              if (_fetchingLocation)
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          
+          _buildLocationInfoRow('State', user.selectedState ?? 'Not Set'),
+          const SizedBox(height: 10),
+          
+          _buildLocationInfoRow(
+            'GPS Status', 
+            gpsEnabled ? 'Enabled' : 'Location not enabled',
+            valueColor: gpsEnabled ? Colors.green : Colors.redAccent,
+          ),
+          const SizedBox(height: 10),
+          
+          _buildLocationInfoRow('GPS Accuracy', accuracyStr),
+          const SizedBox(height: 10),
+          
+          _buildLocationInfoRow('Last Sync', lastUpdatedStr),
+          const SizedBox(height: 20),
+
+          if (_locationError != null) ...[
+            Text(
+              _locationError!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 12),
+          ],
+
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: OutlinedButton(
+                    onPressed: () => _showStatePicker(setState, user),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppColors.primary),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Change State', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SizedBox(
+                  height: 44,
+                  child: ElevatedButton(
+                    onPressed: _fetchingLocation ? null : _handleLocationButtonClick,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primary,
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 0,
+                    ),
+                    child: Text(
+                      gpsEnabled ? 'Refresh GPS' : 'Enable Location',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLocationInfoRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(fontSize: 14, color: Colors.grey.shade600, fontWeight: FontWeight.w500),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14, 
+            color: valueColor ?? AppColors.textPrimary, 
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showStatePicker(StateSetter modalStateSetter, AppUserModel user) {
+    String searchQuery = '';
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final filtered = CategoriesConfig.indianStates
+                .where((s) => s.toLowerCase().contains(searchQuery.toLowerCase()))
+                .toList();
+
+            return DraggableScrollableSheet(
+              initialChildSize: 0.7,
+              minChildSize: 0.5,
+              maxChildSize: 0.9,
+              expand: false,
+              builder: (context, scrollController) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                  child: Column(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Select State / Union Territory',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black87),
+                      ),
+                      const SizedBox(height: 16),
+                      TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search State...',
+                          prefixIcon: const Icon(Icons.search),
+                          filled: true,
+                          fillColor: Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setModalState(() {
+                            searchQuery = val;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(
+                        child: ListView.builder(
+                          controller: scrollController,
+                          itemCount: filtered.length,
+                          itemBuilder: (context, index) {
+                            final stateName = filtered[index];
+                            final isSelected = user.selectedState == stateName;
+                            return ListTile(
+                              title: Text(
+                                stateName,
+                                style: TextStyle(
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? AppColors.primary : Colors.black87,
+                                ),
+                              ),
+                              trailing: isSelected ? const Icon(Icons.check, color: AppColors.primary) : null,
+                              onTap: () async {
+                                Navigator.pop(context);
+                                try {
+                                  final uid = widget.currentUser.userId;
+                                  await FirebaseFirestore.instance.collection('users').doc(uid).update({
+                                    'selectedState': stateName,
+                                  });
+                                  
+                                  if (mounted) {
+                                    final lp = context.read<LocationProvider>();
+                                    await lp.updateManualState(stateName);
+                                  }
+
+                                  if (mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('State updated to $stateName successfully!'), backgroundColor: AppColors.primary),
+                                    );
+                                  }
+                                } catch (e) {
+                                  debugPrint('[Profile Location] Error updating state: $e');
+                                }
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 }
