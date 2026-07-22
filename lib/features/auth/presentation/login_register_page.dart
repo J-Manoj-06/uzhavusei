@@ -121,7 +121,7 @@ class _LoginRegisterPageState extends State<LoginRegisterPage> {
                       ),
                       const SizedBox(height: 8),
                       const Text(
-                        'Borrow is a community marketplace where people can rent, lend, buy, and sell resources such as books, farming equipment, construction equipment, and more.',
+                        '',
                         style: TextStyle(
                           fontSize: 13,
                           color: Colors.black54,
