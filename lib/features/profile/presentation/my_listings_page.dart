@@ -9,6 +9,9 @@ import 'widgets/equipment_listing_card.dart';
 import '../../equipment/presentation/create_listing_flow.dart';
 import '../../../localization/app_localizations.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../data/listing_filter_model.dart';
+import '../data/listing_filter_service.dart';
+import 'widgets/listing_filter_bottom_sheet.dart';
 
 class MyListingsPage extends StatefulWidget {
   const MyListingsPage({
@@ -37,28 +40,9 @@ class _MyListingsPageState extends State<MyListingsPage> {
   bool _loading = true;
 
   // Filters State
-  String _selectedCategory = 'All';
-  String _selectedStatus = 'All';
+  ListingFilterModel _filter = const ListingFilterModel();
   String _searchQuery = '';
-  String _sortBy = 'Newest';
-
-  final List<String> _categories = [
-    'All',
-    'Books',
-    'Farm Equipment',
-    'Construction Equipment',
-    'Electronics',
-    'Musical Instruments',
-    'Tools'
-  ];
-
-  final List<String> _statuses = [
-    'All',
-    'Available',
-    'Borrowed',
-    'Completed',
-    'Hidden'
-  ];
+  final ListingFilterService _filterService = ListingFilterService();
 
   @override
   void initState() {
@@ -170,37 +154,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
       ));
     }
 
-    // Sort listings
-    if (_sortBy == 'Newest') {
-      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
-    } else if (_sortBy == 'Price Low-High') {
-      list.sort((a, b) => a.price.compareTo(b.price));
-    } else if (_sortBy == 'Price High-Low') {
-      list.sort((a, b) => b.price.compareTo(a.price));
-    }
-
-    return list;
-  }
-
-  bool _matchesCategory(UnifiedListing item, String filter) {
-    if (filter == 'All') return true;
-    final f = filter.toLowerCase();
-    final c = item.category.toLowerCase();
-    if (f.contains('book')) return c.contains('book');
-    if (f.contains('farm') || f.contains('agri')) return c.contains('farm') || c.contains('agri');
-    if (f.contains('construction') || f.contains('tool')) return c.contains('construction') || c.contains('tool');
-    if (f.contains('electron')) return c.contains('electron');
-    if (f.contains('music')) return c.contains('music');
-    return c == f;
-  }
-
-  bool _matchesStatus(UnifiedListing item, String filter) {
-    if (filter == 'All') return true;
-    final f = filter.toLowerCase();
-    final s = item.status.toLowerCase();
-    if (f == 'available') return s == 'published' || s == 'available';
-    if (f == 'borrowed') return s == 'booked' || s == 'rented';
-    return s == f;
+    return _filterService.applyFilters(list, _filter, _searchQuery);
   }
 
   void _openCreateListingWizard() {
@@ -420,61 +374,21 @@ class _MyListingsPageState extends State<MyListingsPage> {
     );
   }
 
-  void _showFilterDialog() {
-    showDialog(
+  void _openFilterBottomSheet() async {
+    final result = await showModalBottomSheet<ListingFilterModel>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Sort Options', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('Sort by Newest', style: TextStyle(fontSize: 14)),
-              leading: Radio<String>(
-                value: 'Newest',
-                groupValue: _sortBy,
-                activeColor: AppColors.primary,
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _sortBy = val);
-                    Navigator.pop(ctx);
-                  }
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Price: Low to High', style: TextStyle(fontSize: 14)),
-              leading: Radio<String>(
-                value: 'Price Low-High',
-                groupValue: _sortBy,
-                activeColor: AppColors.primary,
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _sortBy = val);
-                    Navigator.pop(ctx);
-                  }
-                },
-              ),
-            ),
-            ListTile(
-              title: const Text('Price: High to Low', style: TextStyle(fontSize: 14)),
-              leading: Radio<String>(
-                value: 'Price High-Low',
-                groupValue: _sortBy,
-                activeColor: AppColors.primary,
-                onChanged: (val) {
-                  if (val != null) {
-                    setState(() => _sortBy = val);
-                    Navigator.pop(ctx);
-                  }
-                },
-              ),
-            ),
-          ],
-        ),
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
+      builder: (context) => ListingFilterBottomSheet(initialFilter: _filter),
     );
+    if (result != null) {
+      setState(() {
+        _filter = result;
+      });
+    }
   }
 
   @override
@@ -489,18 +403,9 @@ class _MyListingsPageState extends State<MyListingsPage> {
     final listings = _getUnifiedListings();
 
     // Stats calculations
-    final totalCount = listings.length;
-    final activeCount = listings.where((item) => item.status == 'published' || item.status == 'available').length;
-
-    // Apply Filters
-    final filteredListings = listings.where((item) {
-      final matchesCategory = _matchesCategory(item, _selectedCategory);
-      final matchesStatus = _matchesStatus(item, _selectedStatus);
-      final matchesSearch = _searchQuery.isEmpty || 
-          item.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-          item.category.toLowerCase().contains(_searchQuery.toLowerCase());
-      return matchesCategory && matchesStatus && matchesSearch;
-    }).toList();
+    final totalCount = _equipments.length + _exchanges.length;
+    final activeCount = _equipments.where((item) => item.status == 'published' || item.status == 'available').length +
+        _exchanges.where((item) => item.status == 'published' || item.status == 'available').length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -541,10 +446,27 @@ class _MyListingsPageState extends State<MyListingsPage> {
             tooltip: 'Search',
           ),
           const SizedBox(width: 8),
-          IconButton(
-            icon: const Icon(Icons.tune, size: 28, color: AppColors.textPrimary),
-            onPressed: _showFilterDialog,
-            tooltip: 'Sort Options',
+          Stack(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.tune, size: 28, color: AppColors.textPrimary),
+                onPressed: _openFilterBottomSheet,
+                tooltip: 'Filter Listings',
+              ),
+              if (_filter.isActive)
+                Positioned(
+                  right: 12,
+                  top: 12,
+                  child: Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.blue,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: 16),
         ],
@@ -557,53 +479,27 @@ class _MyListingsPageState extends State<MyListingsPage> {
             // 2x2 statistics dashboard
             _build2x2StatsDashboard(totalCount, activeCount),
             
-            const SizedBox(height: 24),
-  
-            // Category filters
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Categories',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey.shade800),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildCategoryFiltersList(),
-  
-            const SizedBox(height: 24),
-  
-            // Status filters
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Filter by Status',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Colors.grey.shade800),
-              ),
-            ),
-            const SizedBox(height: 10),
-            _buildStatusFiltersList(),
-  
-            const SizedBox(height: 24),
-  
+            const SizedBox(height: 12),
+
             // Header title list count
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Text(
-                'Shared Resources (${filteredListings.length})',
+                'Shared Resources (${listings.length})',
                 style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
               ),
             ),
             const SizedBox(height: 12),
-  
-            filteredListings.isEmpty
+
+            listings.isEmpty
                 ? _buildPremiumEmptyState()
                 : ListView.builder(
                     shrinkWrap: true,
                     physics: const NeverScrollableScrollPhysics(),
                     padding: const EdgeInsets.only(top: 8, bottom: 88, left: 16, right: 16),
-                    itemCount: filteredListings.length,
+                    itemCount: listings.length,
                     itemBuilder: (context, index) {
-                      final item = filteredListings[index];
+                      final item = listings[index];
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 16),
                         child: EquipmentListingCard(
@@ -632,7 +528,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 16,
         mainAxisSpacing: 16,
-        childAspectRatio: 1.5,
+        childAspectRatio: 1.6,
         children: [
           _buildStatCard('Total Listings', '$totalCount', Icons.inventory_2_outlined, AppColors.primary),
           _buildStatCard('Active Listings', '$activeCount', Icons.check_circle_outline, AppColors.primary),
@@ -657,7 +553,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
           ),
         ],
       ),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -677,77 +573,6 @@ class _MyListingsPageState extends State<MyListingsPage> {
             style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w500),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryFiltersList() {
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _categories.length,
-        itemBuilder: (context, index) {
-          final cat = _categories[index];
-          final isSelected = cat == _selectedCategory;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(cat),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) setState(() => _selectedCategory = cat);
-              },
-              selectedColor: AppColors.primary,
-              backgroundColor: Colors.white,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 12,
-              ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: isSelected ? Colors.transparent : const Color(0xFFE5E7EB)),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildStatusFiltersList() {
-    return SizedBox(
-      height: 48,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: _statuses.length,
-        itemBuilder: (context, index) {
-          final stat = _statuses[index];
-          final isSelected = stat == _selectedStatus;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Text(stat),
-              ),
-              selected: isSelected,
-              onSelected: (selected) {
-                if (selected) setState(() => _selectedStatus = stat);
-              },
-              selectedColor: AppColors.primary,
-              backgroundColor: Colors.white,
-              labelStyle: TextStyle(
-                color: isSelected ? Colors.white : AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                fontSize: 12,
-              ),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-              side: BorderSide(color: isSelected ? Colors.transparent : const Color(0xFFE5E7EB)),
-            ),
-          );
-        },
       ),
     );
   }
@@ -831,7 +656,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Start sharing your unused resources with your community.',
+              'Start sharing books or equipment with your community.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.grey.shade600,
@@ -843,7 +668,7 @@ class _MyListingsPageState extends State<MyListingsPage> {
             ElevatedButton.icon(
               onPressed: _openCreateListingWizard,
               icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Create Listing', style: TextStyle(fontWeight: FontWeight.bold)),
+              label: const Text('Create First Listing', style: TextStyle(fontWeight: FontWeight.bold)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.white,
