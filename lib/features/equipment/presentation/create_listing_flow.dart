@@ -241,22 +241,34 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
   }
 
   Widget _buildCard(_CategoryMeta cat) {
+    final isBooks = cat.label.toLowerCase().contains('book');
+
     return GestureDetector(
-      onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(
-              builder: (ctx) =>
-                  cat.formBuilder(ctx, widget.currentUser))),
+      onTap: () {
+        if (isBooks) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (ctx) => cat.formBuilder(ctx, widget.currentUser),
+            ),
+          );
+        } else {
+          _showComingSoonDialog(cat.label);
+        }
+      },
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: _kCardBorder),
+          border: Border.all(
+            color: isBooks ? _kCardBorder : Colors.amber.shade200,
+          ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
-                blurRadius: 12,
-                offset: const Offset(0, 4))
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            )
           ],
         ),
         padding: const EdgeInsets.all(16),
@@ -268,37 +280,100 @@ class _CategorySelectionPageState extends State<CategorySelectionPage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(cat.emoji, style: const TextStyle(fontSize: 32)),
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
+                if (isBooks)
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
                       color: _kGreenLight,
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Icon(Icons.arrow_forward_rounded,
-                      size: 14, color: _kGreen),
-                ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.arrow_forward_rounded,
+                        size: 14, color: _kGreen),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFFF59E0B), width: 0.8),
+                    ),
+                    child: const Text(
+                      'Soon',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFFB45309),
+                      ),
+                    ),
+                  ),
               ],
             ),
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(cat.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                        color: _kTextPrimary)),
+                Text(
+                  cat.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: isBooks ? _kTextPrimary : Colors.grey.shade700,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(cat.subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        fontSize: 11, color: Colors.grey.shade500)),
+                Text(
+                  isBooks ? cat.subtitle : 'Coming soon',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: isBooks ? Colors.grey.shade500 : const Color(0xFFB45309),
+                    fontWeight: isBooks ? FontWeight.normal : FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showComingSoonDialog(String categoryName) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: [
+            const Icon(Icons.stars_rounded, color: Color(0xFFF59E0B), size: 28),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$categoryName Coming Soon!',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          'We are currently focusing on Library Books exchange. $categoryName listing will be enabled in an upcoming release!',
+          style: const TextStyle(fontSize: 13, color: Color(0xFF475569)),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kGreen,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Got it'),
+          ),
+        ],
       ),
     );
   }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,21 +7,20 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'models/marketplace_equipment_model.dart';
+import 'models/book_model.dart';
 import 'services/api_client.dart';
 import 'services/marketplace_service.dart';
 import 'services/distance_service.dart';
+import 'services/book_repository.dart';
 import 'providers/location_provider.dart';
 import 'services/location_service.dart';
 import 'widgets/image_loader.dart';
-import 'features/equipment/presentation/booking_payment_page.dart';
 import 'features/equipment/presentation/equipment_details_page.dart' as real_details;
-
+import 'features/equipment/presentation/all_books_page.dart';
+import 'features/equipment/presentation/book_details_page.dart';
 import 'features/explore/presentation/global_search_page.dart';
 import 'features/equipment/presentation/category_marketplace_page.dart';
 import 'features/equipment/presentation/create_listing_flow.dart';
-import 'features/equipment/presentation/books_marketplace_page.dart';
-import 'features/equipment/presentation/farm_marketplace_page.dart';
-import 'features/equipment/presentation/construction_marketplace_page.dart';
 import 'models/app_user_model.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
 
@@ -41,10 +41,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _currentPage = 0;
   String _selectedCategory = 'All';
   String _selectedSort = 'Popular';
-  List<Map<String, dynamic>> _allEquipment = [...featuredEquipment];
-  List<Map<String, dynamic>> _allNearbyItems = [...nearbyItems];
-  List<Map<String, dynamic>> _filteredEquipment = [...featuredEquipment];
-  final List<Map<String, dynamic>> _filteredItems = [...nearbyItems];
+  List<Map<String, dynamic>> _allEquipment = [];
+  List<Map<String, dynamic>> _allNearbyItems = [];
+  List<Map<String, dynamic>> _filteredEquipment = [];
+  final List<Map<String, dynamic>> _filteredItems = [];
   final List<Map<String, dynamic>> _wishlist = [];
   final MarketplaceService _marketplaceService = MarketplaceService();
 
@@ -56,13 +56,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _bypassNearbyFilter = false;
   LocationProvider? _locationProvider;
 
+  // ── Library Books (directly from Firestore books collection) ──
+  List<BookModel> _recentBooks = [];
+  bool _isBooksLoading = true;
+  StreamSubscription<List<BookModel>>? _booksSub;
+  StreamSubscription<List<MarketplaceEquipmentModel>>? _equipmentsSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _getCurrentLocation();
-    _loadBackendData();
-    _loadMarketplaceData();
+    _subscribeToMarketplaceData();
+    _subscribeToBooks();
+  }
+
+  void _subscribeToBooks() {
+    _booksSub = BookRepository.instance.watchRecentBooks(limit: 10).listen(
+      (books) {
+        if (!mounted) return;
+        setState(() {
+          _recentBooks = books;
+          _isBooksLoading = false;
+        });
+      },
+      onError: (_) {
+        if (mounted) setState(() => _isBooksLoading = false);
+      },
+    );
   }
 
   @override
@@ -84,8 +105,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _locationProvider?.removeListener(_onLocationProviderChanged);
     _searchController.dispose();
     _pageController.dispose();
+    _booksSub?.cancel();
+    _equipmentsSub?.cancel();
     super.dispose();
   }
+
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -189,7 +213,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     setState(() => _isLoadingRecommendations = true);
     final locationProvider = context.read<LocationProvider>();
     await locationProvider.refresh();
-    await _loadMarketplaceData();
+    _subscribeToMarketplaceData();
   }
 
   void _onLocationProviderChanged() {
@@ -274,6 +298,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _bypassNearbyFilter = true;
     });
     _rebuildRecommendations();
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const AllBooksPage(),
+      ),
+    );
   }
 
   void _navigateToDetailsModel(MarketplaceEquipmentModel equipment) async {
@@ -393,9 +423,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           const SizedBox(height: 8),
           Text(
-            'Try searching for a specific item or check back later.',
+            'Explore all available books in our library catalog.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade50),
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
           ),
           const SizedBox(height: 24),
           ElevatedButton(
@@ -521,60 +551,44 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Future<void> _loadBackendData() async {
-    try {
-      final equipment = await ApiClient.instance.fetchFeaturedEquipment();
-      final items = await ApiClient.instance.fetchNearbyItems();
-      if (!mounted) return;
-      setState(() {
-        _allEquipment = equipment;
-        _filteredEquipment = equipment;
-        _allNearbyItems = items;
-        _filteredItems
-          ..clear()
-          ..addAll(items);
-      });
-    } catch (e) {
-      // Keep sample data on failure
-    }
-  }
-
-  Future<void> _loadMarketplaceData() async {
+  void _subscribeToMarketplaceData() {
     if (mounted) setState(() => _isLoadingRecommendations = true);
-    try {
-      final equipments =
-          await _marketplaceService.watchEquipments(onlyAvailable: true).first;
-      if (!mounted) return;
+    _equipmentsSub?.cancel();
+    _equipmentsSub = _marketplaceService.watchEquipments(onlyAvailable: true).listen(
+      (equipments) {
+        if (!mounted) return;
 
-      final currentUser = FirebaseAuth.instance.currentUser;
-      final filteredListings = currentUser != null
-          ? equipments.where((e) => e.ownerId != currentUser.uid).toList()
-          : equipments;
+        final currentUser = FirebaseAuth.instance.currentUser;
+        final filteredListings = currentUser != null
+            ? equipments.where((e) => e.ownerId != currentUser.uid).toList()
+            : equipments;
 
-      final mapped =
-          filteredListings.map(_marketplaceEquipmentToCard).toList(growable: false);
+        final mapped =
+            filteredListings.map(_marketplaceEquipmentToCard).toList(growable: false);
 
-      setState(() {
-        _rawEquipments = filteredListings;
-        _allEquipment = mapped;
-        _allNearbyItems = mapped;
-        _filteredEquipment = mapped;
-        _filteredItems
-          ..clear()
-          ..addAll(mapped);
-        _isOffline = false;
-        _isLoadingRecommendations = false;
-      });
-      _rebuildRecommendations();
-    } catch (_) {
-      if (mounted) {
         setState(() {
-          _isOffline = true;
+          _rawEquipments = filteredListings;
+          _allEquipment = mapped;
+          _allNearbyItems = mapped;
+          _filteredEquipment = mapped;
+          _filteredItems
+            ..clear()
+            ..addAll(mapped);
+          _isOffline = false;
           _isLoadingRecommendations = false;
         });
-      }
-      _rebuildRecommendations();
-    }
+        _rebuildRecommendations();
+      },
+      onError: (_) {
+        if (mounted) {
+          setState(() {
+            _isOffline = true;
+            _isLoadingRecommendations = false;
+          });
+        }
+        _rebuildRecommendations();
+      },
+    );
   }
 
   Map<String, dynamic> _marketplaceEquipmentToCard(
@@ -712,7 +726,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
 
     if (!mounted || created != true) return;
-    await _loadMarketplaceData();
+    _subscribeToMarketplaceData();
   }
 
   void _navigateToDetails(Map<String, dynamic> item) async {
@@ -937,7 +951,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               _buildLocationBanner(),
               const SizedBox(height: 16),
-  
+
+              // ── Library Books Section ───────────────────────
+              _buildLibraryBooksHeader(),
+              const SizedBox(height: 12),
+              _buildRecentBooksCarousel(),
+              const SizedBox(height: 24),
+
               // Quick Categories Grid
               const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16),
@@ -949,11 +969,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               const SizedBox(height: 12),
               _buildCategoryGrid(),
               const SizedBox(height: 24),
-  
+
               // Trust Features Chips
               _buildFeaturesChips(),
               const SizedBox(height: 24),
-  
+
               // 📍 Nearby Recommendations Section
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -974,29 +994,309 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               const SizedBox(height: 12),
               _buildFreshRecommendationsGrid(),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Community Picks Section
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                'Nearby Resources',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+              // Community Picks Section
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  'Nearby Resources',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _filteredItems.length,
-              itemBuilder: (context, index) {
-                return _buildNearbyItem(_filteredItems[index]);
-              },
-            ),
-            const SizedBox(height: 80),
-          ],
+              const SizedBox(height: 12),
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _filteredItems.length,
+                itemBuilder: (context, index) {
+                  return _buildNearbyItem(_filteredItems[index]);
+                },
+              ),
+              const SizedBox(height: 80),
+            ],
+          ),
         ),
       ),
+    );
+  }
+
+  // ── Library Books Header ─────────────────────────────────────
+  Widget _buildLibraryBooksHeader() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '📚 Library Books',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+              SizedBox(height: 2),
+              Text(
+                'Recently added to the library',
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ],
+          ),
+          GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AllBooksPage()),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.primaryContainer,
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: const Text(
+                'See All',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primary,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Recently Added Books Carousel ────────────────────────────
+  Widget _buildRecentBooksCarousel() {
+    if (_isBooksLoading) {
+      return SizedBox(
+        height: 200,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          itemCount: 4,
+          itemBuilder: (_, __) => Shimmer.fromColors(
+            baseColor: Colors.grey.shade200,
+            highlightColor: Colors.grey.shade100,
+            child: Container(
+              width: 130,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (_recentBooks.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.primary.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.menu_book_rounded, size: 28, color: AppColors.primary),
+            ),
+            const SizedBox(width: 14),
+            const Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'No books available yet.',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.textPrimary),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Books will appear automatically when uploaded by the librarian.',
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            TextButton.icon(
+              onPressed: () {
+                _booksSub?.cancel();
+                _subscribeToBooks();
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 16),
+              label: const Text('Refresh', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              style: TextButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 210,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: _recentBooks.length,
+        itemBuilder: (context, i) {
+          final book = _recentBooks[i];
+          final coverUrl = book.coverImage.isNotEmpty
+              ? book.coverImage
+              : (book.imageUrls.isNotEmpty ? book.imageUrls.first : '');
+
+          return GestureDetector(
+            onTap: () => _openBook(book),
+            child: Container(
+              width: 130,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x06000000),
+                    blurRadius: 6,
+                    offset: Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Cover image
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                    child: SizedBox(
+                      width: double.infinity,
+                      height: 120,
+                      child: buildSmartImage(coverUrl, fit: BoxFit.cover, isBook: true),
+                    ),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            book.title,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary,
+                              height: 1.2,
+                            ),
+                          ),
+                          Text(
+                            book.author.isNotEmpty ? book.author : 'Unknown Author',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.grey.shade500,
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: book.availableCopies > 0
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEE2E2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              book.availableCopies > 0
+                                  ? '${book.availableCopies} available'
+                                  : 'Unavailable',
+                              style: TextStyle(
+                                fontSize: 8,
+                                fontWeight: FontWeight.w700,
+                                color: book.availableCopies > 0
+                                    ? const Color(0xFF166534)
+                                    : const Color(0xFF991B1B),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _openBook(BookModel book) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final equip = MarketplaceEquipmentModel(
+      equipmentId: book.bookId,
+      ownerId: '',
+      equipmentName: book.title,
+      category: book.category,
+      description: book.description,
+      titleLocalized: {'en': book.title, 'ta': book.title, 'hi': book.title},
+      categoryLocalized: {'en': book.category, 'ta': book.category, 'hi': book.category},
+      descriptionLocalized: {'en': book.description, 'ta': book.description, 'hi': book.description},
+      pricePerHour: 0,
+      pricePerDay: 0,
+      location: '',
+      latitude: 0,
+      longitude: 0,
+      imageUrls: book.imageUrls.isNotEmpty
+          ? book.imageUrls
+          : (book.coverImage.isNotEmpty ? [book.coverImage] : []),
+      availability: book.availableCopies > 0,
+      rating: book.rating,
+      createdAt: book.createdAt,
+      ownerName: book.author.isNotEmpty ? book.author : 'Library',
+      machineSpecs: book.author,
+      status: 'published',
+      totalCopies: book.totalCopies,
+      availableCopies: book.availableCopies,
+      condition: 'Good',
+      productId: book.isbn,
+      productIdLower: book.isbn.toLowerCase(),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookDetailsPage(
+          initialItem: equip,
+          userId: user.uid,
+          userName: user.displayName ?? 'User',
+          userEmail: user.email ?? '',
+          userPhone: '9000000000',
+        ),
       ),
     );
   }
@@ -1185,62 +1485,119 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: catList.map((cat) {
+          final isBooks = cat['label'] == 'Books';
+
           return Expanded(
             child: GestureDetector(
               onTap: () {
-                final category = cat['label'] == 'Construction' ? 'Construction Equipment' : cat['label']!;
-                Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, anim, secondaryAnim) => CategoryMarketplacePage(
-                      category: category,
+                if (isBooks) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const AllBooksPage(),
                     ),
-                    transitionsBuilder: (context, anim, secondaryAnim, child) {
-                      return FadeTransition(opacity: anim, child: child);
-                    },
-                  ),
-                );
+                  );
+                } else {
+                  _showComingSoonToast(cat['label']!);
+                }
               },
-              child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFEBEFF0),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.02),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    height: 82,
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: isBooks ? AppColors.primary.withValues(alpha: 0.4) : const Color(0xFFEBEFF0),
+                        width: isBooks ? 1.8 : 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: isBooks
+                              ? AppColors.primary.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.02),
+                          blurRadius: 6,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(cat['emoji']!, style: const TextStyle(fontSize: 24)),
-                    const SizedBox(height: 6),
-                    Text(
-                      cat['label']!,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textPrimary,
+                    child: SizedBox(
+                      width: double.infinity,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Text(cat['emoji']!, style: const TextStyle(fontSize: 26)),
+                          const SizedBox(height: 4),
+                          Text(
+                            cat['label']!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isBooks ? FontWeight.w800 : FontWeight.w600,
+                              color: isBooks ? AppColors.primary : AppColors.textPrimary,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  if (!isBooks)
+                    Positioned(
+                      top: -6,
+                      right: 2,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFEF3C7),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFFF59E0B), width: 0.8),
+                        ),
+                        child: const Text(
+                          'Soon',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFB45309),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           );
         }).toList(),
+      ),
+    );
+  }
+
+  void _showComingSoonToast(String categoryName) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.stars_rounded, color: Colors.amber, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$categoryName feature is coming soon!',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        backgroundColor: const Color(0xFF1E293B),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -1304,30 +1661,69 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.share, color: AppColors.primary),
-              title: const Text('Lend Out Resource', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Lend equipment or items to community members.'),
+              leading: const Icon(Icons.menu_book_rounded, color: AppColors.primary, size: 28),
+              title: Row(
+                children: [
+                  const Text('Upload Book', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryContainer,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Active', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                  ),
+                ],
+              ),
+              subtitle: const Text('Share or lend textbooks, guides, and novels.'),
               onTap: () {
                 Navigator.pop(ctx);
                 _openAddEquipmentForm();
               },
             ),
             ListTile(
-              leading: const Icon(Icons.add_box_outlined, color: AppColors.primary),
-              title: const Text('Add Equipment to Share', style: TextStyle(fontWeight: FontWeight.bold)),
+              leading: Icon(Icons.agriculture_rounded, color: Colors.grey.shade400, size: 28),
+              title: Row(
+                children: [
+                  Text('Add Farm Equipment', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Soon', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFFB45309))),
+                  ),
+                ],
+              ),
               subtitle: const Text('Add farming machinery or tools to share.'),
               onTap: () {
                 Navigator.pop(ctx);
-                _openAddEquipmentForm();
+                _showComingSoonToast('Farm Equipment');
               },
             ),
             ListTile(
-              leading: const Icon(Icons.book_outlined, color: AppColors.primary),
-              title: const Text('Upload Book', style: TextStyle(fontWeight: FontWeight.bold)),
-              subtitle: const Text('Share or lend textbooks and guides with others.'),
+              leading: Icon(Icons.handyman_rounded, color: Colors.grey.shade400, size: 28),
+              title: Row(
+                children: [
+                  Text('Add Construction Tools', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFEF3C7),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Soon', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Color(0xFFB45309))),
+                  ),
+                ],
+              ),
+              subtitle: const Text('Share power tools or construction machinery.'),
               onTap: () {
                 Navigator.pop(ctx);
-                _openAddEquipmentForm();
+                _showComingSoonToast('Construction Tools');
               },
             ),
             const SizedBox(height: 16),
@@ -1686,12 +2082,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   Future<void> _handleRefresh() async {
+    // Refresh books stream
+    setState(() => _isBooksLoading = true);
+    _booksSub?.cancel();
+    _subscribeToBooks();
+    // Refresh marketplace / location
     final locationProvider = context.read<LocationProvider>();
     final lvl = locationProvider.lastVerifiedLocation;
     if (lvl == null || lvl.isStale) {
       await locationProvider.refresh();
     } else {
-      await _loadMarketplaceData();
+      _subscribeToMarketplaceData();
     }
   }
 
@@ -1744,7 +2145,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             final cardMap = _marketplaceEquipmentToCard(item);
             final isFav = _isInWishlist(cardMap);
             final distanceStr = item.distanceInfo?.formattedString ?? 'Unknown distance';
-            final imageUrl = item.imageUrls.isNotEmpty ? item.imageUrls.first : 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80';
+            final imageUrl = item.imageUrls.isNotEmpty ? item.imageUrls.first : '';
             final categoryEmoji = _getCategoryEmoji(item.category);
             final areaStr = 'Near ${item.area.isNotEmpty ? item.area : (item.city.isNotEmpty ? item.city : 'Nearby')}';
 
@@ -1774,13 +2175,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           child: SizedBox(
                             width: double.infinity,
                             height: double.infinity,
-                            child: Image.network(
+                            child: buildSmartImage(
                               imageUrl,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => Image.asset(
-                                'assets/logo.jpg',
-                                fit: BoxFit.cover,
-                              ),
                             ),
                           ),
                         ),

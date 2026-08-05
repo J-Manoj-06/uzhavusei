@@ -1,8 +1,7 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../../../models/marketplace_equipment_model.dart';
@@ -10,6 +9,7 @@ import '../../../../services/marketplace_service.dart';
 import '../../../../services/distance_service.dart';
 import '../../../../providers/location_provider.dart';
 import 'equipment_details_page.dart' as real_details;
+import '../../../../widgets/image_loader.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
 
 class FilterOption {
@@ -200,6 +200,8 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
   final Map<String, String> _selectedFilters = {};
   bool _onlyAvailable = false;
 
+  StreamSubscription<List<MarketplaceEquipmentModel>>? _equipmentsSub;
+
   @override
   void initState() {
     super.initState();
@@ -210,6 +212,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
 
   @override
   void dispose() {
+    _equipmentsSub?.cancel();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     _searchCtrl.dispose();
@@ -246,8 +249,10 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
       _longitude = lvl.longitude;
     }
 
-    try {
-      final equipments = await _marketplaceService.watchEquipments(onlyAvailable: false).first;
+    _equipmentsSub?.cancel();
+    _equipmentsSub = _marketplaceService
+        .watchEquipments(category: widget.category, onlyAvailable: false)
+        .listen((equipments) {
       if (!mounted) return;
 
       final currentUser = FirebaseAuth.instance.currentUser;
@@ -261,7 +266,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
         _isLoading = false;
       });
       _applyFilterAndSort();
-    } catch (_) {
+    }, onError: (_) {
       if (!mounted) return;
       setState(() {
         _rawListings = [];
@@ -269,7 +274,7 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
         _isLoading = false;
       });
       _applyFilterAndSort();
-    }
+    });
   }
 
   void _loadNextPage() {
@@ -890,13 +895,10 @@ class _CategoryMarketplacePageState extends State<CategoryMarketplacePage> {
                                 child: Stack(
                                   children: [
                                     Positioned.fill(
-                                      child: Image.network(
-                                        item.imageUrls.isNotEmpty ? item.imageUrls.first : 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80',
+                                      child: buildSmartImage(
+                                        item.imageUrls.isNotEmpty ? item.imageUrls.first : '',
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) => Image.asset(
-                                          'assets/logo.jpg',
-                                          fit: BoxFit.cover,
-                                        ),
+                                        isBook: item.category.toLowerCase().contains('book'),
                                       ),
                                     ),
                                     Positioned(

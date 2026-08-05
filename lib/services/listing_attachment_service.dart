@@ -22,12 +22,30 @@ class ListingAttachmentService {
   /// Fetches all public published listings for browsing.
   Future<List<MarketplaceEquipmentModel>> fetchAllListings() async {
     try {
+      final List<MarketplaceEquipmentModel> items = [];
+
       final snapshot = await FirebaseFirestore.instance
           .collection('equipment')
           .where('status', isEqualTo: 'published')
           .get();
+      items.addAll(snapshot.docs.map((doc) => MarketplaceEquipmentModel.fromDoc(doc)));
 
-      return snapshot.docs.map((doc) => MarketplaceEquipmentModel.fromDoc(doc)).toList();
+      try {
+        final booksSnap = await FirebaseFirestore.instance.collection('books').get();
+        items.addAll(booksSnap.docs.map((doc) => MarketplaceEquipmentModel.fromDoc(doc)));
+      } catch (_) {}
+
+      try {
+        final copiesSnap = await FirebaseFirestore.instance.collection('bookCopies').get();
+        items.addAll(copiesSnap.docs.map((doc) => MarketplaceEquipmentModel.fromDoc(doc)));
+      } catch (_) {}
+
+      final Map<String, MarketplaceEquipmentModel> uniqueMap = {};
+      for (final item in items) {
+        uniqueMap[item.equipmentId] = item;
+      }
+
+      return uniqueMap.values.toList();
     } catch (e) {
       throw Exception('Failed to fetch listings: $e');
     }

@@ -94,6 +94,57 @@ class BorrowRequestRepository {
     });
   }
 
+  /// Creates a Reservation request document in Firestore when a book copy is out of stock.
+  Future<void> createReservation(BorrowRequestModel request) async {
+    final res = BorrowRequestModel(
+      requestId: request.requestId,
+      listingId: request.listingId,
+      listingTitle: request.listingTitle,
+      listingImage: request.listingImage,
+      category: request.category,
+      ownerId: request.ownerId,
+      borrowerId: request.borrowerId,
+      borrowerName: request.borrowerName,
+      borrowFrom: request.borrowFrom,
+      borrowUntil: request.borrowUntil,
+      borrowDuration: request.borrowDuration,
+      status: 'Reserved',
+      requestedAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    await createBorrowRequest(res);
+  }
+
+  /// Stream of active loans (issued / picked up / accepted) for a student borrower.
+  Stream<List<BorrowRequestModel>> watchBorrowerActiveLoans(String borrowerId) {
+    return _collection
+        .where('borrowerId', isEqualTo: borrowerId)
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => BorrowRequestModel.fromDoc(doc))
+          .where((r) => r.status == 'Borrowed' || r.status == 'Accepted')
+          .toList();
+      list.sort((a, b) => b.borrowFrom.compareTo(a.borrowFrom));
+      return list;
+    });
+  }
+
+  /// Stream of active reservations for a student borrower.
+  Stream<List<BorrowRequestModel>> watchBorrowerReservations(String borrowerId) {
+    return _collection
+        .where('borrowerId', isEqualTo: borrowerId)
+        .where('status', isEqualTo: 'Reserved')
+        .snapshots()
+        .map((snapshot) {
+      final list = snapshot.docs
+          .map((doc) => BorrowRequestModel.fromDoc(doc))
+          .toList();
+      list.sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+      return list;
+    });
+  }
+
   /// Stream of all outgoing requests created by a borrower.
   Stream<List<BorrowRequestModel>> watchBorrowerRequests(String borrowerId) {
     return _collection

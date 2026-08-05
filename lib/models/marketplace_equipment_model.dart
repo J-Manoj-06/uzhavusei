@@ -48,6 +48,8 @@ class MarketplaceEquipmentModel {
     this.bookingsCount = 0,
     this.productId = '',
     this.productIdLower = '',
+    this.totalCopies = 1,
+    this.availableCopies = 1,
   });
 
   final String equipmentId;
@@ -93,8 +95,16 @@ class MarketplaceEquipmentModel {
   final int views;
   final List<String> savedBy;
   final int bookingsCount;
+  final int totalCopies;
+  final int availableCopies;
 
   final DistanceInfo? distanceInfo;
+
+  String get stockStatusBadge {
+    if (availableCopies <= 0) return 'Out of Stock';
+    if (availableCopies <= 2) return 'Low Stock';
+    return 'Available';
+  }
 
   String titleForLanguage(String languageCode) =>
       getLocalizedText(titleLocalized, languageCode);
@@ -148,9 +158,32 @@ class MarketplaceEquipmentModel {
       resolvedDayPrice = resolvedHourPrice;
     }
 
+    final List<String> parsedImages = _toStringList(data['images'] ?? data['imageUrls']);
+    final String singleCover = (
+      data['coverImage'] ??
+      data['cover_image'] ??
+      data['coverUrl'] ??
+      data['cover_url'] ??
+      data['cover'] ??
+      data['imageUrl'] ??
+      data['image_url'] ??
+      data['image'] ??
+      data['photoUrl'] ??
+      data['photo_url'] ??
+      data['thumbnail'] ??
+      data['thumbnailUrl'] ??
+      data['url'] ??
+      ''
+    ).toString().trim();
+    if (singleCover.isNotEmpty && !parsedImages.contains(singleCover)) {
+      parsedImages.insert(0, singleCover);
+    }
+
+    final rawPriceVal = _toDouble(data['price'] ?? data['rentalPrice'] ?? data['pricePerDay'] ?? data['pricePerHour']);
+
     final titleLocalized = normalizeLocalizedField(
-      data['title'],
-      fallback: (data['equipmentName'] ?? 'Equipment').toString(),
+      data['title'] ?? data['equipmentName'],
+      fallback: (data['title'] ?? data['equipmentName'] ?? data['name'] ?? 'Listing').toString(),
     );
     final categoryLocalized = normalizeLocalizedField(
       data['category'],
@@ -161,18 +194,21 @@ class MarketplaceEquipmentModel {
       fallback: '',
     );
 
+    final rawStatus = (data['status'] ?? 'published').toString().toLowerCase();
+    final normalizedStatus = (rawStatus == 'available' || rawStatus == 'active') ? 'published' : rawStatus;
+
     return MarketplaceEquipmentModel(
-      equipmentId: (data['equipmentId'] ?? doc.id).toString(),
-      ownerId: (data['owner_user_id'] ?? data['ownerId'] ?? '').toString(),
-      equipmentName: titleLocalized['en'] ?? 'Equipment',
-      category: categoryLocalized['en'] ?? 'General',
+      equipmentId: (data['equipmentId'] ?? data['bookId'] ?? data['copyId'] ?? data['id'] ?? doc.id).toString(),
+      ownerId: (data['owner_user_id'] ?? data['ownerId'] ?? data['lenderId'] ?? '').toString(),
+      equipmentName: titleLocalized['en'] ?? (data['title'] ?? data['equipmentName'] ?? 'Listing').toString(),
+      category: categoryLocalized['en'] ?? (data['category'] ?? 'General').toString(),
       description: descriptionLocalized['en'] ?? '',
       titleLocalized: titleLocalized,
       categoryLocalized: categoryLocalized,
       descriptionLocalized: descriptionLocalized,
-      pricePerHour: resolvedHourPrice,
-      pricePerDay: resolvedDayPrice,
-      location: (data['location'] ?? 'Unknown').toString(),
+      pricePerHour: resolvedHourPrice > 0 ? resolvedHourPrice : rawPriceVal,
+      pricePerDay: resolvedDayPrice > 0 ? resolvedDayPrice : rawPriceVal,
+      location: (data['location'] ?? data['city'] ?? 'Unknown').toString(),
       latitude: _toDouble(data['latitude']),
       longitude: _toDouble(data['longitude']),
       area: (data['area'] ?? '').toString(),
@@ -181,31 +217,33 @@ class MarketplaceEquipmentModel {
       country: (data['country'] ?? '').toString(),
       locationCapturedAt: _toDateOrNull(data['locationCapturedAt']),
       locationAccuracy: data['locationAccuracy'] != null ? _toDouble(data['locationAccuracy']) : null,
-      imageUrls: _toStringList(data['images'] ?? data['imageUrls']),
+      imageUrls: parsedImages,
       availability: availability,
-      rating: _toDouble(data['rating']),
+      rating: _toDouble(data['rating'] ?? 5.0),
       createdAt: _toDate(data['created_at'] ?? data['createdAt']),
-      ownerName: (data['ownerName'] ?? 'Owner').toString(),
+      ownerName: (data['ownerName'] ?? data['lenderName'] ?? data['author'] ?? 'Owner').toString(),
       machineSpecs:
-          (data['machineSpecs'] ?? data['condition'] ?? '').toString(),
+          (data['machineSpecs'] ?? data['author'] ?? data['condition'] ?? '').toString(),
       videoUrl: (data['videoUrl'] ?? data['video_url'] ?? '').toString(),
       updatedAt: _toDateOrNull(data['updated_at'] ?? data['updatedAt']),
       availabilityFrom: availabilityFrom,
       availabilityTo: availabilityTo,
-      condition: (data['condition'] ?? 'New').toString(),
+      condition: (data['condition'] ?? 'Good').toString(),
       documents: _toStringList(data['documents']),
       imagePublicIds: _toStringList(data['image_public_ids']),
-      minRentalDuration: _toDouble(data['min_rental_duration']),
+      minRentalDuration: _toDouble(data['min_rental_duration'] ?? 1),
       minRentalDurationType:
           (data['min_rental_duration_type'] ?? 'hours').toString(),
-      priceType: (data['price_type'] ?? 'hour').toString(),
-      status: (data['status'] ?? 'published').toString(),
+      priceType: (data['price_type'] ?? 'day').toString(),
+      status: normalizedStatus,
       tags: _toStringList(data['tags']),
       views: data['views'] ?? 0,
       savedBy: _toStringList(data['savedBy']),
       bookingsCount: data['bookingsCount'] ?? 0,
-      productId: (data['productId'] ?? '').toString(),
-      productIdLower: (data['productIdLower'] ?? '').toString(),
+      productId: (data['productId'] ?? data['isbn'] ?? '').toString(),
+      productIdLower: (data['productIdLower'] ?? data['isbn'] ?? '').toString().toLowerCase(),
+      totalCopies: _toInt(data['totalCopies'] ?? data['copies'] ?? 1),
+      availableCopies: _toInt(data['availableCopies'] ?? 1),
     );
   }
 
@@ -354,4 +392,10 @@ List<String> _toStringList(dynamic value) {
     return value.map((e) => e.toString()).toList(growable: false);
   }
   return const [];
+}
+
+int _toInt(dynamic value) {
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value) ?? 1;
+  return 1;
 }

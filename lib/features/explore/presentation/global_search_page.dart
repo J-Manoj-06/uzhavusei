@@ -9,8 +9,11 @@ import '../../../../models/search_result_model.dart';
 import '../../../../services/search_service.dart';
 import '../../../../services/product_id_service.dart';
 import '../../../../services/search_history_manager.dart';
+import '../../../../services/book_discovery_service.dart';
 import '../../../../providers/location_provider.dart';
 import '../../equipment/presentation/equipment_details_page.dart' as real_details;
+import '../../equipment/presentation/book_details_page.dart';
+import '../../../../widgets/image_loader.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
 
 class GlobalSearchPage extends StatefulWidget {
@@ -421,6 +424,21 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
       );
       return;
     }
+    if (item.category.toLowerCase().contains('book')) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookDetailsPage(
+            initialItem: item,
+            userId: user.uid,
+            userName: user.displayName ?? 'User',
+            userEmail: user.email ?? '',
+            userPhone: '9000000000',
+          ),
+        ),
+      );
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -680,30 +698,44 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
               if (_searchCtrl.text.isEmpty && _allSearchResults.isEmpty) ...[
                 const Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Popular Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                  child: Text('Browse Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
                 ),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: ['Books', 'Farm Equipment', 'Construction Equipment'].map((cat) {
-                      return ActionChip(
-                        avatar: Text(_getCategoryEmoji(cat)),
-                        label: Text(cat, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                        backgroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: Color(0xFFEBEFF0)),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _selectedCategory = cat;
-                          });
-                          _performSearch(_searchCtrl.text);
-                        },
+                  child: StreamBuilder<Map<String, int>>(
+                    stream: BookDiscoveryService.instance.watchCategoryCounts(),
+                    builder: (context, snapshot) {
+                      final counts = snapshot.data ?? {'All': 0, 'Books': 0, 'Farm Equipment': 0, 'Construction Equipment': 0};
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: counts.entries.map((entry) {
+                          final cat = entry.key;
+                          final count = entry.value;
+                          final isSelected = _selectedCategory.toLowerCase() == cat.toLowerCase();
+                          return ActionChip(
+                            avatar: Text(_getCategoryEmoji(cat)),
+                            label: Text('$cat ($count)',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                                )),
+                            backgroundColor: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: isSelected ? AppColors.primary : const Color(0xFFEBEFF0)),
+                            ),
+                            onPressed: () {
+                              setState(() {
+                                _selectedCategory = cat;
+                              });
+                              _performSearch(_searchCtrl.text);
+                            },
+                          );
+                        }).toList(),
                       );
-                    }).toList(),
+                    },
                   ),
                 ),
 
@@ -727,6 +759,61 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                       );
                     }).toList(),
                   ),
+                ),
+
+                // Trending Books Discovery Carousel
+                const SizedBox(height: 16),
+                StreamBuilder<List<MarketplaceEquipmentModel>>(
+                  stream: BookDiscoveryService.instance.watchTrendingBooks(),
+                  builder: (context, snapshot) {
+                    final books = snapshot.data ?? [];
+                    if (books.isEmpty) return const SizedBox.shrink();
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          child: Text('Trending Books', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
+                        ),
+                        SizedBox(
+                          height: 150,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: books.length,
+                            itemBuilder: (context, index) {
+                              final b = books[index];
+                              return GestureDetector(
+                                onTap: () => _navigateToDetails(b),
+                                child: Container(
+                                  width: 110,
+                                  margin: const EdgeInsets.only(right: 12),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: b.imageUrls.isNotEmpty
+                                              ? Image.network(b.imageUrls.first, fit: BoxFit.cover, width: double.infinity,
+                                                  errorBuilder: (_, __, ___) => Container(color: Colors.grey[200], child: const Icon(Icons.book)))
+                                              : Container(color: Colors.grey[200], child: const Icon(Icons.book)),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(b.equipmentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      Text('₹${b.pricePerDay.toStringAsFixed(0)}/day', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    );
+                  },
                 ),
 
                 // Recent Searches List
@@ -838,13 +925,10 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                   child: Stack(
                                     children: [
                                       Positioned.fill(
-                                        child: Image.network(
-                                          item.imageUrls.isNotEmpty ? item.imageUrls.first : 'https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&w=400&q=80',
+                                        child: buildSmartImage(
+                                          item.imageUrls.isNotEmpty ? item.imageUrls.first : '',
                                           fit: BoxFit.cover,
-                                          errorBuilder: (_, __, ___) => Image.asset(
-                                            'assets/logo.jpg',
-                                            fit: BoxFit.cover,
-                                          ),
+                                          isBook: item.category.toLowerCase().contains('book'),
                                         ),
                                       ),
                                       Positioned(

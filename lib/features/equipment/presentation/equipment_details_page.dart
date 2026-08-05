@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 
 import '../../../models/marketplace_equipment_model.dart';
 import '../../../models/app_user_model.dart';
+import '../../../models/book_model.dart';
 import '../../../providers/locale_provider.dart';
 import '../../../services/marketplace_service.dart';
+import '../../../services/inventory_service.dart';
 import '../../../services/deep_link_handler.dart';
 import '../../../services/logger_service.dart';
 import '../../../services/borrow_request_repository.dart';
@@ -19,6 +21,8 @@ import 'widgets/borrow_image_picker.dart';
 import 'create_listing_flow.dart';
 import '../../profile/presentation/my_listings_page.dart';
 import '../../explore/presentation/chatbot_page.dart';
+
+import 'book_details_page.dart';
 
 import 'widgets/details/details_theme.dart';
 import 'widgets/details/hero_section.dart';
@@ -144,6 +148,16 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.equipment.category.toLowerCase().contains('book')) {
+      return BookDetailsPage(
+        initialItem: widget.equipment,
+        userId: widget.userId,
+        userName: widget.userName,
+        userEmail: widget.userEmail,
+        userPhone: widget.userPhone,
+      );
+    }
+
     final languageCode = context.watch<LocaleProvider>().languageCode;
 
     return StreamBuilder<MarketplaceEquipmentModel>(
@@ -254,6 +268,9 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
                     ),
 
                     const SizedBox(height: DetailsTheme.sectionSpacing),
+
+                    // Book Inventory Section
+                    _buildBookInventorySection(item),
 
                     // Pickup Location Card
                     LocationCard(equipment: item),
@@ -534,6 +551,150 @@ class _EquipmentDetailsPageState extends State<EquipmentDetailsPage> {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildBookInventorySection(MarketplaceEquipmentModel item) {
+    if (!item.category.toLowerCase().contains('book')) {
+      return const SizedBox.shrink();
+    }
+
+    return StreamBuilder<BookInventoryModel>(
+      stream: InventoryService.instance.watchBookInventory(item.equipmentId),
+      builder: (context, snapshot) {
+        final inventory = snapshot.data ??
+            BookInventoryModel.fromCopies(
+              item.equipmentId,
+              const [],
+              fallbackTotal: item.totalCopies,
+            );
+
+        return Card(
+          color: DetailsTheme.surface,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(DetailsTheme.cardRadius),
+            side: const BorderSide(color: DetailsTheme.border),
+          ),
+          elevation: 0,
+          margin: const EdgeInsets.symmetric(horizontal: DetailsTheme.outerPadding, vertical: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Book Inventory Breakdown',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: DetailsTheme.text,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: inventory.availableCopies > 0
+                            ? Colors.green.withOpacity(0.1)
+                            : Colors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        inventory.stockStatusBadge,
+                        style: TextStyle(
+                          color: inventory.availableCopies > 0 ? Colors.green : Colors.red,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _buildInventoryCountChip('Total', '${inventory.totalCopies}', Colors.blue),
+                    const SizedBox(width: 8),
+                    _buildInventoryCountChip('Available', '${inventory.availableCopies}', Colors.green),
+                    const SizedBox(width: 8),
+                    _buildInventoryCountChip('Borrowed', '${inventory.borrowedCopies}', Colors.orange),
+                    const SizedBox(width: 8),
+                    _buildInventoryCountChip('Damaged', '${inventory.damagedCopies}', Colors.red),
+                  ],
+                ),
+                if (inventory.copies.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Physical Copies',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: DetailsTheme.text,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ListView.separated(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: inventory.copies.length,
+                    separatorBuilder: (_, __) => const Divider(height: 12),
+                    itemBuilder: (context, index) {
+                      final copy = inventory.copies[index];
+                      return ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          radius: 14,
+                          backgroundColor: Colors.blue.withOpacity(0.1),
+                          child: Text('#${index + 1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                        ),
+                        title: Text('Barcode: ${copy.barcode.isEmpty ? 'N/A' : copy.barcode}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text('Rack: ${copy.rackNumber} • Condition: ${copy.condition}'),
+                        trailing: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: copy.availability ? Colors.green.withOpacity(0.1) : Colors.orange.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            copy.status.toUpperCase(),
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: copy.availability ? Colors.green : Colors.orange,
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildInventoryCountChip(String label, String value, Color color) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: color.withOpacity(0.2)),
+        ),
+        child: Column(
+          children: [
+            Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 14)),
+            Text(label, style: TextStyle(color: color, fontSize: 10)),
+          ],
+        ),
+      ),
     );
   }
 

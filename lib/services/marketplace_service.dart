@@ -20,42 +20,103 @@ class MarketplaceService {
     String? category,
     bool? onlyAvailable,
   }) {
-    final query = _firestore.collection(_equipmentCollection);
     final categoryQuery = category?.trim().toLowerCase() ?? '';
 
-    return query.snapshots().map((snapshot) {
-      final items = snapshot.docs
-          .map(MarketplaceEquipmentModel.fromDoc)
-          .where((item) {
-            if (categoryQuery.isEmpty || categoryQuery == 'all') return true;
-            final values = <String>{
-              item.category.toLowerCase(),
-              item.categoryLocalized['en']?.toLowerCase() ?? '',
-              item.categoryLocalized['ta']?.toLowerCase() ?? '',
-              item.categoryLocalized['hi']?.toLowerCase() ?? '',
-            };
-            return values.contains(categoryQuery);
-          })
-          .where((item) => item.status.toLowerCase() == 'published')
-          .where((item) => item.availability)
-          .toList(growable: false)
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    return _firestore.collection(_equipmentCollection).snapshots().asyncMap((equipSnap) async {
+      final List<MarketplaceEquipmentModel> results = [];
+
+      for (final doc in equipSnap.docs) {
+        results.add(MarketplaceEquipmentModel.fromDoc(doc));
+      }
+
+      try {
+        final booksSnap = await _firestore.collection('books').get();
+        for (final doc in booksSnap.docs) {
+          results.add(MarketplaceEquipmentModel.fromDoc(doc));
+        }
+      } catch (_) {}
+
+      try {
+        final copiesSnap = await _firestore.collection('bookCopies').get();
+        for (final doc in copiesSnap.docs) {
+          results.add(MarketplaceEquipmentModel.fromDoc(doc));
+        }
+      } catch (_) {}
+
+      final Map<String, MarketplaceEquipmentModel> uniqueMap = {};
+      for (final item in results) {
+        uniqueMap[item.equipmentId] = item;
+      }
+
+      final items = uniqueMap.values.where((item) {
+        // Filter out fake/placeholder listings
+        final name = item.equipmentName.trim().toLowerCase();
+        if (name == 'listing' || name == 'general' || name.isEmpty || name == 'test' || name == 'sample') {
+          return false;
+        }
+
+        // Filter out archived / deleted / maintenance listings
+        final s = item.status.toLowerCase().trim();
+        if (s == 'archived' || s == 'deleted' || s == 'maintenance' || s == 'out of stock') {
+          return false;
+        }
+
+        if (categoryQuery.isEmpty || categoryQuery == 'all') return true;
+        final values = <String>{
+          item.category.toLowerCase(),
+          item.categoryLocalized['en']?.toLowerCase() ?? '',
+          item.categoryLocalized['ta']?.toLowerCase() ?? '',
+          item.categoryLocalized['hi']?.toLowerCase() ?? '',
+        };
+        if (categoryQuery.contains('book')) {
+          return item.category.toLowerCase().contains('book');
+        }
+        return values.contains(categoryQuery);
+      })
+      .where((item) {
+        final s = item.status.toLowerCase().trim();
+        return s == 'published' || s == 'active' || s == 'available' || s.isEmpty;
+      })
+      .where((item) => onlyAvailable == true ? item.availability : true)
+      .toList(growable: false)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
       return items;
     });
   }
 
   Stream<List<MarketplaceEquipmentModel>> watchEquipmentsByOwner(
       String ownerId) {
-    return _firestore
-        .collection(_equipmentCollection)
-        .where('owner_user_id', isEqualTo: ownerId)
-        .snapshots()
-        .map((snapshot) {
-      final items = snapshot.docs
-          .map(MarketplaceEquipmentModel.fromDoc)
-          .toList(growable: false)
-        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-      return items;
+    return _firestore.collection(_equipmentCollection).snapshots().asyncMap((equipSnap) async {
+      final List<MarketplaceEquipmentModel> items = [];
+
+      for (final doc in equipSnap.docs) {
+        final item = MarketplaceEquipmentModel.fromDoc(doc);
+        if (item.ownerId == ownerId) items.add(item);
+      }
+
+      try {
+        final booksSnap = await _firestore.collection('books').get();
+        for (final doc in booksSnap.docs) {
+          final item = MarketplaceEquipmentModel.fromDoc(doc);
+          if (item.ownerId == ownerId) items.add(item);
+        }
+      } catch (_) {}
+
+      try {
+        final copiesSnap = await _firestore.collection('bookCopies').get();
+        for (final doc in copiesSnap.docs) {
+          final item = MarketplaceEquipmentModel.fromDoc(doc);
+          if (item.ownerId == ownerId) items.add(item);
+        }
+      } catch (_) {}
+
+      final Map<String, MarketplaceEquipmentModel> unique = {};
+      for (final i in items) {
+        unique[i.equipmentId] = i;
+      }
+
+      return unique.values.toList()..sort((a, b) => b.createdAt.compareTo(a.createdAt));
     });
   }
 
@@ -64,13 +125,27 @@ class MarketplaceService {
         .collection(_equipmentCollection)
         .doc(equipmentId)
         .snapshots()
-        .map((doc) => MarketplaceEquipmentModel.fromDoc(doc));
+        .asyncMap((doc) async {
+      if (doc.exists) return MarketplaceEquipmentModel.fromDoc(doc);
+      final bookDoc = await _firestore.collection('books').doc(equipmentId).get();
+      if (bookDoc.exists) return MarketplaceEquipmentModel.fromDoc(bookDoc);
+      final copyDoc = await _firestore.collection('bookCopies').doc(equipmentId).get();
+      if (copyDoc.exists) return MarketplaceEquipmentModel.fromDoc(copyDoc);
+      return MarketplaceEquipmentModel.fromDoc(doc);
+    });
   }
 
   Future<MarketplaceEquipmentModel?> getEquipmentById(String equipmentId) async {
     final doc = await _firestore.collection(_equipmentCollection).doc(equipmentId).get();
-    if (!doc.exists) return null;
-    return MarketplaceEquipmentModel.fromDoc(doc);
+    if (doc.exists) return MarketplaceEquipmentModel.fromDoc(doc);
+
+    final bookDoc = await _firestore.collection('books').doc(equipmentId).get();
+    if (bookDoc.exists) return MarketplaceEquipmentModel.fromDoc(bookDoc);
+
+    final copyDoc = await _firestore.collection('bookCopies').doc(equipmentId).get();
+    if (copyDoc.exists) return MarketplaceEquipmentModel.fromDoc(copyDoc);
+
+    return null;
   }
 
   Stream<List<MarketplaceEquipmentModel>> watchRelatedEquipment({

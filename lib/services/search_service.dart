@@ -64,17 +64,35 @@ class SearchService {
     double? maxDistanceKm,
     String sortBy = 'Relevance',
   }) async {
-    final snapshot = await FirebaseFirestore.instance
+    final List<DocumentSnapshot<Map<String, dynamic>>> allDocs = [];
+
+    final equipSnap = await FirebaseFirestore.instance
         .collection('equipment')
         .where('status', isEqualTo: 'published')
         .get();
+    allDocs.addAll(equipSnap.docs);
+
+    try {
+      final booksSnap = await FirebaseFirestore.instance.collection('books').get();
+      allDocs.addAll(booksSnap.docs);
+    } catch (_) {}
+
+    try {
+      final copiesSnap = await FirebaseFirestore.instance.collection('bookCopies').get();
+      allDocs.addAll(copiesSnap.docs);
+    } catch (_) {}
 
     final List<SearchResultModel> results = [];
     final lowerQuery = query.trim().toLowerCase();
     final currentUser = FirebaseAuth.instance.currentUser;
 
-    for (final doc in snapshot.docs) {
+    final Map<String, MarketplaceEquipmentModel> uniqueItems = {};
+    for (final doc in allDocs) {
       final item = MarketplaceEquipmentModel.fromDoc(doc);
+      uniqueItems[item.equipmentId] = item;
+    }
+
+    for (final item in uniqueItems.values) {
 
       // Self-listing exclusion filter
       if (currentUser != null && item.ownerId == currentUser.uid) {
@@ -90,7 +108,7 @@ class SearchService {
         continue;
       }
 
-      if (!item.availability) {
+      if (onlyAvailable == true && !item.availability) {
         continue;
       }
 
@@ -124,7 +142,17 @@ class SearchService {
         results.sort((a, b) => b.relevanceScore.compareTo(a.relevanceScore));
         break;
       case 'Newest':
+      case 'Recently Added':
         results.sort((a, b) => b.listing.createdAt.compareTo(a.listing.createdAt));
+        break;
+      case 'Oldest':
+        results.sort((a, b) => a.listing.createdAt.compareTo(b.listing.createdAt));
+        break;
+      case 'Alphabetical':
+        results.sort((a, b) => a.listing.equipmentName.toLowerCase().compareTo(b.listing.equipmentName.toLowerCase()));
+        break;
+      case 'Most Available':
+        results.sort((a, b) => b.listing.availableCopies.compareTo(a.listing.availableCopies));
         break;
       case 'Nearest':
         results.sort((a, b) {

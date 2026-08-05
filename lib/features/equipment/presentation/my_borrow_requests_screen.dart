@@ -22,7 +22,7 @@ class _MyBorrowRequestsScreenState extends State<MyBorrowRequestsScreen>
   late TabController _tabController;
   final BorrowRequestRepository _repository = BorrowRequestRepository();
 
-  final List<String> _filters = ['All', 'Pending', 'Accepted', 'Completed'];
+  final List<String> _filters = ['All', 'Active Loans', 'Pending', 'Reserved', 'History'];
 
   @override
   void initState() {
@@ -39,8 +39,17 @@ class _MyBorrowRequestsScreenState extends State<MyBorrowRequestsScreen>
   List<BorrowRequestModel> _filterRequests(
       List<BorrowRequestModel> requests, String filter) {
     if (filter == 'All') return requests;
+    if (filter == 'Active Loans') {
+      return requests.where((r) => r.status == 'Borrowed' || r.status == 'Accepted').toList();
+    }
     if (filter == 'Pending') {
-      return requests.where((r) => r.status.toLowerCase() == 'requested').toList();
+      return requests.where((r) => r.status == 'Requested').toList();
+    }
+    if (filter == 'Reserved') {
+      return requests.where((r) => r.status == 'Reserved').toList();
+    }
+    if (filter == 'History') {
+      return requests.where((r) => r.status == 'Completed' || r.status == 'Declined' || r.status == 'Cancelled').toList();
     }
     return requests.where((r) => r.status.toLowerCase() == filter.toLowerCase()).toList();
   }

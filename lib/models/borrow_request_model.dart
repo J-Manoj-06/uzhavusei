@@ -117,11 +117,18 @@ class BorrowRequestModel {
     );
   }
 
+  int get daysRemaining {
+    final diff = borrowUntil.difference(DateTime.now()).inDays;
+    return diff < 0 ? 0 : diff;
+  }
+
   static String _capitalizeStatus(String rawStatus) {
     final s = rawStatus.trim().toLowerCase();
     if (s == 'requested' || s == 'pending') return 'Requested';
     if (s == 'accepted' || s == 'approved' || s == 'confirmed') return 'Accepted';
-    if (s == 'borrowed' || s == 'picked up') return 'Borrowed';
+    if (s == 'borrowed' || s == 'issued' || s == 'picked up') return 'Borrowed';
+    if (s == 'reserved') return 'Reserved';
+    if (s == 'overdue') return 'Overdue';
     if (s == 'declined' || s == 'rejected') return 'Declined';
     if (s == 'cancelled' || s == 'canceled') return 'Cancelled';
     if (s == 'completed' || s == 'returned') return 'Completed';

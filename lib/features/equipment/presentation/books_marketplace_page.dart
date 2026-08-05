@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'category_marketplace_page.dart';
+import 'all_books_page.dart';
 
 class BooksMarketplacePage extends StatelessWidget {
   final double userLatitude;
@@ -13,6 +13,6 @@ class BooksMarketplacePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CategoryMarketplacePage(category: 'Books');
+    return const AllBooksPage();
   }
 }
