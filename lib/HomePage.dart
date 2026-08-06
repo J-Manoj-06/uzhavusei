@@ -21,7 +21,21 @@ import 'features/equipment/presentation/book_details_page.dart';
 import 'features/explore/presentation/global_search_page.dart';
 import 'features/equipment/presentation/category_marketplace_page.dart';
 import 'features/equipment/presentation/create_listing_flow.dart';
+import 'package:intl/intl.dart';
 import 'models/app_user_model.dart';
+import 'services/borrow_eligibility_service.dart';
+import 'services/borrow_approval_service.dart';
+import 'models/borrow_request_model.dart';
+import 'services/borrow_status_service.dart';
+import 'widgets/current_borrowed_card.dart';
+import 'widgets/borrowed_home_card.dart';
+import 'widgets/borrow_restriction_card.dart';
+import 'widgets/approval_popup.dart';
+import 'widgets/return_success_dialog.dart';
+import 'services/borrow_lifecycle_service.dart';
+import 'pages/my_library/my_library_page.dart';
+import 'features/profile/presentation/marketplace_profile_page.dart';
+import 'services/auth_service.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
 
 class HomePage extends StatefulWidget {
@@ -61,6 +75,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   bool _isBooksLoading = true;
   StreamSubscription<List<BookModel>>? _booksSub;
   StreamSubscription<List<MarketplaceEquipmentModel>>? _equipmentsSub;
+  StreamSubscription<BorrowRequestModel?>? _approvalSub;
+  StreamSubscription<BorrowLifecycleState>? _lifecycleSub;
+  bool _isApprovalPopupShowing = false;
+  String? _lastNotifiedReturnId;
 
   @override
   void initState() {
@@ -69,6 +87,63 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _getCurrentLocation();
     _subscribeToMarketplaceData();
     _subscribeToBooks();
+    _subscribeToBorrowApprovals();
+    _subscribeToReturnEvents();
+  }
+
+  void _subscribeToReturnEvents() {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    _lifecycleSub?.cancel();
+    bool wasIneligible = false;
+
+    _lifecycleSub = BorrowLifecycleService.instance.watchStudentLifecycle(uid).listen((lifecycleState) {
+      if (!mounted) return;
+
+      final lastReturnedId = lifecycleState.lastReturnedTransaction?['id'];
+      if (wasIneligible && lifecycleState.isEligible && lastReturnedId != null && lastReturnedId != _lastNotifiedReturnId) {
+        _lastNotifiedReturnId = lastReturnedId;
+        ReturnSuccessDialog.show(context);
+      }
+
+      wasIneligible = !lifecycleState.isEligible;
+    });
+  }
+
+  void _subscribeToBorrowApprovals() {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return;
+
+    _approvalSub?.cancel();
+    _approvalSub = BorrowApprovalService.instance.watchApprovedRequest(uid).listen(
+      (approvedReq) {
+        if (!mounted || approvedReq == null || _isApprovalPopupShowing) return;
+
+        _isApprovalPopupShowing = true;
+        ApprovalPopup.show(
+          context: context,
+          request: approvedReq,
+          onDismiss: () {
+            BorrowApprovalService.instance.dismissForSession(approvedReq.requestId);
+            _isApprovalPopupShowing = false;
+          },
+          onViewInMyLibrary: () {
+            _isApprovalPopupShowing = false;
+            final user = FirebaseAuth.instance.currentUser;
+            if (user != null) {
+              final appUser = AppUserModel.empty(user.uid, user.email);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MyLibraryPage(currentUser: appUser),
+                ),
+              );
+            }
+          },
+        );
+      },
+    );
   }
 
   void _subscribeToBooks() {
@@ -107,6 +182,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _pageController.dispose();
     _booksSub?.cancel();
     _equipmentsSub?.cancel();
+    _approvalSub?.cancel();
+    _lifecycleSub?.cancel();
     super.dispose();
   }
 
@@ -729,6 +806,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _subscribeToMarketplaceData();
   }
 
+  void _navigateToProfileScreen() async {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final doc = await FirebaseFirestore.instance.collection('users').doc(user.uid).get();
+    final appUser = doc.exists ? AppUserModel.fromDoc(doc) : AppUserModel.empty(user.uid, user.email);
+
+    if (!mounted) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MarketplaceProfilePage(
+          currentUser: appUser,
+          authService: AuthService(),
+        ),
+      ),
+    );
+  }
+
   void _navigateToDetails(Map<String, dynamic> item) async {
     final user = FirebaseAuth.instance.currentUser;
 
@@ -867,10 +963,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         constraints: const BoxConstraints(),
                       ),
                       const SizedBox(width: 12),
-                      const CircleAvatar(
-                        radius: 14,
-                        backgroundColor: AppColors.primaryContainer,
-                        child: Icon(Icons.person_outline, size: 16, color: AppColors.primary),
+                      GestureDetector(
+                        onTap: _navigateToProfileScreen,
+                        child: const CircleAvatar(
+                          radius: 14,
+                          backgroundColor: AppColors.primaryContainer,
+                          child: Icon(Icons.person_outline, size: 16, color: AppColors.primary),
+                        ),
                       ),
                     ],
                   ),
@@ -951,6 +1050,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               const SizedBox(height: 16),
               _buildLocationBanner(),
               const SizedBox(height: 16),
+              _buildCurrentBorrowedBookCard(),
 
               // ── Library Books Section ───────────────────────
               _buildLibraryBooksHeader(),
@@ -2353,6 +2453,85 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       ],
     );
   }
+
+  Widget _buildCurrentBorrowedBookCard() {
+    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    if (uid.isEmpty) return const SizedBox.shrink();
+
+    return StreamBuilder<BorrowEligibilityState>(
+      stream: BorrowEligibilityService.instance.watchEligibility(uid),
+      builder: (context, snapshot) {
+        final state = snapshot.data;
+        if (state == null || state.eligible) {
+          return const SizedBox.shrink();
+        }
+
+        if (state.activeTransactionData != null) {
+          return BorrowedHomeCard(
+            activeTransaction: state.activeTransactionData,
+            onViewMyLibrary: () {
+              final user = FirebaseAuth.instance.currentUser;
+              if (user == null) return;
+
+              final appUser = AppUserModel.empty(user.uid, user.email);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MyLibraryPage(currentUser: appUser),
+                ),
+              );
+            },
+          );
+        }
+
+        return BorrowRestrictionCard(
+          restrictionReason: state.reason.isNotEmpty
+              ? state.reason
+              : 'Return your current library book before requesting another one.',
+        );
+      },
+    );
+  }
+
+  void _openBorrowedBookDetails(BorrowEligibilityState state) {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final itemModel = MarketplaceEquipmentModel(
+      equipmentId: state.bookId ?? 'active-book',
+      ownerId: 'library',
+      equipmentName: state.activeBookTitle ?? 'Current Borrowed Book',
+      category: 'Books',
+      description: 'Currently borrowed library book.',
+      titleLocalized: {},
+      categoryLocalized: {},
+      descriptionLocalized: {},
+      pricePerHour: 0,
+      pricePerDay: 0,
+      location: 'Main Library',
+      latitude: 0,
+      longitude: 0,
+      imageUrls: [state.activeBookCover ?? ''],
+      availability: false,
+      rating: 5.0,
+      createdAt: DateTime.now(),
+      ownerName: 'Library Administration',
+      machineSpecs: '',
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookDetailsPage(
+          initialItem: itemModel,
+          userId: user.uid,
+          userName: user.displayName ?? 'Student',
+          userEmail: user.email ?? '',
+          userPhone: user.phoneNumber ?? '',
+        ),
+      ),
+    );
+  }
 }
 
 // Sample data
@@ -2400,11 +2579,12 @@ class EquipmentListPage extends StatelessWidget {
                         children: [
                           ClipRRect(
                             borderRadius: BorderRadius.circular(8),
-                            child: CachedNetworkImage(
-                              imageUrl: equipment[index]['imageUrl'],
+                            child: buildSmartImage(
+                              (equipment[index]['imageUrl'] ?? '').toString(),
                               width: 100,
                               height: 100,
                               fit: BoxFit.cover,
+                              isBook: true,
                             ),
                           ),
                           const SizedBox(width: 16),

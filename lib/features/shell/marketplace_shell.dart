@@ -9,10 +9,10 @@ import '../../providers/locale_provider.dart';
 import '../../services/auth_service.dart';
 import '../explore/presentation/chatbot_page.dart';
 import '../explore/presentation/explore_page.dart';
-import '../profile/presentation/marketplace_profile_page.dart';
 import '../profile/presentation/my_listings_page.dart';
 import '../equipment/presentation/create_listing_flow.dart';
 import '../../services/deep_link_handler.dart';
+import '../../pages/my_library/my_library_page.dart';
 
 class MarketplaceShell extends StatefulWidget {
   const MarketplaceShell({
@@ -30,7 +30,7 @@ class MarketplaceShell extends StatefulWidget {
 
 class _MarketplaceShellState extends State<MarketplaceShell>
     with SingleTickerProviderStateMixin {
-  // Index mapping: 0=Home, 1=Help, 2=Rent(center/action), 3=MyListings, 4=Profile
+  // Index mapping: 0=Home, 1=AI, 2=Rent(center/action), 3=MyListings, 4=MyLibrary
   // Pages list: index 2 is a placeholder (Rent opens a sheet, not a page)
   int _selectedIndex = 0;
 
@@ -39,10 +39,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
     const ChatbotPage(),
     const ExplorePage(), // placeholder for index 2 (Rent)
     MyListingsPage(currentUser: widget.currentUser),
-    MarketplaceProfilePage(
-      currentUser: widget.currentUser,
-      authService: widget.authService,
-    ),
+    MyLibraryPage(currentUser: widget.currentUser),
   ];
 
   static const Color _green = AppColors.primary;
@@ -156,7 +153,7 @@ class _MarketplaceShellState extends State<MarketplaceShell>
               _buildNavItem(icon: Icons.auto_awesome, label: 'AI', index: 1),
               _buildCenterRentButton(),
               _buildNavItem(icon: Icons.inventory_2_rounded, label: 'My Listings', index: 3),
-              _buildNavItem(icon: Icons.person_rounded, label: 'Profile', index: 4),
+              _buildNavItem(icon: Icons.local_library_rounded, label: 'My Library', index: 4),
             ],
           ),
         ),

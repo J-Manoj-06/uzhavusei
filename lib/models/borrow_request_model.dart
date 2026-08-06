@@ -17,6 +17,23 @@ class BorrowRequestModel {
   final DateTime updatedAt;
   final DateTime? borrowedAt;
 
+  // Student Profile details (Phase 3)
+  final String studentUid;
+  final String studentName;
+  final String registerNumber;
+  final String department;
+  final String year;
+  final String collegeEmail;
+  final String phone;
+  final String photoUrl;
+  final String requestMessage;
+
+  // Aliases for dashboard compatibility
+  String get bookId => listingId;
+  String get bookTitle => listingTitle;
+  String get bookCover => listingImage;
+  String get requestedBy => borrowerId;
+
   BorrowRequestModel({
     required this.requestId,
     required this.listingId,
@@ -25,7 +42,7 @@ class BorrowRequestModel {
     required this.category,
     required this.ownerId,
     required this.borrowerId,
-    this.borrowerName = 'Borrower',
+    this.borrowerName = 'Student',
     required this.borrowFrom,
     required this.borrowUntil,
     required this.borrowDuration,
@@ -33,7 +50,17 @@ class BorrowRequestModel {
     required this.requestedAt,
     required this.updatedAt,
     this.borrowedAt,
-  });
+    String? studentUid,
+    String? studentName,
+    this.registerNumber = '',
+    this.department = '',
+    this.year = '',
+    this.collegeEmail = '',
+    this.phone = '',
+    this.photoUrl = '',
+    this.requestMessage = '',
+  })  : studentUid = studentUid ?? borrowerId,
+        studentName = studentName ?? borrowerName;
 
   factory BorrowRequestModel.fromMap(Map<String, dynamic> map, String id) {
     DateTime parseDate(dynamic val) {
@@ -48,15 +75,18 @@ class BorrowRequestModel {
       return null;
     }
 
+    final bId = (map['studentUid'] ?? map['requestedBy'] ?? map['borrowerId'] ?? map['userId'] ?? '').toString();
+    final bName = (map['studentName'] ?? map['fullName'] ?? map['borrowerName'] ?? map['userName'] ?? 'Student').toString();
+
     return BorrowRequestModel(
-      requestId: id.isNotEmpty ? id : (map['requestId'] ?? ''),
-      listingId: map['listingId'] ?? map['equipmentId'] ?? '',
-      listingTitle: map['listingTitle'] ?? map['equipmentName'] ?? '',
-      listingImage: map['listingImage'] ?? map['imageUrl'] ?? '',
-      category: map['category'] ?? '',
-      ownerId: map['ownerId'] ?? '',
-      borrowerId: map['borrowerId'] ?? map['userId'] ?? '',
-      borrowerName: map['borrowerName'] ?? map['userName'] ?? 'Borrower',
+      requestId: id.isNotEmpty ? id : (map['requestId'] ?? '').toString(),
+      listingId: (map['bookId'] ?? map['listingId'] ?? map['equipmentId'] ?? '').toString(),
+      listingTitle: (map['bookTitle'] ?? map['listingTitle'] ?? map['equipmentName'] ?? '').toString(),
+      listingImage: (map['bookCover'] ?? map['listingImage'] ?? map['imageUrl'] ?? '').toString(),
+      category: (map['category'] ?? '').toString(),
+      ownerId: (map['ownerId'] ?? '').toString(),
+      borrowerId: bId,
+      borrowerName: bName,
       borrowFrom: parseDate(map['borrowFrom'] ?? map['startDate']),
       borrowUntil: parseDate(map['borrowUntil'] ?? map['endDate']),
       borrowDuration: (map['borrowDuration'] as num?)?.toInt() ?? 1,
@@ -66,6 +96,15 @@ class BorrowRequestModel {
       requestedAt: parseDate(map['requestedAt'] ?? map['createdAt']),
       updatedAt: parseDate(map['updatedAt'] ?? map['createdAt']),
       borrowedAt: parseNullableDate(map['borrowedAt'] ?? map['borrowStartDate']),
+      studentUid: bId,
+      studentName: bName,
+      registerNumber: (map['registerNumber'] ?? map['regNo'] ?? '').toString(),
+      department: (map['department'] ?? '').toString(),
+      year: (map['year'] ?? '').toString(),
+      collegeEmail: (map['collegeEmail'] ?? map['email'] ?? '').toString(),
+      phone: (map['phone'] ?? map['phoneNumber'] ?? '').toString(),
+      photoUrl: (map['photoUrl'] ?? map['profileImage'] ?? '').toString(),
+      requestMessage: (map['requestMessage'] ?? map['note'] ?? '').toString(),
     );
   }
 
@@ -74,20 +113,38 @@ class BorrowRequestModel {
   }
 
   Map<String, dynamic> toMap() {
+    final sName = studentName.isNotEmpty ? studentName : borrowerName;
     return {
       'requestId': requestId,
+      'bookId': listingId,
       'listingId': listingId,
+      'bookTitle': listingTitle,
       'listingTitle': listingTitle,
+      'bookCover': listingImage,
       'listingImage': listingImage,
       'category': category,
       'ownerId': ownerId,
+      'requestedBy': borrowerId,
+      'studentUid': borrowerId,
       'borrowerId': borrowerId,
-      'borrowerName': borrowerName,
+      'studentName': sName,
+      'borrowerName': sName,
+      'fullName': sName,
+      'registerNumber': registerNumber,
+      'department': department,
+      'year': year,
+      'collegeEmail': collegeEmail,
+      'phone': phone,
+      'phoneNumber': phone,
+      'photoUrl': photoUrl,
+      'profileImage': photoUrl,
+      'requestMessage': requestMessage,
       'borrowFrom': Timestamp.fromDate(borrowFrom),
       'borrowUntil': Timestamp.fromDate(borrowUntil),
       'borrowDuration': borrowDuration,
       'status': status,
       'requestedAt': Timestamp.fromDate(requestedAt),
+      'createdAt': Timestamp.fromDate(requestedAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
       if (borrowedAt != null) 'borrowedAt': Timestamp.fromDate(borrowedAt!),
     };
@@ -97,6 +154,13 @@ class BorrowRequestModel {
     String? status,
     DateTime? updatedAt,
     DateTime? borrowedAt,
+    String? registerNumber,
+    String? department,
+    String? year,
+    String? collegeEmail,
+    String? phone,
+    String? photoUrl,
+    String? requestMessage,
   }) {
     return BorrowRequestModel(
       requestId: requestId,
@@ -114,6 +178,15 @@ class BorrowRequestModel {
       requestedAt: requestedAt,
       updatedAt: updatedAt ?? this.updatedAt,
       borrowedAt: borrowedAt ?? this.borrowedAt,
+      studentUid: studentUid,
+      studentName: studentName,
+      registerNumber: registerNumber ?? this.registerNumber,
+      department: department ?? this.department,
+      year: year ?? this.year,
+      collegeEmail: collegeEmail ?? this.collegeEmail,
+      phone: phone ?? this.phone,
+      photoUrl: photoUrl ?? this.photoUrl,
+      requestMessage: requestMessage ?? this.requestMessage,
     );
   }
 

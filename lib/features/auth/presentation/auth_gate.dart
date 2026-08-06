@@ -5,9 +5,8 @@ import '../../../models/app_user_model.dart';
 import '../../../services/auth_service.dart';
 import '../../shell/marketplace_shell.dart';
 import 'login_register_page.dart';
-import 'registration_flow_page.dart';
 import 'verify_email_page.dart';
-
+import '../../profile/presentation/complete_profile_page.dart';
 
 class AuthGate extends StatefulWidget {
   const AuthGate({
@@ -64,8 +63,12 @@ class _AuthGateState extends State<AuthGate> {
               return const _CenteredLoader();
             }
 
-            if (profile == null) {
-              return RegistrationFlowPage(authService: widget.authService);
+            if (profile == null || !profile.isProfileComplete) {
+              return CompleteProfilePage(
+                authService: widget.authService,
+                initialUser: profile,
+                isMandatory: true,
+              );
             }
 
             _lastProfile = profile;

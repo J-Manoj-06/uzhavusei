@@ -83,18 +83,28 @@ class BorrowRequestCard extends StatelessWidget {
               Row(
                 children: [
                   CircleAvatar(
-                    radius: 20,
+                    radius: 22,
                     backgroundColor: DetailsTheme.primaryContainer,
-                    child: Text(
-                      request.borrowerName.isNotEmpty
-                          ? request.borrowerName[0].toUpperCase()
-                          : 'B',
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: DetailsTheme.primary,
-                        fontSize: 15,
-                      ),
-                    ),
+                    child: request.photoUrl.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(22),
+                            child: buildSmartImage(
+                              request.photoUrl,
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
+                            ),
+                          )
+                        : Text(
+                            request.borrowerName.isNotEmpty
+                                ? request.borrowerName[0].toUpperCase()
+                                : 'S',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: DetailsTheme.primary,
+                              fontSize: 16,
+                            ),
+                          ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -102,11 +112,16 @@ class BorrowRequestCard extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          request.borrowerName,
+                          request.studentName.isNotEmpty ? request.studentName : request.borrowerName,
                           style: DetailsTheme.cardHeadingStyle,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
+                        if (request.registerNumber.isNotEmpty)
+                          Text(
+                            'Reg No: ${request.registerNumber}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: DetailsTheme.primary),
+                          ),
                         const SizedBox(height: 2),
                         Text(
                           _isBorrowed
@@ -122,6 +137,43 @@ class BorrowRequestCard extends StatelessWidget {
                   _buildStatusBadge(request.status),
                 ],
               ),
+
+              if (request.department.isNotEmpty || request.year.isNotEmpty || request.collegeEmail.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    if (request.department.isNotEmpty)
+                      Chip(
+                        avatar: const Icon(Icons.school_outlined, size: 12, color: Colors.blue),
+                        label: Text(request.department, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                        backgroundColor: Colors.blue.withValues(alpha: 0.08),
+                        padding: EdgeInsets.zero,
+                        side: BorderSide.none,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (request.year.isNotEmpty)
+                      Chip(
+                        avatar: const Icon(Icons.calendar_today_outlined, size: 12, color: Colors.purple),
+                        label: Text(request.year, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                        backgroundColor: Colors.purple.withValues(alpha: 0.08),
+                        padding: EdgeInsets.zero,
+                        side: BorderSide.none,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    if (request.phone.isNotEmpty)
+                      Chip(
+                        avatar: const Icon(Icons.phone_outlined, size: 12, color: Colors.green),
+                        label: Text(request.phone, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+                        backgroundColor: Colors.green.withValues(alpha: 0.08),
+                        padding: EdgeInsets.zero,
+                        side: BorderSide.none,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 14),
               const Divider(height: 1, color: DetailsTheme.border),

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/borrow_request_model.dart';
+import 'borrow_eligibility_service.dart';
 import 'logger_service.dart';
 
 class BorrowRequestRepository {
@@ -14,6 +15,14 @@ class BorrowRequestRepository {
   /// Creates a new Borrow Request document in Firestore after passing business validations.
   Future<void> createBorrowRequest(BorrowRequestModel request) async {
     try {
+      // 0. Business Rule: One Active Library Book Policy
+      final canBorrow = await BorrowEligibilityService.instance.canBorrowBooks(request.borrowerId);
+      if (!canBorrow) {
+        throw Exception(
+          'You already have an active library request or a borrowed book. You can request another book only after your current borrowed book has been returned by the librarian.',
+        );
+      }
+
       // 1. Business Rule: Owner cannot request their own listing
       if (request.ownerId == request.borrowerId) {
         throw Exception('Owners cannot request to borrow their own listing.');
@@ -35,16 +44,47 @@ class BorrowRequestRepository {
         );
       }
 
-      // 4. Save to Firestore
+      // 4. Fetch complete student profile details from users/{borrowerId}
+      final userDoc = await _firestore.collection('users').doc(request.borrowerId).get();
+      final userMap = userDoc.data() ?? <String, dynamic>{};
+
+      final studentUid = request.borrowerId;
+      final studentName = (userMap['fullName'] ?? userMap['name'] ?? request.borrowerName).toString().trim();
+      final registerNumber = (userMap['registerNumber'] ?? userMap['regNo'] ?? request.registerNumber).toString().trim();
+      final department = (userMap['department'] ?? request.department).toString().trim();
+      final year = (userMap['year'] ?? request.year).toString().trim();
+      final collegeEmail = (userMap['collegeEmail'] ?? userMap['email'] ?? request.collegeEmail).toString().trim();
+      final phone = (userMap['phone'] ?? userMap['phoneNumber'] ?? request.phone).toString().trim();
+      final photoUrl = (userMap['photoUrl'] ?? userMap['profileImage'] ?? request.photoUrl).toString().trim();
+
+      // 5. Save to Firestore with full Phase 3 student metadata
       final docRef = _collection.doc(
         request.requestId.isNotEmpty ? request.requestId : null,
       );
-      final finalModel = request.copyWith();
 
-      final data = finalModel.toMap();
+      final data = request.toMap();
       data['requestId'] = docRef.id;
+      data['bookId'] = request.listingId;
+      data['bookTitle'] = request.listingTitle;
+      data['bookCover'] = request.listingImage;
+      data['requestedBy'] = studentUid;
+      data['studentUid'] = studentUid;
+      data['studentName'] = studentName;
+      data['borrowerName'] = studentName;
+      data['fullName'] = studentName;
+      data['registerNumber'] = registerNumber;
+      data['department'] = department;
+      data['year'] = year;
+      data['collegeEmail'] = collegeEmail;
+      data['phone'] = phone;
+      data['phoneNumber'] = phone;
+      data['photoUrl'] = photoUrl;
+      data['profileImage'] = photoUrl;
+      data['status'] = request.status.isNotEmpty ? request.status : 'Pending';
+      data['createdAt'] = FieldValue.serverTimestamp();
+      data['updatedAt'] = FieldValue.serverTimestamp();
 
-      await docRef.set(data);
+      await docRef.set(data, SetOptions(merge: true));
       LoggerService.debug('Borrow request created successfully: ${docRef.id}');
     } on FirebaseException catch (e) {
       LoggerService.error('Firestore Error on createBorrowRequest: ${e.message}', e);
