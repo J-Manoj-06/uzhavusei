@@ -4,13 +4,11 @@ import 'package:UzhavuSei/theme/app_theme.dart';
 class SearchBarWidget extends StatefulWidget {
   final TextEditingController controller;
   final ValueChanged<String>? onChanged;
-  final VoidCallback? onMicTap;
 
   const SearchBarWidget({
     super.key,
     required this.controller,
     this.onChanged,
-    this.onMicTap,
   });
 
   @override
@@ -55,8 +53,8 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
         boxShadow: [
           BoxShadow(
             color: _isFocused
-                ? AppColors.primary.withOpacity(0.12)
-                : Colors.black.withOpacity(0.04),
+                ? AppColors.primary.withValues(alpha: 0.12)
+                : Colors.black.withValues(alpha: 0.04),
             blurRadius: _isFocused ? 10 : 6,
             offset: const Offset(0, 3),
           ),
@@ -89,14 +87,19 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
                   fontWeight: FontWeight.normal,
                 ),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
                 isDense: true,
-                contentPadding: EdgeInsets.zero,
+                contentPadding: EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
 
           // Clear Button (if query present)
-          if (widget.controller.text.isNotEmpty)
+          if (widget.controller.text.isNotEmpty) ...[
             IconButton(
               icon: const Icon(Icons.clear_rounded, size: 18, color: Colors.grey),
               splashRadius: 18,
@@ -106,34 +109,9 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
                 setState(() {});
               },
             ),
-
-          // Microphone Button
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: widget.onMicTap ??
-                  () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Voice search will be available in the next update.'),
-                        duration: Duration(seconds: 2),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
-              child: const Padding(
-                padding: EdgeInsets.all(10.0),
-                child: Icon(
-                  Icons.mic_none_rounded,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 6),
+            const SizedBox(width: 4),
+          ] else
+            const SizedBox(width: 12),
         ],
       ),
     );

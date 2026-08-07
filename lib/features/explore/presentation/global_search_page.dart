@@ -12,7 +12,6 @@ import '../../../services/recently_viewed_service.dart';
 import '../../../services/search_recommendation_service.dart';
 import '../../../widgets/filter_bottom_sheet.dart';
 import '../../../widgets/image_loader.dart';
-import '../../../widgets/voice_bottom_sheet.dart';
 import '../../equipment/presentation/book_details_page.dart';
 import '../../equipment/presentation/equipment_details_page.dart' as real_details;
 import 'widgets/search_bar_widget.dart';
@@ -251,12 +250,6 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
                                 _showSuggestions = val.trim().isNotEmpty;
                                 _suggestionProvider.onQueryChanged(val);
                                 _searchProvider.onQueryChanged(val);
-                              },
-                              onMicTap: () {
-                                VoiceBottomSheet.show(
-                                  context,
-                                  onResult: (q) => _executeSearchQuery(q),
-                                );
                               },
                             ),
                           ),
