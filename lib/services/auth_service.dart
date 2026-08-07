@@ -273,18 +273,22 @@ class AuthService {
     }, SetOptions(merge: true));
   }
 
-  Stream<AppUserModel?> watchCurrentUserProfile() {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return const Stream.empty();
+  Stream<AppUserModel?> watchCurrentUserProfile([String? explicitUid]) {
+    final uid = (explicitUid != null && explicitUid.isNotEmpty)
+        ? explicitUid
+        : _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return const Stream.empty();
     return _firestore.collection('users').doc(uid).snapshots().map((doc) {
       if (!doc.exists) return null;
       return AppUserModel.fromDoc(doc);
     });
   }
 
-  Future<AppUserModel?> getCurrentUserProfile() async {
-    final uid = _auth.currentUser?.uid;
-    if (uid == null) return null;
+  Future<AppUserModel?> getCurrentUserProfile([String? explicitUid]) async {
+    final uid = (explicitUid != null && explicitUid.isNotEmpty)
+        ? explicitUid
+        : _auth.currentUser?.uid;
+    if (uid == null || uid.isEmpty) return null;
     final doc = await _firestore.collection('users').doc(uid).get();
     if (!doc.exists) return null;
     return AppUserModel.fromDoc(doc);
@@ -296,6 +300,7 @@ class AuthService {
     if (uid == null) return;
 
     await _firestore.collection('users').doc(uid).set({
+      'uid': uid,
       'userId': uid,
       'email': user?.email ?? '',
       'name': user?.displayName ?? 'User',
@@ -309,8 +314,8 @@ class AuthService {
 
   Future<void> signOut() async {
     await _auth.signOut();
-    if (_googleSignIn != null) {
-      await _googleSignIn!.signOut();
-    }
+    try {
+      await _google.signOut();
+    } catch (_) {}
   }
 }

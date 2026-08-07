@@ -21,57 +21,48 @@ class AuthGate extends StatefulWidget {
 }
 
 class _AuthGateState extends State<AuthGate> {
-  User? _lastAuthedUser;
-  AppUserModel? _lastProfile;
-
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
       stream: widget.authService.authStateChanges(),
       initialData: widget.authService.currentUser,
       builder: (context, authSnapshot) {
-        final user = authSnapshot.connectionState == ConnectionState.waiting
-            ? (authSnapshot.data ?? _lastAuthedUser)
-            : authSnapshot.data;
+        final user = authSnapshot.data;
 
         if (authSnapshot.connectionState == ConnectionState.waiting &&
-            user == null) {
+            user == null &&
+            widget.authService.currentUser == null) {
           return const _CenteredLoader();
         }
 
-        if (user == null) {
-          _lastAuthedUser = null;
-          _lastProfile = null;
+        final activeUser = user ?? widget.authService.currentUser;
+
+        if (activeUser == null) {
           return LoginRegisterPage(authService: widget.authService);
         }
-        _lastAuthedUser = user;
 
-        if (!user.emailVerified) {
+        if (!activeUser.emailVerified) {
           return VerifyEmailPage(authService: widget.authService);
         }
 
         return StreamBuilder<AppUserModel?>(
-          stream: widget.authService.watchCurrentUserProfile(),
-          initialData: _lastProfile,
+          key: ValueKey(activeUser.uid),
+          stream: widget.authService.watchCurrentUserProfile(activeUser.uid),
           builder: (context, profileSnapshot) {
-            final profile = profileSnapshot.connectionState == ConnectionState.waiting
-                ? (profileSnapshot.data ?? _lastProfile)
-                : profileSnapshot.data;
-
             if (profileSnapshot.connectionState == ConnectionState.waiting &&
-                profile == null) {
+                !profileSnapshot.hasData) {
               return const _CenteredLoader();
             }
+
+            final profile = profileSnapshot.data;
 
             if (profile == null || !profile.isProfileComplete) {
               return CompleteProfilePage(
                 authService: widget.authService,
-                initialUser: profile,
+                initialUser: profile ?? AppUserModel.empty(activeUser.uid, activeUser.email),
                 isMandatory: true,
               );
             }
-
-            _lastProfile = profile;
 
             return MarketplaceShell(
               authService: widget.authService,

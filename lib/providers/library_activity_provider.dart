@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/library_activity_model.dart';
 import '../services/library_activity_service.dart';
@@ -25,6 +26,8 @@ class LibraryActivityProvider extends ChangeNotifier {
   ActivitySortOrder _sortOrder = ActivitySortOrder.newestFirst;
   bool _isLoading = true;
   String? _errorMessage;
+  StreamSubscription<List<LibraryActivityModel>>? _subscription;
+  bool _isDisposed = false;
 
   LibraryActivityProvider({required this.uid}) {
     _initStream();
@@ -67,14 +70,17 @@ class LibraryActivityProvider extends ChangeNotifier {
   }
 
   void _initStream() {
-    LibraryActivityService.instance.watchStudentActivities(uid).listen(
+    _subscription?.cancel();
+    _subscription = LibraryActivityService.instance.watchStudentActivities(uid).listen(
       (data) {
+        if (_isDisposed) return;
         _allActivities = data;
         _isLoading = false;
         _errorMessage = null;
         notifyListeners();
       },
       onError: (err) {
+        if (_isDisposed) return;
         _isLoading = false;
         _errorMessage = err.toString();
         notifyListeners();
@@ -84,17 +90,24 @@ class LibraryActivityProvider extends ChangeNotifier {
 
   void setFilter(ActivityFilterOption option) {
     _filter = option;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
   }
 
   void setSortOrder(ActivitySortOrder order) {
     _sortOrder = order;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
   }
 
   void resetFilters() {
     _filter = ActivityFilterOption.all;
     _sortOrder = ActivitySortOrder.newestFirst;
-    notifyListeners();
+    if (!_isDisposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _isDisposed = true;
+    _subscription?.cancel();
+    super.dispose();
   }
 }

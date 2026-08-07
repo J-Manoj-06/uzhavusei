@@ -23,6 +23,8 @@ import 'features/equipment/presentation/category_marketplace_page.dart';
 import 'features/equipment/presentation/create_listing_flow.dart';
 import 'package:intl/intl.dart';
 import 'models/app_user_model.dart';
+import 'models/library_activity_model.dart';
+import 'services/library_service.dart';
 import 'services/borrow_eligibility_service.dart';
 import 'services/borrow_approval_service.dart';
 import 'models/borrow_request_model.dart';
@@ -31,6 +33,7 @@ import 'widgets/current_borrowed_card.dart';
 import 'widgets/borrowed_home_card.dart';
 import 'widgets/borrow_restriction_card.dart';
 import 'widgets/approval_popup.dart';
+import 'widgets/profile_header_widget.dart';
 import 'widgets/return_success_dialog.dart';
 import 'services/borrow_lifecycle_service.dart';
 import 'pages/my_library/my_library_page.dart';
@@ -941,11 +944,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Row 1: Logo and notifications / profile
+              // Row 1: Logo and single profile avatar action
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
+                children: const [
+                  Text(
                     'Borrow',
                     style: TextStyle(
                       color: AppColors.primary,
@@ -954,25 +957,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       letterSpacing: -0.8,
                     ),
                   ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.notifications_none_rounded, color: Color(0xFF3F4A3C), size: 22),
-                        onPressed: () {},
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: _navigateToProfileScreen,
-                        child: const CircleAvatar(
-                          radius: 14,
-                          backgroundColor: AppColors.primaryContainer,
-                          child: Icon(Icons.person_outline, size: 16, color: AppColors.primary),
-                        ),
-                      ),
-                    ],
-                  ),
+                  ProfileHeaderWidget(),
                 ],
               ),
               const SizedBox(height: 6),
@@ -995,7 +980,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         ),
                       ),
                     ),
-                    const Icon(Icons.keyboard_arrow_down_rounded, size: 16, color: Color(0xFF3F4A3C)),
                   ],
                 ),
               ),
@@ -2458,37 +2442,104 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
     if (uid.isEmpty) return const SizedBox.shrink();
 
-    return StreamBuilder<BorrowEligibilityState>(
-      stream: BorrowEligibilityService.instance.watchEligibility(uid),
+    return StreamBuilder<List<LibraryActivityModel>>(
+      stream: LibraryService.instance.watchStudentLibraryActivities(uid),
       builder: (context, snapshot) {
-        final state = snapshot.data;
-        if (state == null || state.eligible) {
-          return const SizedBox.shrink();
+        final activities = snapshot.data ?? [];
+        if (activities.isEmpty) return const SizedBox.shrink();
+
+        // 1. Check for active Approved request (Ready for Collection)
+        final approvedItem = activities.cast<LibraryActivityModel?>().firstWhere(
+          (a) => a?.status == LibraryActivityStatus.approved,
+          orElse: () => null,
+        );
+
+        if (approvedItem != null) {
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFEFF6FF),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: const Color(0xFFBFDBFE)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF2563EB),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.bookmark_added_rounded, color: Colors.white, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        '📚 Ready for Collection',
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Color(0xFF1E40AF)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Your request for "${approvedItem.bookTitle}" was approved. Collect it from the library.',
+                        style: const TextStyle(fontSize: 12, color: Color(0xFF1E3A8A)),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    final user = FirebaseAuth.instance.currentUser;
+                    if (user != null) {
+                      final appUser = AppUserModel.empty(user.uid, user.email);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => MyLibraryPage(currentUser: appUser)),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2563EB),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    elevation: 0,
+                  ),
+                  child: const Text('View Details', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          );
         }
 
-        if (state.activeTransactionData != null) {
+        // 2. Check for active Borrowed book
+        final borrowedItem = activities.cast<LibraryActivityModel?>().firstWhere(
+          (a) => a?.status == LibraryActivityStatus.borrowed,
+          orElse: () => null,
+        );
+
+        if (borrowedItem != null) {
           return BorrowedHomeCard(
-            activeTransaction: state.activeTransactionData,
+            activeTransaction: borrowedItem.rawData,
             onViewMyLibrary: () {
               final user = FirebaseAuth.instance.currentUser;
               if (user == null) return;
-
               final appUser = AppUserModel.empty(user.uid, user.email);
               Navigator.push(
                 context,
-                MaterialPageRoute(
-                  builder: (_) => MyLibraryPage(currentUser: appUser),
-                ),
+                MaterialPageRoute(builder: (_) => MyLibraryPage(currentUser: appUser)),
               );
             },
           );
         }
 
-        return BorrowRestrictionCard(
-          restrictionReason: state.reason.isNotEmpty
-              ? state.reason
-              : 'Return your current library book before requesting another one.',
-        );
+        return const SizedBox.shrink();
       },
     );
   }

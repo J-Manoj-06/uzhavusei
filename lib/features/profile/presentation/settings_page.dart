@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -44,14 +45,22 @@ class _SettingsPageState extends State<SettingsPage> {
     _loadPreferences();
   }
 
+  StreamSubscription? _userSub;
+
   void _subscribeToUserChanges() {
-    widget.authService.watchCurrentUserProfile().listen((user) {
+    _userSub = widget.authService.watchCurrentUserProfile().listen((user) {
       if (user != null && mounted) {
         setState(() {
           _liveUser = user;
         });
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _userSub?.cancel();
+    super.dispose();
   }
 
   AppUserModel get _user => _liveUser ?? widget.currentUser;

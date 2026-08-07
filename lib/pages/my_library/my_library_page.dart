@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/app_user_model.dart';
 import '../../models/library_activity_model.dart';
-import '../../providers/library_activity_provider.dart';
+import '../../providers/library_provider.dart';
+import '../../providers/library_filter_provider.dart';
 import '../../widgets/image_loader.dart';
 import '../../theme/app_theme.dart';
-import '../../features/equipment/presentation/book_details_page.dart';
-import '../../models/marketplace_equipment_model.dart';
+import 'library_activity_details_page.dart';
 
 class MyLibraryPage extends StatefulWidget {
   final AppUserModel currentUser;
@@ -18,71 +18,117 @@ class MyLibraryPage extends StatefulWidget {
 }
 
 class _MyLibraryPageState extends State<MyLibraryPage> {
-  late final LibraryActivityProvider _provider;
+  late final LibraryProvider _libraryProvider;
+  late final LibraryFilterProvider _filterProvider;
+  final TextEditingController _searchController = TextEditingController();
+  bool _isSearchVisible = false;
 
   @override
   void initState() {
     super.initState();
-    _provider = LibraryActivityProvider(uid: widget.currentUser.uid);
-    _provider.addListener(_onProviderChanged);
+    _libraryProvider = LibraryProvider(uid: widget.currentUser.uid);
+    _filterProvider = LibraryFilterProvider();
+
+    _libraryProvider.addListener(_onStateChanged);
+    _filterProvider.addListener(_onStateChanged);
   }
 
   @override
   void dispose() {
-    _provider.removeListener(_onProviderChanged);
-    _provider.dispose();
+    _searchController.dispose();
+    _libraryProvider.removeListener(_onStateChanged);
+    _filterProvider.removeListener(_onStateChanged);
+    _libraryProvider.dispose();
+    _filterProvider.dispose();
     super.dispose();
   }
 
-  void _onProviderChanged() {
+  void _onStateChanged() {
     if (mounted) setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
+    final filteredItems = _libraryProvider.getFilteredActivities(_filterProvider);
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0.5,
         surfaceTintColor: Colors.transparent,
-        toolbarHeight: 76,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Text(
-              'My Library',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
+        toolbarHeight: _isSearchVisible ? 120 : 76,
+        title: _isSearchVisible
+            ? TextField(
+                controller: _searchController,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Search by title, author, or status...',
+                  border: InputBorder.none,
+                  hintStyle: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+                  suffixIcon: IconButton(
+                    icon: const Icon(Icons.clear_rounded, color: Colors.grey),
+                    onPressed: () {
+                      _searchController.clear();
+                      _filterProvider.setSearchQuery('');
+                    },
+                  ),
+                ),
+                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                onChanged: (val) => _filterProvider.setSearchQuery(val),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: const [
+                  Text(
+                    'My Library',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Manage your library requests and borrowed books.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              'Manage your library requests and borrowed books.',
-              style: TextStyle(
-                fontSize: 12,
-                color: AppColors.textSecondary,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
         actions: [
+          IconButton(
+            icon: Icon(
+              _isSearchVisible ? Icons.search_off_rounded : Icons.search_rounded,
+              color: AppColors.textPrimary,
+            ),
+            tooltip: _isSearchVisible ? 'Close Search' : 'Search Library',
+            onPressed: () {
+              setState(() {
+                _isSearchVisible = !_isSearchVisible;
+                if (!_isSearchVisible) {
+                  _searchController.clear();
+                  _filterProvider.setSearchQuery('');
+                }
+              });
+            },
+          ),
           IconButton(
             icon: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: _provider.filter != ActivityFilterOption.all
+                color: _filterProvider.statusFilter != LibraryStatusFilter.all
                     ? AppColors.primaryContainer
                     : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
                 Icons.filter_list_rounded,
-                color: _provider.filter != ActivityFilterOption.all
+                color: _filterProvider.statusFilter != LibraryStatusFilter.all
                     ? AppColors.primary
                     : AppColors.textPrimary,
                 size: 20,
@@ -94,26 +140,24 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
           const SizedBox(width: 8),
         ],
       ),
-      body: _buildBody(),
+      body: _buildBody(filteredItems),
     );
   }
 
-  Widget _buildBody() {
-    if (_provider.isLoading) {
+  Widget _buildBody(List<LibraryActivityModel> items) {
+    if (_libraryProvider.isLoading) {
       return _buildSkeletonLoader();
     }
 
-    final activities = _provider.filteredActivities;
-
-    if (activities.isEmpty) {
+    if (items.isEmpty) {
       return _buildEmptyState();
     }
 
     return ListView.builder(
       padding: const EdgeInsets.all(16),
-      itemCount: activities.length,
+      itemCount: items.length,
       itemBuilder: (context, index) {
-        final item = activities[index];
+        final item = items[index];
         return _buildActivityCard(context, item);
       },
     );
@@ -133,8 +177,8 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
             child: Row(
               children: [
                 Container(
-                  width: 60,
-                  height: 82,
+                  width: 62,
+                  height: 84,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade200,
                     borderRadius: BorderRadius.circular(10),
@@ -162,6 +206,8 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
   }
 
   Widget _buildEmptyState() {
+    final isFiltered = _filterProvider.statusFilter != LibraryStatusFilter.all || _filterProvider.searchQuery.isNotEmpty;
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -171,7 +217,7 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
             Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.primaryContainer.withValues(alpha: 0.4),
+                color: AppColors.primaryContainer.withOpacity(0.4),
                 shape: BoxShape.circle,
               ),
               child: const Icon(
@@ -181,24 +227,36 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'No library activity yet.',
-              style: TextStyle(
+            Text(
+              isFiltered ? 'No matching library activity' : 'No Library Activity',
+              style: const TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.bold,
                 color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Your book requests, approvals, borrowed books, and history will appear here in a unified timeline.',
+            Text(
+              isFiltered
+                  ? 'Try adjusting your search query or filter options.'
+                  : 'Your library requests and borrowed books will appear here.',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style: const TextStyle(
                 fontSize: 13,
                 color: AppColors.textSecondary,
                 height: 1.4,
               ),
             ),
+            if (isFiltered) ...[
+              const SizedBox(height: 16),
+              OutlinedButton(
+                onPressed: () {
+                  _searchController.clear();
+                  _filterProvider.resetFilters();
+                },
+                child: const Text('Reset Filters'),
+              ),
+            ],
           ],
         ),
       ),
@@ -206,8 +264,9 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
   }
 
   Widget _buildActivityCard(BuildContext context, LibraryActivityModel item) {
-    final statusStyle = _getStatusStyle(item.activityType);
-    final dateStr = DateFormat('MMM d, yyyy • h:mm a').format(item.timestamp);
+    final statusStyle = _getStatusStyle(item.status);
+    final requestDateStr = DateFormat('MMM d, yyyy').format(item.requestDate);
+    final updatedDateStr = DateFormat('MMM d, yyyy • h:mm a').format(item.updatedAt);
 
     return Card(
       elevation: 1.5,
@@ -218,57 +277,91 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        onTap: () => _openBookDetails(context, item),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => LibraryActivityDetailsPage(item: item),
+            ),
+          );
+        },
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child: Row(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Book Cover
-              ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: SizedBox(
-                  width: 60,
-                  height: 82,
-                  child: buildSmartImage(
-                    item.bookCover,
-                    fit: BoxFit.cover,
-                    isBook: true,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Book Cover
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 62,
+                      height: 84,
+                      child: buildSmartImage(
+                        item.bookCover,
+                        fit: BoxFit.cover,
+                        isBook: true,
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 14),
-              // Activity Metadata
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                  const SizedBox(width: 14),
+                  // Metadata
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Text(
-                            item.bookTitle,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: AppColors.textPrimary,
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                item.bookTitle,
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.textPrimary,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                            const SizedBox(width: 8),
+                            // Status Badge
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: statusStyle.bgColor,
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: statusStyle.borderColor),
+                              ),
+                              child: Text(
+                                item.statusLabel,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: statusStyle.textColor,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        // Status Badge
+                        const SizedBox(height: 4),
+                        Text(
+                          'Author: ${item.author}',
+                          style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(height: 6),
+                        // Stage Message Container
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: statusStyle.bgColor,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: statusStyle.borderColor),
+                            color: statusStyle.bgColor.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            item.statusLabel,
+                            item.stageMessage,
                             style: TextStyle(
                               fontSize: 11,
                               fontWeight: FontWeight.bold,
@@ -276,48 +369,51 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Author: ${item.author}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
-                    ),
-                    const SizedBox(height: 6),
-                    // Stage Message Container
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: statusStyle.bgColor.withValues(alpha: 0.5),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        item.stageMessage,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          color: statusStyle.textColor,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Row(
-                      children: [
-                        const Icon(Icons.access_time_rounded, size: 12, color: Colors.grey),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            'Date: $dateStr',
-                            style: const TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w500),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            const Icon(Icons.access_time_rounded, size: 12, color: Colors.grey),
+                            const SizedBox(width: 4),
+                            Expanded(
+                              child: Text(
+                                'Requested: $requestDateStr • Updated: $updatedDateStr',
+                                style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+              // Prominent Action Bar for Approved Items
+              if (item.status == LibraryActivityStatus.approved) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => LibraryActivityDetailsPage(item: item),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+                    label: const Text('Ready for Collection — View Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -325,39 +421,39 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
     );
   }
 
-  _StatusStyle _getStatusStyle(LibraryActivityType type) {
-    switch (type) {
-      case LibraryActivityType.pendingRequest:
+  _StatusStyle _getStatusStyle(LibraryActivityStatus status) {
+    switch (status) {
+      case LibraryActivityStatus.pending:
         return const _StatusStyle(
           bgColor: Color(0xFFFFF7ED),
           textColor: Color(0xFFC2410C),
           borderColor: Color(0xFFFFEDD5),
         );
-      case LibraryActivityType.approvedRequest:
+      case LibraryActivityStatus.approved:
         return const _StatusStyle(
           bgColor: Color(0xFFEFF6FF),
           textColor: Color(0xFF1D4ED8),
           borderColor: Color(0xFFDBEAFE),
         );
-      case LibraryActivityType.issuedBook:
+      case LibraryActivityStatus.borrowed:
         return const _StatusStyle(
           bgColor: Color(0xFFF0FDF4),
           textColor: Color(0xFF15803D),
           borderColor: Color(0xFFDCFCE7),
         );
-      case LibraryActivityType.returnedBook:
+      case LibraryActivityStatus.returned:
         return const _StatusStyle(
           bgColor: Color(0xFFF8FAFC),
           textColor: Color(0xFF475569),
           borderColor: Color(0xFFE2E8F0),
         );
-      case LibraryActivityType.rejectedRequest:
+      case LibraryActivityStatus.rejected:
         return const _StatusStyle(
           bgColor: Color(0xFFFEF2F2),
           textColor: Color(0xFFDC2626),
           borderColor: Color(0xFFFEE2E2),
         );
-      case LibraryActivityType.cancelledRequest:
+      case LibraryActivityStatus.cancelled:
         return const _StatusStyle(
           bgColor: Color(0xFFF1F5F9),
           textColor: Color(0xFF334155),
@@ -390,7 +486,7 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
                       ),
                       TextButton(
                         onPressed: () {
-                          _provider.resetFilters();
+                          _filterProvider.resetFilters();
                           setModalState(() {});
                           Navigator.pop(context);
                         },
@@ -405,8 +501,8 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
-                    children: ActivityFilterOption.values.map((filter) {
-                      final isSelected = _provider.filter == filter;
+                    children: LibraryStatusFilter.values.map((filter) {
+                      final isSelected = _filterProvider.statusFilter == filter;
                       final label = _getFilterLabel(filter);
                       return ChoiceChip(
                         label: Text(label),
@@ -419,7 +515,7 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
                         ),
                         onSelected: (selected) {
                           if (selected) {
-                            _provider.setFilter(filter);
+                            _filterProvider.setStatusFilter(filter);
                             setModalState(() {});
                           }
                         },
@@ -429,44 +525,29 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
                   const SizedBox(height: 20),
                   const Text('SORT ORDER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey)),
                   const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(child: Text('Newest First')),
-                          selected: _provider.sortOrder == ActivitySortOrder.newestFirst,
-                          selectedColor: AppColors.primaryContainer,
-                          labelStyle: TextStyle(
-                            color: _provider.sortOrder == ActivitySortOrder.newestFirst ? AppColors.primary : AppColors.textPrimary,
-                            fontWeight: _provider.sortOrder == ActivitySortOrder.newestFirst ? FontWeight.bold : FontWeight.normal,
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              _provider.setSortOrder(ActivitySortOrder.newestFirst);
-                              setModalState(() {});
-                            }
-                          },
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: LibrarySortOption.values.map((sort) {
+                      final isSelected = _filterProvider.sortOption == sort;
+                      final label = _getSortLabel(sort);
+                      return ChoiceChip(
+                        label: Text(label),
+                        selected: isSelected,
+                        selectedColor: AppColors.primaryContainer,
+                        labelStyle: TextStyle(
+                          color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 12,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: ChoiceChip(
-                          label: const Center(child: Text('Oldest First')),
-                          selected: _provider.sortOrder == ActivitySortOrder.oldestFirst,
-                          selectedColor: AppColors.primaryContainer,
-                          labelStyle: TextStyle(
-                            color: _provider.sortOrder == ActivitySortOrder.oldestFirst ? AppColors.primary : AppColors.textPrimary,
-                            fontWeight: _provider.sortOrder == ActivitySortOrder.oldestFirst ? FontWeight.bold : FontWeight.normal,
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              _provider.setSortOrder(ActivitySortOrder.oldestFirst);
-                              setModalState(() {});
-                            }
-                          },
-                        ),
-                      ),
-                    ],
+                        onSelected: (selected) {
+                          if (selected) {
+                            _filterProvider.setSortOption(sort);
+                            setModalState(() {});
+                          }
+                        },
+                      );
+                    }).toList(),
                   ),
                   const SizedBox(height: 20),
                   SizedBox(
@@ -491,60 +572,36 @@ class _MyLibraryPageState extends State<MyLibraryPage> {
     );
   }
 
-  String _getFilterLabel(ActivityFilterOption filter) {
+  String _getFilterLabel(LibraryStatusFilter filter) {
     switch (filter) {
-      case ActivityFilterOption.all:
+      case LibraryStatusFilter.all:
         return 'All (Default)';
-      case ActivityFilterOption.pending:
+      case LibraryStatusFilter.pending:
         return 'Pending';
-      case ActivityFilterOption.approved:
+      case LibraryStatusFilter.approved:
         return 'Approved';
-      case ActivityFilterOption.borrowed:
+      case LibraryStatusFilter.borrowed:
         return 'Borrowed';
-      case ActivityFilterOption.returned:
+      case LibraryStatusFilter.returned:
         return 'Returned';
-      case ActivityFilterOption.rejected:
+      case LibraryStatusFilter.rejected:
         return 'Rejected';
-      case ActivityFilterOption.cancelled:
+      case LibraryStatusFilter.cancelled:
         return 'Cancelled';
     }
   }
 
-  void _openBookDetails(BuildContext context, LibraryActivityModel item) {
-    final itemModel = MarketplaceEquipmentModel(
-      equipmentId: item.bookId.isNotEmpty ? item.bookId : 'activity-book',
-      ownerId: 'library',
-      equipmentName: item.bookTitle,
-      category: 'Books',
-      description: '${item.stageMessage}. Activity record from college library.',
-      titleLocalized: {},
-      categoryLocalized: {},
-      descriptionLocalized: {},
-      pricePerHour: 0,
-      pricePerDay: 0,
-      location: 'Main Library',
-      latitude: 0,
-      longitude: 0,
-      imageUrls: [item.bookCover],
-      availability: false,
-      rating: 5.0,
-      createdAt: DateTime.now(),
-      ownerName: 'Library Administration',
-      machineSpecs: '',
-    );
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BookDetailsPage(
-          initialItem: itemModel,
-          userId: widget.currentUser.uid,
-          userName: widget.currentUser.name,
-          userEmail: widget.currentUser.email,
-          userPhone: widget.currentUser.phoneNumber,
-        ),
-      ),
-    );
+  String _getSortLabel(LibrarySortOption sort) {
+    switch (sort) {
+      case LibrarySortOption.newestFirst:
+        return 'Newest First';
+      case LibrarySortOption.oldestFirst:
+        return 'Oldest First';
+      case LibrarySortOption.titleAZ:
+        return 'Title A-Z';
+      case LibrarySortOption.titleZA:
+        return 'Title Z-A';
+    }
   }
 }
 

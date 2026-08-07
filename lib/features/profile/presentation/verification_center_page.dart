@@ -42,8 +42,10 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
     _startEmailStatusChecking();
   }
 
+  StreamSubscription? _userSub;
+
   void _subscribeToUserChanges() {
-    widget.authService.watchCurrentUserProfile().listen((user) {
+    _userSub = widget.authService.watchCurrentUserProfile().listen((user) {
       if (user != null && mounted) {
         setState(() {
           _liveUser = user;
@@ -72,6 +74,7 @@ class _VerificationCenterPageState extends State<VerificationCenterPage> {
 
   @override
   void dispose() {
+    _userSub?.cancel();
     _emailStatusTimer?.cancel();
     super.dispose();
   }
