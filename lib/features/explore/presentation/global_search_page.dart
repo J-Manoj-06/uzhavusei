@@ -1,577 +1,1116 @@
-import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:provider/provider.dart';
-import 'package:shimmer/shimmer.dart';
-import '../../../../models/marketplace_equipment_model.dart';
-import '../../../../models/search_result_model.dart';
-import '../../../../services/search_service.dart';
-import '../../../../services/product_id_service.dart';
-import '../../../../services/search_history_manager.dart';
-import '../../../../services/book_discovery_service.dart';
-import '../../../../providers/location_provider.dart';
-import '../../equipment/presentation/equipment_details_page.dart' as real_details;
-import '../../equipment/presentation/book_details_page.dart';
-import '../../../../widgets/image_loader.dart';
 import 'package:UzhavuSei/theme/app_theme.dart';
+import '../../../models/book_model.dart';
+import '../../../models/marketplace_equipment_model.dart';
+import '../../../models/search_result_model.dart';
+import '../../../providers/offline_search_provider.dart';
+import '../../../providers/search_filter_provider.dart';
+import '../../../providers/search_provider.dart';
+import '../../../providers/search_suggestion_provider.dart';
+import '../../../services/recently_viewed_service.dart';
+import '../../../services/search_recommendation_service.dart';
+import '../../../widgets/filter_bottom_sheet.dart';
+import '../../../widgets/image_loader.dart';
+import '../../../widgets/voice_bottom_sheet.dart';
+import '../../equipment/presentation/book_details_page.dart';
+import '../../equipment/presentation/equipment_details_page.dart' as real_details;
+import 'widgets/search_bar_widget.dart';
+import 'widgets/search_filter_button.dart';
+import 'widgets/search_empty_state.dart';
+import 'widgets/recent_search_section.dart';
 
 class GlobalSearchPage extends StatefulWidget {
-  const GlobalSearchPage({super.key});
+  final String? initialQuery;
+
+  const GlobalSearchPage({super.key, this.initialQuery});
 
   @override
   State<GlobalSearchPage> createState() => _GlobalSearchPageState();
 }
 
 class _GlobalSearchPageState extends State<GlobalSearchPage> {
-  final TextEditingController _searchCtrl = TextEditingController();
+  late final SearchProvider _searchProvider;
+  late final SearchFilterProvider _filterProvider;
+  late final SearchSuggestionProvider _suggestionProvider;
+  late final OfflineSearchProvider _offlineProvider;
+
+  final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
-  Timer? _debounce;
+  bool _showSuggestions = false;
 
-  List<String> _recentSearches = [];
-  final List<String> _popularSearches = [
-    'Engineering Books',
-    'Tractors',
-    'Rotavator',
-    'Concrete Mixer',
-    'Civil Books',
-  ];
-
-  List<SearchResultModel> _allSearchResults = [];
-  List<SearchResultModel> _displayedSearchResults = [];
-  bool _isLoading = false;
-  bool _isOffline = false;
-  bool _isLoadingMore = false;
-  int _displayedCount = 10;
-
-  // Filter States
-  String _selectedCategory = 'All';
-  String _selectedCondition = 'All';
-  bool _onlyAvailable = false;
-  String _selectedCity = '';
-  String _selectedState = '';
-  double? _maxDistanceKm;
-  String _selectedSort = 'Relevance';
-
-  double _userLat = 13.0827;
-  double _userLng = 80.2707;
-  bool _locationAvailable = false;
+  List<Map<String, dynamic>> _recentlyViewedItems = [];
+  List<BookModel> _recommendedBooks = [];
 
   @override
   void initState() {
     super.initState();
-    _loadLocation();
-    _loadRecentSearches();
+    _searchProvider = SearchProvider();
+    _filterProvider = SearchFilterProvider();
+    _suggestionProvider = SearchSuggestionProvider();
+    _offlineProvider = OfflineSearchProvider();
+
+    _searchProvider.addListener(_onStateChanged);
+    _filterProvider.addListener(_onStateChanged);
+    _suggestionProvider.addListener(_onStateChanged);
+    _offlineProvider.addListener(_onStateChanged);
+
     _scrollController.addListener(_onScroll);
+
+    _loadRecentAndRecommendations();
+
+    if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _executeSearchQuery(widget.initialQuery!);
+      });
+    }
   }
 
   @override
   void dispose() {
-    _debounce?.cancel();
-    _searchCtrl.dispose();
     _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
+    _searchController.dispose();
+
+    _searchProvider.removeListener(_onStateChanged);
+    _filterProvider.removeListener(_onStateChanged);
+    _suggestionProvider.removeListener(_onStateChanged);
+    _offlineProvider.removeListener(_onStateChanged);
+
+    _searchProvider.dispose();
+    _filterProvider.dispose();
+    _suggestionProvider.dispose();
+    _offlineProvider.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadRecentAndRecommendations() async {
+    final viewed = await RecentlyViewedService.instance.getRecentlyViewed();
+    final recs = await SearchRecommendationService.instance.getPersonalizedRecommendations();
+
+    if (mounted) {
+      setState(() {
+        _recentlyViewedItems = viewed;
+        _recommendedBooks = recs;
+      });
+    }
   }
 
   void _onScroll() {
     if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
-      if (_displayedCount < _allSearchResults.length && !_isLoadingMore) {
-        _loadNextPage();
+      if (_searchProvider.hasMore && !_searchProvider.isLoadingMore) {
+        _searchProvider.loadMore();
       }
     }
   }
 
-  void _loadLocation() {
-    final locationProvider = context.read<LocationProvider>();
-    final lvl = locationProvider.lastVerifiedLocation;
-    if (lvl != null) {
-      setState(() {
-        _userLat = lvl.latitude;
-        _userLng = lvl.longitude;
-        _locationAvailable = true;
-      });
-    }
+  void _onStateChanged() {
+    if (mounted) setState(() {});
   }
 
-  Future<void> _loadRecentSearches() async {
-    final list = await SearchHistoryManager.getRecentSearches();
-    setState(() {
-      _recentSearches = list;
-    });
+  void _executeSearchQuery(String query) {
+    _searchController.text = query;
+    _searchController.selection = TextSelection.fromPosition(TextPosition(offset: query.length));
+    _showSuggestions = false;
+    _suggestionProvider.clearSuggestions();
+    _searchProvider.onQueryChanged(query);
   }
 
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 500), () {
-      _performSearch(query);
-    });
-  }
-
-  Future<void> _performSearch(String query) async {
-    if (!mounted) return;
-    final cleanQuery = query.trim();
-    if (cleanQuery.isEmpty) return;
-
-    setState(() => _isLoading = true);
-
-    await SearchHistoryManager.addSearch(cleanQuery);
-    _loadRecentSearches();
-
-    final RegExp idRegExp = RegExp(r'^brw-\d{6}$', caseSensitive: false);
-    if (idRegExp.hasMatch(cleanQuery)) {
-      try {
-        final doc = await ProductIdService.instance.searchByProductId(cleanQuery);
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-
-        if (doc != null && doc.exists) {
-          final model = MarketplaceEquipmentModel.fromDoc(doc);
-          _navigateToDetails(model);
-          return;
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('No listing found for this Product ID.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          setState(() {
-            _allSearchResults = [];
-            _displayedSearchResults = [];
-          });
-          return;
-        }
-      } catch (e) {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error searching Product ID: $e')),
-        );
-        return;
-      }
-    }
-
-    try {
-      final results = await SearchService.instance.searchListings(
-        query: cleanQuery,
-        userLat: _userLat,
-        userLng: _userLng,
-        category: _selectedCategory,
-        condition: _selectedCondition,
-        onlyAvailable: _onlyAvailable,
-        city: _selectedCity,
-        state: _selectedState,
-        maxDistanceKm: _maxDistanceKm,
-        sortBy: _selectedSort,
-      );
-
-      if (!mounted) return;
-      setState(() {
-        _allSearchResults = results;
-        _displayedCount = 10;
-        _displayedSearchResults = _allSearchResults.take(_displayedCount).toList();
-        _isLoading = false;
-        _isOffline = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _allSearchResults = [];
-        _displayedSearchResults = [];
-        _isLoading = false;
-        _isOffline = true;
-      });
-    }
-  }
-
-  void _loadNextPage() {
-    setState(() => _isLoadingMore = true);
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (!mounted) return;
-      setState(() {
-        _displayedCount = min(_displayedCount + 10, _allSearchResults.length);
-        _displayedSearchResults = _allSearchResults.take(_displayedCount).toList();
-        _isLoadingMore = false;
-      });
-    });
-  }
-
-  void _clearRecentSearches() async {
-    await SearchHistoryManager.clearAll();
-    _loadRecentSearches();
-  }
-
-  void _deleteRecentSearch(String term) async {
-    await SearchHistoryManager.deleteSearch(term);
-    _loadRecentSearches();
-  }
-
-  void _selectSearchTerm(String term) {
-    _searchCtrl.text = term;
-    _performSearch(term);
-  }
-
-  void _showFilterPanel() {
-    showModalBottomSheet(
+  void _confirmClearHistory() {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (ctx) {
-        return StatefulBuilder(
-          builder: (BuildContext context, StateSetter setModalState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 44,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade300,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Filter Search Results',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Category Filter
-                    const Text('Category', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['All', 'Books', 'Farm Equipment', 'Construction Equipment'].map((cat) {
-                        final isSel = _selectedCategory == cat;
-                        return ChoiceChip(
-                          label: Text(cat),
-                          selected: isSel,
-                          selectedColor: AppColors.primaryContainer,
-                          labelStyle: TextStyle(
-                            color: isSel ? AppColors.primary : Colors.black87,
-                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setModalState(() => _selectedCategory = cat);
-                              setState(() => _selectedCategory = cat);
-                              _performSearch(_searchCtrl.text);
-                            }
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Condition Filter
-                    const Text('Condition', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      children: ['All', 'New', 'Very Good', 'Good', 'Fair'].map((cond) {
-                        final isSel = _selectedCondition == cond;
-                        return ChoiceChip(
-                          label: Text(cond),
-                          selected: isSel,
-                          selectedColor: AppColors.primaryContainer,
-                          labelStyle: TextStyle(
-                            color: isSel ? AppColors.primary : Colors.black87,
-                            fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                          ),
-                          onSelected: (selected) {
-                            if (selected) {
-                              setModalState(() => _selectedCondition = cond);
-                              setState(() => _selectedCondition = cond);
-                              _performSearch(_searchCtrl.text);
-                            }
-                          },
-                        );
-                      }).toList(),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Location Input
-                    const Text('Location', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'City...',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            controller: TextEditingController(text: _selectedCity)..selection = TextSelection.collapsed(offset: _selectedCity.length),
-                            onChanged: (val) {
-                              _selectedCity = val;
-                              _performSearch(_searchCtrl.text);
-                            },
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            decoration: InputDecoration(
-                              hintText: 'State...',
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            ),
-                            controller: TextEditingController(text: _selectedState)..selection = TextSelection.collapsed(offset: _selectedState.length),
-                            onChanged: (val) {
-                              _selectedState = val;
-                              _performSearch(_searchCtrl.text);
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-
-                    // Distance Slider
-                    if (_locationAvailable) ...[
-                      const Text('Maximum Distance (KM)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Slider(
-                              value: _maxDistanceKm ?? 100,
-                              min: 5,
-                              max: 100,
-                              divisions: 19,
-                              activeColor: AppColors.primary,
-                              inactiveColor: AppColors.primaryContainer,
-                              label: _maxDistanceKm != null ? '${_maxDistanceKm!.round()} KM' : 'Anywhere',
-                              onChanged: (val) {
-                                setModalState(() {
-                                  _maxDistanceKm = val;
-                                });
-                                setState(() {
-                                  _maxDistanceKm = val;
-                                });
-                                _performSearch(_searchCtrl.text);
-                              },
-                            ),
-                          ),
-                          Text(
-                            _maxDistanceKm != null ? '${_maxDistanceKm!.round()} km' : 'Anywhere',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: AppColors.primary),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                    ],
-
-                    // Availability Switch
-                    SwitchListTile(
-                      title: const Text('Available Only', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                      value: _onlyAvailable,
-                      activeColor: AppColors.primary,
-                      contentPadding: EdgeInsets.zero,
-                      onChanged: (val) {
-                        setModalState(() => _onlyAvailable = val);
-                        setState(() => _onlyAvailable = val);
-                        _performSearch(_searchCtrl.text);
-                      },
-                    ),
-
-                    const SizedBox(height: 20),
-                    SizedBox(
-                      width: double.infinity,
-                      height: 48,
-                      child: ElevatedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primary,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Apply Filters', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  void _navigateToDetails(MarketplaceEquipmentModel item) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please log in first.')),
-      );
-      return;
-    }
-    if (item.category.toLowerCase().contains('book')) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => BookDetailsPage(
-            initialItem: item,
-            userId: user.uid,
-            userName: user.displayName ?? 'User',
-            userEmail: user.email ?? '',
-            userPhone: '9000000000',
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear Search History'),
+        content: const Text('Are you sure you want to delete all stored searches?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
           ),
-        ),
-      );
-      return;
-    }
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => real_details.EquipmentDetailsPage(
-          equipment: item,
-          userId: user.uid,
-          userName: user.displayName ?? 'User',
-          userEmail: user.email ?? '',
-          userPhone: '9000000000',
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHighlightedTitle(String title, String query) {
-    if (query.isEmpty) {
-      return Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-      );
-    }
-
-    final lowerTitle = title.toLowerCase();
-    final lowerQuery = query.toLowerCase();
-
-    if (!lowerTitle.contains(lowerQuery)) {
-      return Text(
-        title,
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-      );
-    }
-
-    final List<TextSpan> spans = [];
-    int start = 0;
-    int indexOfMatch;
-
-    while ((indexOfMatch = lowerTitle.indexOf(lowerQuery, start)) != -1) {
-      if (indexOfMatch > start) {
-        spans.add(TextSpan(
-          text: title.substring(start, indexOfMatch),
-          style: const TextStyle(color: AppColors.textPrimary),
-        ));
-      }
-
-      spans.add(TextSpan(
-        text: title.substring(indexOfMatch, indexOfMatch + query.length),
-        style: const TextStyle(
-          color: AppColors.primary,
-          backgroundColor: AppColors.primaryContainer,
-          fontWeight: FontWeight.bold,
-        ),
-      ));
-
-      start = indexOfMatch + query.length;
-    }
-
-    if (start < title.length) {
-      spans.add(TextSpan(
-        text: title.substring(start),
-        style: const TextStyle(color: AppColors.textPrimary),
-      ));
-    }
-
-    return RichText(
-      text: TextSpan(
-        style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
-        children: spans,
-      ),
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-    );
-  }
-
-  Widget _buildEmptyStateWidget() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 60),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.search_off_rounded, size: 64, color: Colors.grey),
-          const SizedBox(height: 16),
-          const Text(
-            'No matching resources found.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          const Text(
-            'Try checking your spelling, removing filters, or browsing general categories.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-          const SizedBox(height: 24),
-          ElevatedButton(
+          TextButton(
             onPressed: () {
-              Navigator.pop(context); // Tapping Browse Categories returns home
+              Navigator.pop(ctx);
+              _searchProvider.clearRecentSearches();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-            child: const Text('Browse Categories', style: TextStyle(fontWeight: FontWeight.bold)),
+            child: const Text('Clear All', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildSkeletonRecommendations() {
-    return ListView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: 4,
-      itemBuilder: (context, index) {
-        return Shimmer.fromColors(
-          baseColor: Colors.grey.shade300,
-          highlightColor: Colors.grey.shade100,
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Container(
-              height: 260,
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: const Color(0xFFEBEFF0)),
+  void _navigateToBookDetails(BuildContext context, BookModel book) {
+    RecentlyViewedService.instance.addRecentlyViewed(
+      SearchResultModel.fromBook(book, 100.0),
+    );
+
+    final user = FirebaseAuth.instance.currentUser;
+    final equip = MarketplaceEquipmentModel(
+      equipmentId: book.bookId,
+      ownerId: 'library-admin',
+      equipmentName: book.title,
+      category: book.category,
+      description: book.description,
+      titleLocalized: book.titleLocalized,
+      categoryLocalized: book.categoryLocalized,
+      descriptionLocalized: book.descriptionLocalized,
+      pricePerHour: 0.0,
+      pricePerDay: 0.0,
+      location: 'College Library',
+      latitude: 0.0,
+      longitude: 0.0,
+      imageUrls: [book.coverImage],
+      availability: book.availableCopies > 0,
+      rating: book.rating,
+      createdAt: book.createdAt,
+      ownerName: 'College Librarian',
+      machineSpecs: book.isbn,
+      productId: book.isbn,
+      productIdLower: book.isbn.toLowerCase(),
+    );
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BookDetailsPage(
+          initialItem: equip,
+          userId: user?.uid ?? 'guest',
+          userName: user?.displayName ?? 'User',
+          userEmail: user?.email ?? '',
+          userPhone: user?.phoneNumber ?? '',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchProvider.searchQuery;
+    final isSearching = _searchProvider.isSearching;
+    final rawResults = _searchProvider.searchResults;
+    final filteredResults = _filterProvider.applyFilters(rawResults);
+    final error = _searchProvider.errorMessage;
+    final suggestions = _suggestionProvider.suggestions;
+    final isOffline = _offlineProvider.isOffline;
+
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.textPrimary,
+        elevation: 0.5,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_rounded),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Global Search',
+          style: TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+            color: AppColors.textPrimary,
+          ),
+        ),
+      ),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // Offline Status Banner
+                if (isOffline)
+                  Container(
+                    width: double.infinity,
+                    color: Colors.amber.shade700,
+                    padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.wifi_off_rounded, size: 14, color: Colors.white),
+                        SizedBox(width: 6),
+                        Text(
+                          'Offline Mode — Showing cached results',
+                          style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Search Bar & Filter Header Row
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SearchBarWidget(
+                              controller: _searchController,
+                              onChanged: (val) {
+                                _showSuggestions = val.trim().isNotEmpty;
+                                _suggestionProvider.onQueryChanged(val);
+                                _searchProvider.onQueryChanged(val);
+                              },
+                              onMicTap: () {
+                                VoiceBottomSheet.show(
+                                  context,
+                                  onResult: (q) => _executeSearchQuery(q),
+                                );
+                              },
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          SearchFilterButton(
+                            onTap: () {
+                              FilterBottomSheet.show(
+                                context,
+                                initialFilter: _filterProvider.filter,
+                                onApply: (newFilter) {
+                                  _filterProvider.setMainCategory(newFilter.mainCategory);
+                                  _filterProvider.setBookCategory(newFilter.bookCategory);
+                                  _filterProvider.setDepartment(newFilter.department);
+                                  _filterProvider.setAvailability(newFilter.availability);
+                                  _filterProvider.setSortBy(newFilter.sortBy);
+                                },
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+
+                      // Active Filter Chips Row
+                      if (_filterProvider.hasActiveFilters) ...[
+                        const SizedBox(height: 10),
+                        _buildActiveFilterChips(),
+                      ],
+                    ],
+                  ),
+                ),
+
+                const Divider(height: 1, color: Color(0xFFE2E8F0)),
+
+                // Search Content Switcher with Pull-to-Refresh
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: () async {
+                      await _searchProvider.refreshCurrentSearch();
+                      await _loadRecentAndRecommendations();
+                    },
+                    child: _buildMainContent(query, isSearching, rawResults, filteredResults, error),
+                  ),
+                ),
+              ],
+            ),
+
+            // Live Autocomplete Suggestions Dropdown Overlay
+            if (_showSuggestions && suggestions.isNotEmpty)
+              Positioned(
+                top: isOffline ? 96 : 68,
+                left: 16,
+                right: 74,
+                child: Material(
+                  elevation: 6,
+                  borderRadius: BorderRadius.circular(16),
+                  color: Colors.white,
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 280),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                    ),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      shrinkWrap: true,
+                      itemCount: suggestions.length,
+                      separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFFF1F5F9)),
+                      itemBuilder: (context, index) {
+                        final item = suggestions[index];
+                        return ListTile(
+                          dense: true,
+                          leading: const Icon(Icons.search_rounded, size: 18, color: AppColors.textSecondary),
+                          title: Text(
+                            item,
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                          ),
+                          trailing: const Icon(Icons.north_west_rounded, size: 14, color: Colors.grey),
+                          onTap: () => _executeSearchQuery(item),
+                        );
+                      },
+                    ),
+                  ),
+                ),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActiveFilterChips() {
+    final filter = _filterProvider.filter;
+    final chips = <Widget>[];
+
+    if (filter.mainCategory != 'All') {
+      chips.add(_buildFilterChip(filter.mainCategory, () => _filterProvider.setMainCategory('All')));
+    }
+    if (filter.bookCategory != 'All') {
+      chips.add(_buildFilterChip(filter.bookCategory, () => _filterProvider.setBookCategory('All')));
+    }
+    if (filter.department != 'All') {
+      chips.add(_buildFilterChip(filter.department, () => _filterProvider.setDepartment('All')));
+    }
+    if (filter.availability != 'All') {
+      chips.add(_buildFilterChip(filter.availability, () => _filterProvider.setAvailability('All')));
+    }
+    if (filter.sortBy != 'Newest') {
+      chips.add(_buildFilterChip('Sort: ${filter.sortBy}', () => _filterProvider.setSortBy('Newest')));
+    }
+
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: chips),
+          ),
+        ),
+        TextButton(
+          onPressed: () => _filterProvider.clearAll(),
+          style: TextButton.styleFrom(padding: const EdgeInsets.only(left: 8)),
+          child: const Text('Clear All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red)),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilterChip(String label, VoidCallback onRemove) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: InputChip(
+        label: Text(label),
+        onDeleted: onRemove,
+        deleteIcon: const Icon(Icons.close_rounded, size: 14),
+        backgroundColor: AppColors.primaryContainer.withOpacity(0.5),
+        labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
+    );
+  }
+
+  Widget _buildMainContent(
+    String query,
+    bool isSearching,
+    List<SearchResultModel> rawResults,
+    List<SearchResultModel> filteredResults,
+    String? error,
+  ) {
+    if (error != null && rawResults.isEmpty) {
+      return _buildErrorState(error);
+    }
+
+    if (isSearching) {
+      return _buildShimmerLoading();
+    }
+
+    if (query.trim().isNotEmpty) {
+      if (rawResults.isEmpty) {
+        return _buildNoResultsState(query);
+      }
+      if (filteredResults.isEmpty) {
+        return _buildNoFilterResultsState();
+      }
+      return _buildSearchResultsList(filteredResults, query);
+    }
+
+    // Idle State — Recent Searches, Recently Viewed, Recommended For You & Trending Books
+    return SingleChildScrollView(
+      controller: _scrollController,
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Recent Searches
+          RecentSearchSection(
+            recentSearches: _searchProvider.recentSearches,
+            onSelectQuery: _executeSearchQuery,
+            onDeleteQuery: (term) => _searchProvider.removeRecentSearch(term),
+            onClearAll: _confirmClearHistory,
+          ),
+
+          const SizedBox(height: 20),
+
+          // Recently Viewed Items Section
+          if (_recentlyViewedItems.isNotEmpty) ...[
+            _buildRecentlyViewedSection(),
+            const SizedBox(height: 24),
+          ],
+
+          // Recommended For You Section
+          if (_recommendedBooks.isNotEmpty) ...[
+            _buildRecommendedForYouSection(),
+            const SizedBox(height: 24),
+          ],
+
+          // Popular Searches (generated dynamically from recent history)
+          if (_searchProvider.popularSearches.isNotEmpty) ...[
+            _buildPopularSearchesSection(),
+            const SizedBox(height: 24),
+          ],
+
+          // Real Trending Books from Firestore
+          _buildTrendingBooksSection(),
+
+          const SizedBox(height: 32),
+
+          // Search Empty State Indicator
+          const SearchEmptyState(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentlyViewedSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Recently Viewed',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            TextButton(
+              onPressed: () async {
+                await RecentlyViewedService.instance.clearRecentlyViewed();
+                setState(() => _recentlyViewedItems = []);
+              },
+              child: const Text('Clear', style: TextStyle(fontSize: 11, color: Colors.grey)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 100,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _recentlyViewedItems.length,
+            itemBuilder: (context, index) {
+              final item = _recentlyViewedItems[index];
+              final title = (item['title'] ?? '').toString();
+              final img = (item['imageUrl'] ?? '').toString();
+              final isBook = item['type'] == 'book';
+
+              return GestureDetector(
+                onTap: () => _executeSearchQuery(title),
+                child: Container(
+                  width: 72,
+                  margin: const EdgeInsets.only(right: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: SizedBox(
+                          width: 72,
+                          height: 76,
+                          child: buildSmartImage(img, fit: BoxFit.cover, isBook: isBook),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRecommendedForYouSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Recommended For You',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 165,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: _recommendedBooks.length,
+            itemBuilder: (context, index) {
+              final book = _recommendedBooks[index];
+              return GestureDetector(
+                onTap: () => _navigateToBookDetails(context, book),
+                child: Container(
+                  width: 100,
+                  margin: const EdgeInsets.only(right: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: SizedBox(
+                          width: 100,
+                          height: 120,
+                          child: buildSmartImage(book.coverImage, fit: BoxFit.cover, isBook: true),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        book.title,
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      Text(
+                        book.author,
+                        style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPopularSearchesSection() {
+    final popular = _searchProvider.popularSearches;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Popular Searches',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: popular.map((term) {
+            return ActionChip(
+              avatar: const Icon(Icons.trending_up_rounded, size: 14, color: AppColors.primary),
+              label: Text(term),
+              backgroundColor: AppColors.primaryContainer.withOpacity(0.4),
+              labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+              onPressed: () => _executeSearchQuery(term),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTrendingBooksSection() {
+    final trending = _searchProvider.trendingBooks;
+    final isLoading = _searchProvider.isLoadingTrending;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: const [
+            Text(
+              'Trending Books',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            Text(
+              'Newest Additions',
+              style: TextStyle(fontSize: 11, color: Colors.grey, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (isLoading)
+          SizedBox(
+            height: 140,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: 4,
+              itemBuilder: (_, __) => Container(
+                width: 90,
+                margin: const EdgeInsets.only(right: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          )
+        else if (trending.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: const Text(
+              'Will appear automatically as books become popular.',
+              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+            ),
+          )
+        else
+          SizedBox(
+            height: 165,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: trending.length,
+              itemBuilder: (context, index) {
+                final book = trending[index];
+                return GestureDetector(
+                  onTap: () => _navigateToBookDetails(context, book),
+                  child: Container(
+                    width: 100,
+                    margin: const EdgeInsets.only(right: 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: SizedBox(
+                            width: 100,
+                            height: 120,
+                            child: buildSmartImage(book.coverImage, fit: BoxFit.cover, isBook: true),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          book.title,
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          book.author,
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSearchResultsList(List<SearchResultModel> results, String query) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView.builder(
+            controller: _scrollController,
+            padding: const EdgeInsets.all(16),
+            itemCount: results.length + (_searchProvider.hasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == results.length) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5),
+                    ),
+                  ),
+                );
+              }
+
+              final item = results[index];
+              if (item.type == SearchResultType.book && item.book != null) {
+                return _buildBookResultCard(context, item.book!, query);
+              } else if (item.type == SearchResultType.equipment && item.equipment != null) {
+                return _buildEquipmentResultCard(context, item.equipment!, query);
+              }
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
+
+        // Recommendations Section "You May Also Like"
+        _buildYouMayAlsoLikeSection(),
+      ],
+    );
+  }
+
+  Widget _buildYouMayAlsoLikeSection() {
+    final trending = _searchProvider.trendingBooks.take(5).toList();
+    if (trending.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'You May Also Like',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 100,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: trending.length,
+              itemBuilder: (context, index) {
+                final b = trending[index];
+                return GestureDetector(
+                  onTap: () => _navigateToBookDetails(context, b),
+                  child: Container(
+                    width: 70,
+                    margin: const EdgeInsets.only(right: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 70,
+                            height: 75,
+                            child: buildSmartImage(b.coverImage, fit: BoxFit.cover, isBook: true),
+                          ),
+                        ),
+                        Text(
+                          b.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBookResultCard(BuildContext context, BookModel book, String query) {
+    return Card(
+      elevation: 1.5,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => _navigateToBookDetails(context, book),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 60,
+                  height: 82,
+                  child: buildSmartImage(book.coverImage, fit: BoxFit.cover, isBook: true),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade50,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('BOOK', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.blue)),
+                        ),
+                        const SizedBox(width: 6),
+                        if (book.department.isNotEmpty)
+                          Expanded(
+                            child: Text(
+                              book.department,
+                              style: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _buildHighlightedText(
+                      book.title,
+                      query,
+                      normalStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        const Text('Author: ', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                        Expanded(
+                          child: _buildHighlightedText(
+                            book.author,
+                            query,
+                            normalStyle: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: book.availableCopies > 0 ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            book.availableCopies > 0 ? '${book.availableCopies} available' : 'Borrowed',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: book.availableCopies > 0 ? const Color(0xFF15803D) : const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                        if (book.isbn.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            'ISBN: ${book.isbn}',
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEquipmentResultCard(BuildContext context, MarketplaceEquipmentModel equip, String query) {
+    final user = FirebaseAuth.instance.currentUser;
+
+    return Card(
+      elevation: 1.5,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: Color(0xFFE2E8F0)),
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () {
+          RecentlyViewedService.instance.addRecentlyViewed(
+            SearchResultModel.fromEquipment(equip, 100.0),
+          );
+
+          if (user != null) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => real_details.EquipmentDetailsPage(
+                  equipment: equip,
+                  userId: user.uid,
+                  userName: user.displayName ?? 'User',
+                  userEmail: user.email ?? '',
+                  userPhone: user.phoneNumber ?? '',
+                ),
+              ),
+            );
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 60,
+                  height: 82,
+                  child: buildSmartImage(
+                    equip.imageUrls.isNotEmpty ? equip.imageUrls.first : '',
+                    fit: BoxFit.cover,
+                    isBook: false,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('EQUIPMENT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: _buildHighlightedText(
+                            equip.category,
+                            query,
+                            normalStyle: const TextStyle(fontSize: 10, color: Colors.grey, fontWeight: FontWeight.w500),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _buildHighlightedText(
+                      equip.equipmentName,
+                      query,
+                      normalStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Owner: ${equip.ownerName} • ${equip.location}',
+                      style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Text(
+                          '₹${equip.pricePerDay.toStringAsFixed(0)}/day',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
+                        ),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: equip.availability ? const Color(0xFFF0FDF4) : const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            equip.availability ? 'Available' : 'Booked',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: equip.availability ? const Color(0xFF15803D) : const Color(0xFFDC2626),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHighlightedText(String fullText, String query, {TextStyle? normalStyle}) {
+    final cleanQ = query.trim();
+    if (cleanQ.isEmpty || fullText.isEmpty) {
+      return Text(fullText, style: normalStyle);
+    }
+
+    final lowerText = fullText.toLowerCase();
+    final lowerQuery = cleanQ.toLowerCase();
+    final index = lowerText.indexOf(lowerQuery);
+
+    if (index == -1) {
+      return Text(fullText, style: normalStyle);
+    }
+
+    final before = fullText.substring(0, index);
+    final matched = fullText.substring(index, index + cleanQ.length);
+    final after = fullText.substring(index + cleanQ.length);
+
+    return RichText(
+      text: TextSpan(
+        style: normalStyle ?? const TextStyle(color: AppColors.textPrimary, fontSize: 14),
+        children: [
+          TextSpan(text: before),
+          TextSpan(
+            text: matched,
+            style: const TextStyle(
+              color: AppColors.primary,
+              fontWeight: FontWeight.bold,
+              backgroundColor: Color(0xFFDCFCE7),
+            ),
+          ),
+          TextSpan(text: after),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildShimmerLoading() {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: 4,
+      itemBuilder: (_, __) {
+        return Card(
+          elevation: 1,
+          margin: const EdgeInsets.only(bottom: 12),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Container(
+                  width: 60,
+                  height: 82,
+                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(width: 80, height: 12, color: Colors.grey.shade200),
+                      const SizedBox(height: 8),
+                      Container(width: 140, height: 16, color: Colors.grey.shade200),
+                      const SizedBox(height: 8),
+                      Container(width: 100, height: 12, color: Colors.grey.shade200),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         );
@@ -579,517 +1118,119 @@ class _GlobalSearchPageState extends State<GlobalSearchPage> {
     );
   }
 
-  String _getCategoryEmoji(String category) {
-    final lower = category.toLowerCase();
-    if (lower.contains('book')) return '📚';
-    if (lower.contains('tractor') || lower.contains('farm') || lower.contains('agricultural')) return '🚜';
-    if (lower.contains('drill') || lower.contains('construction') || lower.contains('mixer')) return '🏗️';
-    if (lower.contains('power') || lower.contains('tool')) return '🧰';
-    if (lower.contains('furniture')) return '🪑';
-    return '🌱';
-  }
+  Widget _buildNoResultsState(String query) {
+    final typoCorrection = _searchProvider.didYouMean;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA),
-      appBar: AppBar(
-        title: const Text('Global Search', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0.5,
-      ),
-      body: RefreshIndicator(
-        onRefresh: () => _performSearch(_searchCtrl.text),
-        color: AppColors.primary,
-        child: SingleChildScrollView(
-          controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Search Input Row
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: const Color(0xFFEBEFF0)),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.search, color: Colors.grey, size: 20),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: TextField(
-                                controller: _searchCtrl,
-                                style: const TextStyle(fontSize: 14),
-                                decoration: const InputDecoration(
-                                  hintText: 'Search items name, category, author, brand...',
-                                  hintStyle: TextStyle(color: Colors.grey, fontSize: 13),
-                                  border: InputBorder.none,
-                                  isDense: true,
-                                ),
-                                onChanged: _onSearchChanged,
-                              ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.mic, color: Colors.grey, size: 20),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(),
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Voice search feature coming soon!'),
-                                    backgroundColor: AppColors.primary,
-                                  ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: _showFilterPanel,
-                      child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(Icons.filter_list, color: AppColors.primary, size: 20),
-                      ),
-                    ),
-                  ],
-                ),
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                shape: BoxShape.circle,
               ),
-
-              // Dynamic Offline state banner
-              if (_isOffline)
-                Container(
-                  margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFF3E0),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.wifi_off_rounded, size: 16, color: Colors.orange),
-                      SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Offline results. Newly added resources may not be visible.',
-                          style: TextStyle(fontSize: 12, color: Color(0xFF795548)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-              // Categories Row chips
-              if (_searchCtrl.text.isEmpty && _allSearchResults.isEmpty) ...[
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Browse Categories', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: StreamBuilder<Map<String, int>>(
-                    stream: BookDiscoveryService.instance.watchCategoryCounts(),
-                    builder: (context, snapshot) {
-                      final counts = snapshot.data ?? {'All': 0, 'Books': 0, 'Farm Equipment': 0, 'Construction Equipment': 0};
-                      return Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: counts.entries.map((entry) {
-                          final cat = entry.key;
-                          final count = entry.value;
-                          final isSelected = _selectedCategory.toLowerCase() == cat.toLowerCase();
-                          return ActionChip(
-                            avatar: Text(_getCategoryEmoji(cat)),
-                            label: Text('$cat ($count)',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                  color: isSelected ? AppColors.primary : AppColors.textPrimary,
-                                )),
-                            backgroundColor: isSelected ? AppColors.primary.withOpacity(0.1) : Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              side: BorderSide(color: isSelected ? AppColors.primary : const Color(0xFFEBEFF0)),
-                            ),
-                            onPressed: () {
-                              setState(() {
-                                _selectedCategory = cat;
-                              });
-                              _performSearch(_searchCtrl.text);
-                            },
-                          );
-                        }).toList(),
-                      );
-                    },
-                  ),
-                ),
-
-                // Popular Searches Chips
-                const SizedBox(height: 16),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Text('Popular Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: _popularSearches.map((term) {
-                      return ActionChip(
-                        label: Text(term, style: const TextStyle(fontSize: 11)),
-                        backgroundColor: const Color(0xFFF5F5F5),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide.none),
-                        onPressed: () => _selectSearchTerm(term),
-                      );
-                    }).toList(),
-                  ),
-                ),
-
-                // Trending Books Discovery Carousel
-                const SizedBox(height: 16),
-                StreamBuilder<List<MarketplaceEquipmentModel>>(
-                  stream: BookDiscoveryService.instance.watchTrendingBooks(),
-                  builder: (context, snapshot) {
-                    final books = snapshot.data ?? [];
-                    if (books.isEmpty) return const SizedBox.shrink();
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          child: Text('Trending Books', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                        ),
-                        SizedBox(
-                          height: 150,
-                          child: ListView.builder(
-                            scrollDirection: Axis.horizontal,
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: books.length,
-                            itemBuilder: (context, index) {
-                              final b = books[index];
-                              return GestureDetector(
-                                onTap: () => _navigateToDetails(b),
-                                child: Container(
-                                  width: 110,
-                                  margin: const EdgeInsets.only(right: 12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Expanded(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(8),
-                                          child: b.imageUrls.isNotEmpty
-                                              ? Image.network(b.imageUrls.first, fit: BoxFit.cover, width: double.infinity,
-                                                  errorBuilder: (_, __, ___) => Container(color: Colors.grey[200], child: const Icon(Icons.book)))
-                                              : Container(color: Colors.grey[200], child: const Icon(Icons.book)),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(b.equipmentName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
-                                      Text('₹${b.pricePerDay.toStringAsFixed(0)}/day', style: const TextStyle(color: AppColors.primary, fontSize: 11, fontWeight: FontWeight.bold)),
-                                    ],
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-
-                // Recent Searches List
-                if (_recentSearches.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text('Recent Searches', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary)),
-                        TextButton(
-                          onPressed: _clearRecentSearches,
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(40, 20), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-                          child: const Text('Clear All', style: TextStyle(fontSize: 12, color: AppColors.primary, fontWeight: FontWeight.bold)),
-                        ),
-                      ],
-                    ),
-                  ),
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    itemCount: _recentSearches.length,
-                    itemBuilder: (context, index) {
-                      final term = _recentSearches[index];
-                      return ListTile(
-                        leading: const Icon(Icons.history, color: Colors.grey, size: 20),
-                        title: Text(term, style: const TextStyle(fontSize: 13)),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, color: Colors.grey, size: 16),
-                          onPressed: () => _deleteRecentSearch(term),
-                        ),
-                        onTap: () => _selectSearchTerm(term),
-                        dense: true,
-                      );
-                    },
+              child: const Icon(Icons.search_off_rounded, size: 56, color: Colors.red),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'No matching results for "$query"',
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            if (typoCorrection != null) ...[
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('Did you mean: ', style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+                  ActionChip(
+                    label: Text(typoCorrection, style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primary)),
+                    backgroundColor: AppColors.primaryContainer.withOpacity(0.5),
+                    onPressed: () => _executeSearchQuery(typoCorrection),
                   ),
                 ],
-              ],
-
-              // Results Section Header
-              if (_searchCtrl.text.isNotEmpty || _allSearchResults.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    children: [
-                      Text(
-                        'Search Results (${_allSearchResults.length})',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.textPrimary),
-                      ),
-                      const Spacer(),
-                      DropdownButton<String>(
-                        value: _selectedSort,
-                        icon: const Icon(Icons.arrow_drop_down, color: AppColors.primary),
-                        underline: const SizedBox(),
-                        style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.bold, fontSize: 12),
-                        items: <String>['Relevance', 'Newest', 'Nearest', 'Highest Rated', 'Most Requested'].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _selectedSort = val;
-                            });
-                            _performSearch(_searchCtrl.text);
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 8),
-
-                if (_isLoading)
-                  _buildSkeletonRecommendations()
-                else if (_displayedSearchResults.isEmpty)
-                  _buildEmptyStateWidget()
-                else
-                  ListView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _displayedSearchResults.length,
-                    itemBuilder: (context, index) {
-                      final item = _displayedSearchResults[index].listing;
-                      final distanceStr = item.distanceInfo?.formattedString ?? '';
-                      final isFav = false;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 16),
-                        child: Card(
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                            side: const BorderSide(color: Color(0xFFEBEFF0)),
-                          ),
-                          color: Colors.white,
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap: () => _navigateToDetails(item),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                AspectRatio(
-                                  aspectRatio: 16 / 9,
-                                  child: Stack(
-                                    children: [
-                                      Positioned.fill(
-                                        child: buildSmartImage(
-                                          item.imageUrls.isNotEmpty ? item.imageUrls.first : '',
-                                          fit: BoxFit.cover,
-                                          isBook: item.category.toLowerCase().contains('book'),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 8,
-                                        left: 8,
-                                        child: Container(
-                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                          decoration: BoxDecoration(
-                                            color: Colors.black.withValues(alpha: 0.65),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Text(_getCategoryEmoji(item.category), style: const TextStyle(fontSize: 10)),
-                                              const SizedBox(width: 3),
-                                              Text(
-                                                item.category,
-                                                style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 8,
-                                        right: 8,
-                                        child: CircleAvatar(
-                                          radius: 14,
-                                          backgroundColor: Colors.white.withValues(alpha: 0.85),
-                                          child: Icon(
-                                            isFav ? Icons.favorite : Icons.favorite_border,
-                                            color: isFav ? Colors.red : Colors.black,
-                                            size: 14,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(12),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      _buildHighlightedTitle(item.equipmentName, _searchCtrl.text),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          if (_locationAvailable && distanceStr.isNotEmpty) ...[
-                                            const Icon(Icons.near_me_rounded, size: 12, color: AppColors.primary),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              distanceStr,
-                                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary),
-                                            ),
-                                            const SizedBox(width: 8),
-                                          ],
-                                          const Icon(Icons.location_on_outlined, size: 12, color: Colors.grey),
-                                          const SizedBox(width: 2),
-                                          Expanded(
-                                            child: Text(
-                                              'Near ${item.area.isNotEmpty ? "${item.area}, " : ""}${item.city}',
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: const TextStyle(fontSize: 11, color: Colors.grey),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                            decoration: BoxDecoration(
-                                              color: AppColors.primaryContainer,
-                                              borderRadius: BorderRadius.circular(6),
-                                            ),
-                                            child: Text(
-                                              item.condition,
-                                              style: const TextStyle(color: AppColors.primary, fontSize: 10, fontWeight: FontWeight.bold),
-                                            ),
-                                          ),
-                                          if (item.productId.isNotEmpty) ...[
-                                            const SizedBox(width: 8),
-                                            Text(
-                                              item.productId,
-                                              style: const TextStyle(
-                                                fontFamily: 'monospace',
-                                                fontSize: 10,
-                                                fontWeight: FontWeight.bold,
-                                                color: Colors.grey,
-                                              ),
-                                            ),
-                                          ],
-                                          const Spacer(),
-                                          const Icon(Icons.star, size: 12, color: Colors.amber),
-                                          const SizedBox(width: 2),
-                                          Text(
-                                            item.rating > 0 ? item.rating.toStringAsFixed(1) : '5.0',
-                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Row(
-                                        children: [
-                                          Container(
-                                            width: 6,
-                                            height: 6,
-                                            decoration: BoxDecoration(
-                                              color: item.availability ? AppColors.success : Colors.orange,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            item.availability ? 'Available Now' : 'Currently On Loan',
-                                            style: TextStyle(
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
-                                              color: item.availability ? AppColors.success : Colors.orange,
-                                            ),
-                                          ),
-                                          const Spacer(),
-                                          ElevatedButton(
-                                            onPressed: () => _navigateToDetails(item),
-                                            style: ElevatedButton.styleFrom(
-                                              backgroundColor: AppColors.primary,
-                                              foregroundColor: Colors.white,
-                                              elevation: 0,
-                                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                            ),
-                                            child: const Text('Borrow', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-
-                if (_isLoadingMore)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: CircularProgressIndicator(color: AppColors.primary),
-                    ),
-                  ),
-              ],
-              const SizedBox(height: 80),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Try another keyword, book title, author, or category.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+              ),
             ],
-          ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoFilterResultsState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.filter_alt_off_rounded, size: 56, color: Colors.amber),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'No matching results',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Try changing your filters to see more results.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: () => _filterProvider.clearAll(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Clear Filters'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String message) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 56, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => _searchProvider.onQueryChanged(_searchController.text),
+              child: const Text('Retry Search'),
+            ),
+          ],
         ),
       ),
     );
